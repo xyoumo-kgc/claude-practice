@@ -11,3 +11,18 @@ Claude Codeの練習用リポジトリです。
 ## 使い方
 
 このリポジトリはClaude Codeと一緒に学習するための練習場所です。
+
+## はじめかた
+
+1. このリポジトリをクローンする
+   ```bash
+   git clone https://github.com/xyoumo-kgc/claude-practice.git
+   ```
+2. ディレクトリに移動する
+   ```bash
+   cd claude-practice
+   ```
+3. Claude Codeを起動して練習を始める
+   ```bash
+   claude
+   ```
