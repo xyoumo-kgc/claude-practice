@@ -44,7 +44,7 @@ input int    InpHistoryDays  = 90;    // 損益履歴の参照期間（日数）
 //| インジケーターハンドル                                           |
 //+------------------------------------------------------------------+
 int hMA_M15, hMA_H1, hMA_H4, hMA_D1;
-int hATR_H1;
+int hATR_H1, hATR_H4;
 datetime g_lastBar = 0;
 
 CPositionInfo PositionInfo;
@@ -60,9 +60,11 @@ int OnInit()
    hMA_H4  = iMA(_Symbol, PERIOD_H4,  20, 0, MODE_SMA, PRICE_CLOSE);
    hMA_D1  = iMA(_Symbol, PERIOD_D1,  20, 0, MODE_SMA, PRICE_CLOSE);
    hATR_H1 = iATR(_Symbol, PERIOD_H1, 14);
+   hATR_H4 = iATR(_Symbol, PERIOD_H4, 14);
 
    if(hMA_M15 == INVALID_HANDLE || hMA_H1 == INVALID_HANDLE ||
-      hMA_H4  == INVALID_HANDLE || hMA_D1 == INVALID_HANDLE || hATR_H1 == INVALID_HANDLE)
+      hMA_H4  == INVALID_HANDLE || hMA_D1 == INVALID_HANDLE ||
+      hATR_H1 == INVALID_HANDLE || hATR_H4 == INVALID_HANDLE)
    {
       Alert("4P-Dashboard: インジケーター初期化失敗");
       return INIT_FAILED;
@@ -150,6 +152,68 @@ int DowTrend(ENUM_TIMEFRAMES tf)
    if(hh && hl) return  1;
    if(lh && ll) return -1;
    return 0;
+}
+
+//+------------------------------------------------------------------+
+//| 反対勢力スコア（0〜20点）                                        |
+//| 4H・日足スイングの中で、4Hトレンド方向の進行を妨げる             |
+//| 最寄りレベルまでの距離をATR(H4)比で採点                          |
+//+------------------------------------------------------------------+
+int OppForceScore(int dir)
+{
+   if(dir == 0) return 0;
+
+   double atr[];
+   ArraySetAsSeries(atr, true);
+   if(CopyBuffer(hATR_H4, 0, 1, 1, atr) < 1 || atr[0] <= 0) return 0;
+   double atrVal = atr[0];
+
+   double price = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+   double nearest = 0;
+   bool found = false;
+
+   ENUM_TIMEFRAMES tfs[2] = {PERIOD_H4, PERIOD_D1};
+   int depth = InpSwingDepth;
+
+   for(int t = 0; t < 2; t++)
+   {
+      int bars = MathMin(InpLookback, iBars(_Symbol, tfs[t]) - depth - 1);
+      for(int i = depth + 1; i < bars; i++)
+      {
+         if(dir == -1) // 売り目線 → 直下のサポート（スイング安値）
+         {
+            double l = iLow(_Symbol, tfs[t], i);
+            bool isL = true;
+            for(int k = 1; k <= depth && isL; k++)
+            {
+               if(l >= iLow(_Symbol, tfs[t], i - k)) isL = false;
+               if(l >  iLow(_Symbol, tfs[t], i + k)) isL = false;
+            }
+            if(isL && l < price)
+               if(!found || l > nearest) { nearest = l; found = true; }
+         }
+         else          // 買い目線 → 直上のレジスタンス（スイング高値）
+         {
+            double h = iHigh(_Symbol, tfs[t], i);
+            bool isH = true;
+            for(int k = 1; k <= depth && isH; k++)
+            {
+               if(h <= iHigh(_Symbol, tfs[t], i - k)) isH = false;
+               if(h <  iHigh(_Symbol, tfs[t], i + k)) isH = false;
+            }
+            if(isH && h > price)
+               if(!found || h < nearest) { nearest = h; found = true; }
+         }
+      }
+   }
+
+   if(!found) return 20; // 反対勢力なし＝視界良好
+
+   double distATR = MathAbs(price - nearest) / atrVal;
+   if(distATR >= 3.0) return 20;
+   if(distATR >= 2.0) return 10;
+   if(distATR >= 1.0) return 5;
+   return 0; // 近すぎる → エントリー見送り推奨
 }
 
 //+------------------------------------------------------------------+
@@ -254,21 +318,22 @@ void ScoreMeter(string name, int x, int y, int w, int h, int score, int maxScore
    if(filled < 0) filled = 0;
    if(filled > w) filled = w;
    color clr = score >= 85 ? C'200,160,0' : score >= 70 ? C'88,166,255' : C'100,200,100';
-   if(filled > 2)
-   {
-      string fillName = PREFIX + name + "_fill";
-      if(ObjectFind(0, fillName) < 0)
-         ObjectCreate(0, fillName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
-      ObjectSetInteger(0, fillName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
-      ObjectSetInteger(0, fillName, OBJPROP_XDISTANCE, x + 1);
-      ObjectSetInteger(0, fillName, OBJPROP_YDISTANCE, y + 1);
-      ObjectSetInteger(0, fillName, OBJPROP_XSIZE, filled - 2);
-      ObjectSetInteger(0, fillName, OBJPROP_YSIZE, h - 2);
-      ObjectSetInteger(0, fillName, OBJPROP_BGCOLOR, clr);
-      ObjectSetInteger(0, fillName, OBJPROP_BORDER_COLOR, clr);
-      ObjectSetInteger(0, fillName, OBJPROP_BACK, true);
-      ObjectSetInteger(0, fillName, OBJPROP_SELECTABLE, false);
-   }
+
+   // スコア0でも必ずサイズ更新（古い値のバーが残るのを防ぐ）
+   string fillName = PREFIX + name + "_fill";
+   if(ObjectFind(0, fillName) < 0)
+      ObjectCreate(0, fillName, OBJ_RECTANGLE_LABEL, 0, 0, 0);
+   int fillW = (filled > 2) ? filled - 2 : 1;
+   color fillClr = (filled > 2) ? clr : C'20,25,32'; // 0点は背景色で不可視化
+   ObjectSetInteger(0, fillName, OBJPROP_CORNER, CORNER_LEFT_UPPER);
+   ObjectSetInteger(0, fillName, OBJPROP_XDISTANCE, x + 1);
+   ObjectSetInteger(0, fillName, OBJPROP_YDISTANCE, y + 1);
+   ObjectSetInteger(0, fillName, OBJPROP_XSIZE, fillW);
+   ObjectSetInteger(0, fillName, OBJPROP_YSIZE, h - 2);
+   ObjectSetInteger(0, fillName, OBJPROP_BGCOLOR, fillClr);
+   ObjectSetInteger(0, fillName, OBJPROP_BORDER_COLOR, fillClr);
+   ObjectSetInteger(0, fillName, OBJPROP_BACK, true);
+   ObjectSetInteger(0, fillName, OBJPROP_SELECTABLE, false);
 }
 
 //+------------------------------------------------------------------+
@@ -411,9 +476,9 @@ void Redraw()
    // スコア項目
    int baseScore = (tH4 != 0) ? 40 : 0;
    int s1 = (tD1 == tH4 && tD1 != 0) ? 20 : (tD1 == 0 && tH4 != 0) ? 5 : 0;
-   int s2 = 10; // 仮値（反対勢力は概算）
+   int s2 = (tH4 != 0) ? OppForceScore(tH4) : 0; // 反対勢力までの実距離で採点
    int s3 = (tH1 == tH4 && tH4 != 0) ? 10 : 0;
-   int s4 = 0;  // リトレースは個別判断
+   int s4 = 0;  // リトレースは個別判断（執行足の波形は目視確認）
    int totalScore = baseScore + s1 + s2 + s3 + s4;
 
    string scoreItems[5] = {"基本トリガー[40]", "日足合致[+20]", "反対勢力[+20]", "MA整列[+10]", "リトレース[+10]"};

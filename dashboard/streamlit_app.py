@@ -89,10 +89,8 @@ def generate_ohlc(pair: str, years: int, seed: int = 42) -> pd.DataFrame:
             if r < trend_persistence:
                 pass  # 継続
             else:
-                choices = [1, -1, 0]
-                choices.remove(regime) if regime in choices else None
                 new_choices = [r2 for r2 in [1, -1, 0] if r2 != regime]
-                regime = rng.choice(new_choices)
+                regime = int(rng.choice(new_choices))
                 regime_duration = 0
 
         drift = annual_drift / HOURS_PER_YEAR + regime * hourly_vol * 0.3
@@ -136,7 +134,8 @@ def run_baseline(df_1h: pd.DataFrame, rr: float) -> pd.DataFrame:
     df_4h = df_1h['close'].resample('4h').last().dropna().to_frame('close')
     df_4h['ma20'] = df_4h['close'].rolling(20).mean()
     df_4h['slope'] = df_4h['ma20'].diff(3)
-    df_4h['trend'] = np.sign(df_4h['slope']).fillna(0).astype(int)
+    # shift(1): バー i 時点では「直前に完了した4Hバー」のトレンドのみ既知（先読み防止）
+    df_4h['trend'] = np.sign(df_4h['slope']).shift(1).fillna(0).astype(int)
 
     # 1H MA
     df_1h = df_1h.copy()
@@ -213,7 +212,12 @@ def _simulate_trade(entry, stop_dist, rr, signal, future_df):
 # 4P-Score: スイングベース ダウ理論逆張り
 # ─────────────────────────────────────────
 def detect_swings(df: pd.DataFrame, swing_depth: int = 3) -> pd.DataFrame:
-    """スイング高値・安値を検出する。"""
+    """スイング高値・安値を検出する。
+
+    スイングはバー i の左右 swing_depth 本で判定するため、
+    実際に「確定」するのは i + swing_depth 本目（confirm_idx）。
+    バックテストでは confirm_idx 以降でのみ参照すること（先読み防止）。
+    """
     highs = df['high'].values
     lows = df['low'].values
     n = len(df)
@@ -226,11 +230,14 @@ def detect_swings(df: pd.DataFrame, swing_depth: int = 3) -> pd.DataFrame:
                        all(lows[i] <= lows[i + j] for j in range(1, swing_depth + 1))
 
         if is_swing_high:
-            swing_points.append({'idx': i, 'datetime': df.index[i], 'type': 'H', 'price': highs[i]})
+            swing_points.append({'idx': i, 'confirm_idx': i + swing_depth,
+                                 'datetime': df.index[i], 'type': 'H', 'price': highs[i]})
         elif is_swing_low:
-            swing_points.append({'idx': i, 'datetime': df.index[i], 'type': 'L', 'price': lows[i]})
+            swing_points.append({'idx': i, 'confirm_idx': i + swing_depth,
+                                 'datetime': df.index[i], 'type': 'L', 'price': lows[i]})
 
-    return pd.DataFrame(swing_points) if swing_points else pd.DataFrame(columns=['idx', 'datetime', 'type', 'price'])
+    return pd.DataFrame(swing_points) if swing_points else \
+        pd.DataFrame(columns=['idx', 'confirm_idx', 'datetime', 'type', 'price'])
 
 
 def calc_4p_score(swings: pd.DataFrame, idx: int, signal: int, df_1h: pd.DataFrame) -> int:
@@ -245,7 +252,8 @@ def calc_4p_score(swings: pd.DataFrame, idx: int, signal: int, df_1h: pd.DataFra
     """
     score = 40  # ベーススコア
 
-    recent_swings = swings[swings['idx'] <= idx].tail(6)
+    # confirm_idx でフィルタ: idx 時点で確定済みのスイングのみ使用（先読み防止）
+    recent_swings = swings[swings['confirm_idx'] <= idx].tail(6)
     if len(recent_swings) < 4:
         return score
 
@@ -313,7 +321,8 @@ def run_4p_score(df_1h: pd.DataFrame, rr: float, min_score: int, swing_depth: in
         close = df_1h['close'].iloc[i]
 
         # 直近スイングから反転シグナル検出
-        recent_swings = swings[swings['idx'] <= i].tail(4)
+        # confirm_idx <= i: バー i 時点で確定済みのスイングのみ参照（先読み防止）
+        recent_swings = swings[swings['confirm_idx'] <= i].tail(4)
         if len(recent_swings) < 3:
             continue
 
@@ -384,9 +393,10 @@ def calc_stats(trades: pd.DataFrame) -> dict:
     pf = gross_profit / gross_loss if gross_loss > 0 else (999.0 if gross_profit > 0 else 0.0)
 
     equity = trades['pnl_r'].cumsum()
-    rolling_max = equity.cummax()
+    # 初期資産 0 を含めてピークを取る（初回トレードから負け込んだ場合の DD を反映）
+    rolling_max = equity.cummax().clip(lower=0.0)
     dd = equity - rolling_max
-    max_dd = dd.min()
+    max_dd = float(dd.min())
 
     return {
         'n_trades': n,
@@ -410,11 +420,16 @@ def monthly_pnl(trades: pd.DataFrame) -> pd.DataFrame:
 # キャッシュ付きメインバックテスト実行
 # ─────────────────────────────────────────
 @st.cache_data(show_spinner=False)
-def run_backtests(pairs: list, years: int, rr: float, min_score: int, swing_depth: int) -> dict:
-    """全ペアのバックテストを実行してキャッシュする。"""
+def run_backtests(pairs: tuple, years: int, rr: float, min_score: int,
+                  swing_depth: int, seed: int = 42) -> dict:
+    """全ペアのバックテストを実行してキャッシュする。
+
+    pairs はハッシュ可能な tuple で渡すこと。
+    seed を含む全パラメータがキャッシュキーに入る。
+    """
     results = {}
     for pair in pairs:
-        df = generate_ohlc(pair, years)
+        df = generate_ohlc(pair, years, seed)
         bl_trades = run_baseline(df, rr)
         fp_trades = run_4p_score(df, rr, min_score, swing_depth)
         results[pair] = {
@@ -482,7 +497,12 @@ st.sidebar.markdown("""
 st.title("📈 4P-Score FX Dashboard")
 st.caption("4つの鉄板パターン — インタラクティブ・バックテスト")
 
-if not run_btn:
+# st.button は押した直後の 1 リランしか True にならないため、
+# session_state に保持しないとタブ内の selectbox 操作等で画面が初期状態に戻ってしまう。
+if run_btn:
+    st.session_state['backtest_ran'] = True
+
+if not st.session_state.get('backtest_ran', False):
     st.info("サイドバーでパラメータを設定し、**▶ バックテスト実行** を押してください。")
     st.stop()
 
@@ -490,7 +510,7 @@ if not run_btn:
 target_pairs = ALL_PAIRS if selected_pair == '全ペア' else [selected_pair]
 
 with st.spinner("バックテスト実行中..."):
-    results = run_backtests(tuple(target_pairs), years, rr, min_score, swing_depth)
+    results = run_backtests(tuple(target_pairs), years, rr, min_score, swing_depth, seed=42)
 
 # ── 集計 ─────────────────────────────────
 agg_bl = {'n_trades': 0, 'win_rate': 0.0, 'total_r': 0.0, 'pf': 0.0, 'max_dd': 0.0}
@@ -658,7 +678,7 @@ with tab2:
             pos_months = (mdf['pnl_r'] > 0).sum()
             st.caption(f"プラス月: {pos_months} / {len(mdf)} ヶ月")
 
-            colors = [GOLD if v > 0 else '#FF4444' for v in mdf['pnl_r']]
+            colors = ['#27AE60' if v >= 0 else '#FF4444' for v in mdf['pnl_r']]
             fig_m = go.Figure(go.Bar(
                 x=mdf['month'],
                 y=mdf['pnl_r'],
@@ -710,8 +730,8 @@ with tab3:
             hovertemplate='%{x|%Y-%m-%d}<br>累積損益: %{y:.2f}R<extra>' + name + '</extra>',
         ))
 
-        # 最大DD シェーディング
-        rolling_max = equity.cummax()
+        # 最大DD シェーディング（初期資産 0 をピークに含める）
+        rolling_max = equity.cummax().clip(lower=0.0)
         dd_series = equity - rolling_max
         dd_start = None
         for j in range(len(dd_series)):

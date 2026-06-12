@@ -46,7 +46,7 @@
     .header {
       background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
       border-bottom: 1px solid var(--border);
-      padding: 24px 20px 0;
+      padding: 24px 20px;
       position: relative;
       overflow: hidden;
     }
@@ -112,25 +112,6 @@
       animation: pulse 2s infinite;
     }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
-
-    .header-nav {
-      display: flex;
-      gap: 0;
-      margin-top: 20px;
-      border-bottom: none;
-    }
-    .nav-tab {
-      padding: 8px 16px;
-      font-size: 12px;
-      color: var(--text-secondary);
-      border-bottom: 2px solid transparent;
-      cursor: default;
-      transition: color .2s, border-color .2s;
-    }
-    .nav-tab.active {
-      color: var(--green-light);
-      border-bottom-color: var(--green-light);
-    }
 
     /* ── Main Layout ── */
     .main {
@@ -519,12 +500,6 @@
         </div>
       </div>
     </div>
-    <nav class="header-nav">
-      <div class="nav-tab active">ダッシュボード</div>
-      <div class="nav-tab">シグナル一覧</div>
-      <div class="nav-tab">バックテスト</div>
-      <div class="nav-tab">設定</div>
-    </nav>
   </div>
 </header>
 
@@ -672,11 +647,11 @@
           <div class="chart-stats">
             <div class="chart-stat">
               <div class="chart-stat-label">合計</div>
-              <div class="chart-stat-value text-green" id="chartTotal">+29.0R</div>
+              <div class="chart-stat-value text-green" id="chartTotal">+37.0R</div>
             </div>
             <div class="chart-stat">
               <div class="chart-stat-label">勝ち月</div>
-              <div class="chart-stat-value" id="chartWinMonths">24</div>
+              <div class="chart-stat-value" id="chartWinMonths">23</div>
             </div>
             <div class="chart-stat">
               <div class="chart-stat-label">最大月益</div>
@@ -896,10 +871,24 @@
   }
 
   // ── Chart Init ──
-  const ctx = document.getElementById('plChart').getContext('2d');
   let currentPair = 'usdjpy';
+  let plChart = null;
 
-  const plChart = new Chart(ctx, {
+  function showChartError() {
+    const container = document.querySelector('.chart-container');
+    if (container) {
+      container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-secondary);font-size:12px;text-align:center;padding:16px;">チャートライブラリ（Chart.js）の読み込みに失敗しました。<br>ネットワーク接続を確認して再読み込みしてください。</div>';
+    }
+  }
+
+  function initChart() {
+    if (typeof Chart === 'undefined') {
+      showChartError();
+      return null;
+    }
+    try {
+      const ctx = document.getElementById('plChart').getContext('2d');
+      return new Chart(ctx, {
     type: 'bar',
     data: {
       labels: LABELS,
@@ -937,7 +926,8 @@
       },
       scales: {
         x: {
-          grid: { color: 'rgba(48,54,61,0.5)', drawBorder: false },
+          grid: { color: 'rgba(48,54,61,0.5)' },
+          border: { display: false },
           ticks: {
             color: '#484f58',
             maxRotation: 45,
@@ -955,24 +945,31 @@
         y: {
           grid: {
             color: 'rgba(48,54,61,0.5)',
-            drawBorder: false,
           },
           ticks: { color: '#8b949e', font: { size: 10 }, callback: v => (v >= 0 ? '+' : '') + v + 'R' },
-          border: { dash: [4,4] }
+          border: { display: false, dash: [4,4] }
         }
       }
     }
-  });
+      });
+    } catch (e) {
+      showChartError();
+      return null;
+    }
+  }
+
+  plChart = initChart();
 
   // Update stats UI
   function updateStats(pair) {
     const s = calcStats(DATA[pair]);
     const totalEl = document.getElementById('chartTotal');
-    const total = s.total.toFixed(1);
-    totalEl.textContent = (s.total >= 0 ? '+' : '') + total + 'R';
+    totalEl.textContent = (s.total >= 0 ? '+' : '') + s.total.toFixed(1) + 'R';
     totalEl.className = 'chart-stat-value ' + (s.total >= 0 ? 'text-green' : 'text-red');
-    document.getElementById('chartWinMonths').textContent = s.wins + '月';
-    document.getElementById('chartMaxMonth').textContent = '+' + s.max.toFixed(1) + 'R';
+    document.getElementById('chartWinMonths').textContent = s.wins;
+    const maxEl = document.getElementById('chartMaxMonth');
+    maxEl.textContent = (s.max >= 0 ? '+' : '') + s.max.toFixed(1) + 'R';
+    maxEl.className = 'chart-stat-value ' + (s.max >= 0 ? 'text-green' : 'text-red');
     document.getElementById('chartTitle').textContent = TITLES[pair];
   }
 
@@ -992,11 +989,13 @@
     if (pair !== 'usdjpy') el.classList.add(pair);
 
     // Update chart
-    const d = DATA[pair];
-    plChart.data.datasets[0].data = d;
-    plChart.data.datasets[0].backgroundColor = makeColors(d);
-    plChart.data.datasets[0].borderColor = makeBorderColors(d);
-    plChart.update('active');
+    if (plChart) {
+      const d = DATA[pair];
+      plChart.data.datasets[0].data = d;
+      plChart.data.datasets[0].backgroundColor = makeColors(d);
+      plChart.data.datasets[0].borderColor = makeBorderColors(d);
+      plChart.update('active');
+    }
 
     updateStats(pair);
   }
