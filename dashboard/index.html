@@ -1,0 +1,1005 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>4P-Score FX シグナルシステム</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --card: #161b22;
+      --card2: #1c2128;
+      --border: #30363d;
+      --green: #238636;
+      --green-light: #3fb950;
+      --green-dim: #1a4a2a;
+      --red: #f85149;
+      --red-dim: #4a1a1a;
+      --yellow: #d29922;
+      --yellow-light: #e3b341;
+      --yellow-dim: #4a3a10;
+      --blue: #1f6feb;
+      --blue-light: #58a6ff;
+      --text: #e6edf3;
+      --text-secondary: #8b949e;
+      --text-muted: #484f58;
+      --gold: #ffd700;
+      --silver: #c0c0c0;
+      --bronze: #cd7f32;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', 'Hiragino Sans', 'Meiryo', sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* ── Header ── */
+    .header {
+      background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
+      border-bottom: 1px solid var(--border);
+      padding: 24px 20px 0;
+      position: relative;
+      overflow: hidden;
+    }
+    .header::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse 60% 80% at 50% -20%, rgba(35,134,54,.18) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .header-inner {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+    .header-top {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .logo-wrap { display: flex; align-items: center; gap: 14px; }
+    .logo-badge {
+      background: linear-gradient(135deg, var(--green) 0%, #2ea043 100%);
+      border-radius: 12px;
+      width: 52px; height: 52px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 22px; font-weight: 900; color: #fff;
+      box-shadow: 0 0 24px rgba(35,134,54,.45);
+      flex-shrink: 0;
+      letter-spacing: -1px;
+    }
+    .header-titles h1 {
+      font-size: clamp(18px, 4vw, 26px);
+      font-weight: 800;
+      color: var(--text);
+      letter-spacing: .5px;
+    }
+    .header-titles .subtitle {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-top: 3px;
+    }
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .status-pill {
+      display: flex; align-items: center; gap: 6px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      padding: 5px 12px;
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .status-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--green-light);
+      box-shadow: 0 0 6px var(--green-light);
+      animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+    .header-nav {
+      display: flex;
+      gap: 0;
+      margin-top: 20px;
+      border-bottom: none;
+    }
+    .nav-tab {
+      padding: 8px 16px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      cursor: default;
+      transition: color .2s, border-color .2s;
+    }
+    .nav-tab.active {
+      color: var(--green-light);
+      border-bottom-color: var(--green-light);
+    }
+
+    /* ── Main Layout ── */
+    .main {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 16px 48px;
+      display: flex;
+      flex-direction: column;
+      gap: 28px;
+    }
+
+    /* ── Section Headings ── */
+    .section-header {
+      display: flex; align-items: center; gap: 10px;
+      margin-bottom: 14px;
+    }
+    .section-header h2 {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .section-tag {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+    }
+    .tag-green { background: var(--green-dim); color: var(--green-light); border: 1px solid var(--green); }
+    .tag-blue { background: rgba(31,111,235,.15); color: var(--blue-light); border: 1px solid var(--blue); }
+    .tag-yellow { background: var(--yellow-dim); color: var(--yellow-light); border: 1px solid var(--yellow); }
+    .section-line {
+      flex: 1; height: 1px; background: var(--border);
+    }
+
+    /* ── Summary Cards ── */
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media(max-width:700px) {
+      .summary-grid { grid-template-columns: repeat(2, 1fr); }
+    }
+
+    .summary-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 16px;
+      position: relative;
+      overflow: hidden;
+      transition: border-color .2s, transform .15s;
+    }
+    .summary-card:hover { border-color: var(--green); transform: translateY(-2px); }
+    .summary-card::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; right: 0; height: 2px;
+    }
+    .summary-card.green::before { background: linear-gradient(90deg, var(--green), var(--green-light)); }
+    .summary-card.blue::before { background: linear-gradient(90deg, var(--blue), var(--blue-light)); }
+    .summary-card.yellow::before { background: linear-gradient(90deg, var(--yellow), var(--yellow-light)); }
+    .summary-card.red::before { background: linear-gradient(90deg, #b03a2e, var(--red)); }
+
+    .card-label {
+      font-size: 11px;
+      color: var(--text-secondary);
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      margin-bottom: 8px;
+    }
+    .card-value {
+      font-size: clamp(22px, 4vw, 30px);
+      font-weight: 800;
+      line-height: 1;
+      color: var(--text);
+    }
+    .card-value.positive { color: var(--green-light); }
+    .card-value.neutral { color: var(--blue-light); }
+    .card-value.warning { color: var(--yellow-light); }
+    .card-sub {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 6px;
+    }
+
+    /* ── Table ── */
+    .table-wrap {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 640px;
+    }
+    thead tr {
+      background: var(--card2);
+    }
+    th {
+      padding: 10px 14px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: .5px;
+      border-bottom: 1px solid var(--border);
+      white-space: nowrap;
+    }
+    th:first-child { text-align: left; }
+    td {
+      padding: 11px 14px;
+      text-align: center;
+      border-bottom: 1px solid var(--border);
+      font-size: 13px;
+      color: var(--text);
+      white-space: nowrap;
+    }
+    td:first-child { text-align: left; font-weight: 700; }
+    tr:last-child td { border-bottom: none; }
+    tbody tr { transition: background .15s; }
+    tbody tr:hover { background: rgba(255,255,255,.03); }
+
+    .pair-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      font-size: 13px; font-weight: 700;
+    }
+    .pair-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+    }
+    .dot-usdjpy { background: #58a6ff; }
+    .dot-eurusd { background: #3fb950; }
+    .dot-gbpusd { background: #e3b341; }
+    .dot-xauusd { background: #f0883e; }
+
+    .advantage {
+      font-size: 16px; font-weight: 900;
+    }
+    .adv-up { color: var(--green-light); }
+    .adv-upup { color: #00ff88; text-shadow: 0 0 8px #00ff88; }
+    .adv-down { color: var(--red); }
+    .adv-flat { color: var(--text-muted); }
+
+    .pf-good { color: var(--green-light); font-weight: 700; }
+    .pf-avg { color: var(--yellow-light); }
+    .pf-bad { color: var(--red); }
+
+    .col-divider {
+      border-left: 1px solid var(--border) !important;
+    }
+    th.col-divider, td.col-divider {
+      border-left: 1px solid rgba(88,166,255,.3) !important;
+    }
+
+    /* ── Chart Section ── */
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+    }
+    .chart-tabs {
+      display: flex;
+      border-bottom: 1px solid var(--border);
+      background: var(--card2);
+    }
+    .chart-tab {
+      padding: 10px 18px;
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      cursor: pointer;
+      border-bottom: 2px solid transparent;
+      transition: color .2s, border-color .2s, background .2s;
+      user-select: none;
+    }
+    .chart-tab:hover { color: var(--text); background: rgba(255,255,255,.03); }
+    .chart-tab.active { color: var(--green-light); border-bottom-color: var(--green-light); }
+    .chart-tab.active.eurusd { color: var(--green-light); border-bottom-color: var(--green-light); }
+    .chart-tab.active.gbpusd { color: var(--yellow-light); border-bottom-color: var(--yellow-light); }
+    .chart-tab.active.xauusd { color: #f0883e; border-bottom-color: #f0883e; }
+
+    .chart-body { padding: 18px; }
+    .chart-meta {
+      display: flex; align-items: center; justify-content: space-between;
+      flex-wrap: wrap; gap: 8px;
+      margin-bottom: 12px;
+    }
+    .chart-title { font-size: 13px; font-weight: 700; color: var(--text); }
+    .chart-subtitle { font-size: 11px; color: var(--text-secondary); }
+    .chart-stats {
+      display: flex; gap: 16px;
+    }
+    .chart-stat { text-align: right; }
+    .chart-stat-label { font-size: 10px; color: var(--text-muted); }
+    .chart-stat-value { font-size: 13px; font-weight: 700; }
+    .chart-container {
+      position: relative;
+      height: 260px;
+    }
+
+    /* ── Scoring Card ── */
+    .scoring-grid {
+      display: grid;
+      grid-template-columns: 1fr 280px;
+      gap: 16px;
+      align-items: start;
+    }
+    @media(max-width:760px) {
+      .scoring-grid { grid-template-columns: 1fr; }
+    }
+
+    .scoring-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .scoring-row {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px;
+    }
+    .scoring-row:last-child { margin-bottom: 0; }
+    .scoring-label {
+      font-size: 12px; color: var(--text-secondary);
+      width: 200px; flex-shrink: 0;
+    }
+    .scoring-bar-wrap {
+      flex: 1; background: var(--card2); border-radius: 4px; height: 16px;
+      overflow: hidden;
+      border: 1px solid var(--border);
+    }
+    .scoring-bar {
+      height: 100%; border-radius: 4px;
+      transition: width .8s cubic-bezier(.4,0,.2,1);
+    }
+    .scoring-pts {
+      font-size: 13px; font-weight: 800; width: 52px; text-align: right;
+      flex-shrink: 0;
+    }
+    .scoring-divider {
+      border-top: 1px dashed var(--border);
+      margin: 14px 0;
+    }
+    .scoring-total {
+      display: flex; align-items: center; justify-content: space-between;
+      font-weight: 800;
+      font-size: 14px;
+    }
+
+    .grades-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .grade-title {
+      font-size: 12px; font-weight: 700; color: var(--text-secondary);
+      text-transform: uppercase; letter-spacing: .5px;
+      margin-bottom: 14px;
+    }
+    .grade-item {
+      display: flex; align-items: center; gap: 12px;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      background: var(--card2);
+      border-radius: 8px;
+      border: 1px solid var(--border);
+    }
+    .grade-badge {
+      width: 36px; height: 36px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 18px; font-weight: 900;
+      flex-shrink: 0;
+    }
+    .grade-s { background: rgba(255,215,0,.15); color: var(--gold); border: 1px solid var(--gold); box-shadow: 0 0 12px rgba(255,215,0,.2); }
+    .grade-a { background: rgba(192,192,192,.12); color: var(--silver); border: 1px solid var(--silver); }
+    .grade-b { background: rgba(205,127,50,.15); color: var(--bronze); border: 1px solid var(--bronze); }
+
+    .grade-info { flex: 1; }
+    .grade-name { font-size: 12px; font-weight: 700; }
+    .grade-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+    .grade-score { font-size: 13px; font-weight: 800; }
+
+    /* ── Pattern Cards ── */
+    .pattern-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    @media(max-width:900px) { .pattern-grid { grid-template-columns: repeat(2,1fr); } }
+    @media(max-width:480px) { .pattern-grid { grid-template-columns: 1fr; } }
+
+    .pattern-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 18px 16px;
+      transition: border-color .2s, transform .15s;
+    }
+    .pattern-card:hover { border-color: rgba(88,166,255,.4); transform: translateY(-2px); }
+    .pattern-num {
+      font-size: 10px; font-weight: 800;
+      color: var(--text-muted);
+      text-transform: uppercase; letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .pattern-icon {
+      font-size: 28px; margin-bottom: 10px;
+    }
+    .pattern-name {
+      font-size: 13px; font-weight: 800; color: var(--text);
+      margin-bottom: 6px; line-height: 1.3;
+    }
+    .pattern-desc {
+      font-size: 11px; color: var(--text-secondary); line-height: 1.6;
+    }
+    .pattern-tag {
+      display: inline-block;
+      margin-top: 10px;
+      font-size: 10px; font-weight: 700;
+      padding: 2px 8px; border-radius: 4px;
+    }
+    .ptag-main { background: rgba(35,134,54,.2); color: var(--green-light); border: 1px solid var(--green); }
+    .ptag-sub { background: rgba(31,111,235,.15); color: var(--blue-light); border: 1px solid var(--blue); }
+    .ptag-big { background: rgba(210,153,34,.15); color: var(--yellow-light); border: 1px solid var(--yellow); }
+    .ptag-info { background: rgba(248,81,73,.12); color: #ff8080; border: 1px solid rgba(248,81,73,.5); }
+
+    /* ── Footer ── */
+    .footer {
+      background: var(--card);
+      border-top: 1px solid var(--border);
+      padding: 20px;
+      text-align: center;
+    }
+    .footer-warning {
+      max-width: 800px;
+      margin: 0 auto;
+      font-size: 11px;
+      color: var(--text-muted);
+      line-height: 1.8;
+    }
+    .footer-warning strong { color: var(--yellow-light); }
+
+    /* ── Scrollbar ── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--bg); }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
+
+    /* ── Utility ── */
+    .text-green { color: var(--green-light); }
+    .text-red { color: var(--red); }
+    .text-yellow { color: var(--yellow-light); }
+    .text-muted { color: var(--text-muted); }
+    .fw-700 { font-weight: 700; }
+  </style>
+</head>
+<body>
+
+<!-- ── HEADER ── -->
+<header class="header">
+  <div class="header-inner">
+    <div class="header-top">
+      <div class="logo-wrap">
+        <div class="logo-badge">4P</div>
+        <div class="header-titles">
+          <h1>4P-Score FX シグナルシステム</h1>
+          <div class="subtitle">ダウ理論ベース・4つの鉄板パターン自動検出</div>
+        </div>
+      </div>
+      <div class="status-bar">
+        <div class="status-pill">
+          <div class="status-dot"></div>
+          <span id="currentDate">読み込み中…</span>
+        </div>
+        <div class="status-pill">
+          📊 シミュレーション実績（3年）
+        </div>
+      </div>
+    </div>
+    <nav class="header-nav">
+      <div class="nav-tab active">ダッシュボード</div>
+      <div class="nav-tab">シグナル一覧</div>
+      <div class="nav-tab">バックテスト</div>
+      <div class="nav-tab">設定</div>
+    </nav>
+  </div>
+</header>
+
+<!-- ── MAIN ── -->
+<main class="main">
+
+  <!-- 1. サマリーカード -->
+  <section>
+    <div class="section-header">
+      <h2>パフォーマンス サマリー</h2>
+      <span class="section-tag tag-green">従来版 3年間</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="summary-grid">
+      <div class="summary-card blue">
+        <div class="card-label">総トレード数</div>
+        <div class="card-value neutral">174</div>
+        <div class="card-sub">回 ／ 3年間 (2021-2023)</div>
+      </div>
+      <div class="summary-card green">
+        <div class="card-label">総損益</div>
+        <div class="card-value positive">+72.0R</div>
+        <div class="card-sub">リスクリワード換算</div>
+      </div>
+      <div class="summary-card yellow">
+        <div class="card-label">プロフィットファクター</div>
+        <div class="card-value warning">1.78</div>
+        <div class="card-sub">総利益 ÷ 総損失</div>
+      </div>
+      <div class="summary-card red">
+        <div class="card-label">勝率</div>
+        <div class="card-value" style="color:var(--red)">47.1%</div>
+        <div class="card-sub">勝ちトレード比率</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 2. 通貨ペア別成績テーブル -->
+  <section>
+    <div class="section-header">
+      <h2>通貨ペア別成績 比較</h2>
+      <span class="section-tag tag-blue">従来版 vs 4P-Score</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th rowspan="2">通貨ペア</th>
+            <th colspan="3">従来版</th>
+            <th colspan="3" class="col-divider">4P-Score</th>
+            <th rowspan="2">優位性</th>
+          </tr>
+          <tr>
+            <th>トレード数</th>
+            <th>勝率</th>
+            <th>PF</th>
+            <th class="col-divider">トレード数</th>
+            <th>勝率</th>
+            <th>PF</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>
+              <div class="pair-badge">
+                <span class="pair-dot dot-usdjpy"></span>USD/JPY
+              </div>
+            </td>
+            <td>40回</td>
+            <td>47.5%</td>
+            <td class="pf-good">1.81</td>
+            <td class="col-divider">6回</td>
+            <td class="text-green fw-700">50.0%</td>
+            <td class="pf-good">2.00</td>
+            <td><span class="advantage adv-up">↑</span></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="pair-badge">
+                <span class="pair-dot dot-eurusd"></span>EUR/USD
+              </div>
+            </td>
+            <td>44回</td>
+            <td>54.5%</td>
+            <td class="pf-good">2.40</td>
+            <td class="col-divider">8回</td>
+            <td class="text-red">37.5%</td>
+            <td class="pf-avg">1.20</td>
+            <td><span class="advantage adv-down">↓</span></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="pair-badge">
+                <span class="pair-dot dot-gbpusd"></span>GBP/USD
+              </div>
+            </td>
+            <td>43回</td>
+            <td>44.2%</td>
+            <td class="pf-avg">1.58</td>
+            <td class="col-divider">7回</td>
+            <td class="text-yellow">42.9%</td>
+            <td class="pf-avg">1.50</td>
+            <td><span class="advantage adv-flat">→</span></td>
+          </tr>
+          <tr>
+            <td>
+              <div class="pair-badge">
+                <span class="pair-dot dot-xauusd"></span>XAU/USD
+              </div>
+            </td>
+            <td>47回</td>
+            <td>42.6%</td>
+            <td class="pf-avg">1.48</td>
+            <td class="col-divider">20回</td>
+            <td class="text-green fw-700">50.0%</td>
+            <td class="pf-good">2.00</td>
+            <td><span class="advantage adv-upup">↑↑</span></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- 3. 月次損益チャート -->
+  <section>
+    <div class="section-header">
+      <h2>月次損益ヒートマップ</h2>
+      <span class="section-tag tag-yellow">R単位</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="chart-card">
+      <div class="chart-tabs">
+        <div class="chart-tab active" data-pair="usdjpy" onclick="switchChart('usdjpy', this)">USD/JPY</div>
+        <div class="chart-tab" data-pair="eurusd" onclick="switchChart('eurusd', this)">EUR/USD</div>
+        <div class="chart-tab" data-pair="gbpusd" onclick="switchChart('gbpusd', this)">GBP/USD</div>
+        <div class="chart-tab" data-pair="xauusd" onclick="switchChart('xauusd', this)">XAU/USD</div>
+      </div>
+      <div class="chart-body">
+        <div class="chart-meta">
+          <div>
+            <div class="chart-title" id="chartTitle">USD/JPY 月次損益</div>
+            <div class="chart-subtitle">2021年1月 〜 2023年12月（36ヶ月）</div>
+          </div>
+          <div class="chart-stats">
+            <div class="chart-stat">
+              <div class="chart-stat-label">合計</div>
+              <div class="chart-stat-value text-green" id="chartTotal">+29.0R</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">勝ち月</div>
+              <div class="chart-stat-value" id="chartWinMonths">24</div>
+            </div>
+            <div class="chart-stat">
+              <div class="chart-stat-label">最大月益</div>
+              <div class="chart-stat-value text-green" id="chartMaxMonth">+4.0R</div>
+            </div>
+          </div>
+        </div>
+        <div class="chart-container">
+          <canvas id="plChart"></canvas>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. スコアリング解説 -->
+  <section>
+    <div class="section-header">
+      <h2>4P-Score スコアリング解説</h2>
+      <span class="section-tag tag-green">採点システム</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="scoring-grid">
+      <div class="scoring-card">
+        <div style="font-size:12px; color:var(--text-secondary); font-weight:700; margin-bottom:16px; text-transform:uppercase; letter-spacing:.5px;">
+          スコア内訳（合計 100点）
+        </div>
+
+        <div class="scoring-row">
+          <div class="scoring-label">🔵 基本トリガー（ダウ理論転換）</div>
+          <div class="scoring-bar-wrap">
+            <div class="scoring-bar" style="width:40%; background:linear-gradient(90deg,#1f6feb,#58a6ff);"></div>
+          </div>
+          <div class="scoring-pts text-green">40点</div>
+        </div>
+        <div class="scoring-row">
+          <div class="scoring-label">📅 要素① 日足合致</div>
+          <div class="scoring-bar-wrap">
+            <div class="scoring-bar" style="width:20%; background:linear-gradient(90deg,var(--green),var(--green-light));"></div>
+          </div>
+          <div class="scoring-pts text-green">+20点</div>
+        </div>
+        <div class="scoring-row">
+          <div class="scoring-label">📏 要素② 反対勢力距離</div>
+          <div class="scoring-bar-wrap">
+            <div class="scoring-bar" style="width:20%; background:linear-gradient(90deg,var(--green),var(--green-light));"></div>
+          </div>
+          <div class="scoring-pts text-green">+20点</div>
+        </div>
+        <div class="scoring-row">
+          <div class="scoring-label">📈 MA整列</div>
+          <div class="scoring-bar-wrap">
+            <div class="scoring-bar" style="width:10%; background:linear-gradient(90deg,var(--yellow),var(--yellow-light));"></div>
+          </div>
+          <div class="scoring-pts text-yellow">+10点</div>
+        </div>
+        <div class="scoring-row">
+          <div class="scoring-label">🔄 リトレース深さ</div>
+          <div class="scoring-bar-wrap">
+            <div class="scoring-bar" style="width:10%; background:linear-gradient(90deg,var(--yellow),var(--yellow-light));"></div>
+          </div>
+          <div class="scoring-pts text-yellow">+10点</div>
+        </div>
+
+        <div class="scoring-divider"></div>
+        <div class="scoring-total">
+          <span style="color:var(--text-secondary)">最大スコア</span>
+          <span class="text-green" style="font-size:20px;">100点</span>
+        </div>
+      </div>
+
+      <div class="grades-card">
+        <div class="grade-title">グレード 判定基準</div>
+        <div class="grade-item">
+          <div class="grade-badge grade-s">S</div>
+          <div class="grade-info">
+            <div class="grade-name">最高優先度エントリー</div>
+            <div class="grade-desc">全条件揃い・最高勝率期待</div>
+          </div>
+          <div class="grade-score" style="color:var(--gold)">85点+</div>
+        </div>
+        <div class="grade-item">
+          <div class="grade-badge grade-a">A</div>
+          <div class="grade-info">
+            <div class="grade-name">高優先度エントリー</div>
+            <div class="grade-desc">主要条件を満たす</div>
+          </div>
+          <div class="grade-score" style="color:var(--silver)">70点+</div>
+        </div>
+        <div class="grade-item">
+          <div class="grade-badge grade-b">B</div>
+          <div class="grade-info">
+            <div class="grade-name">標準エントリー</div>
+            <div class="grade-desc">基本条件のみ成立</div>
+          </div>
+          <div class="grade-score" style="color:var(--bronze)">55点+</div>
+        </div>
+        <div style="text-align:center; padding-top:10px; font-size:11px; color:var(--text-muted);">
+          55点未満 → 見送り推奨
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 5. パターン別説明カード -->
+  <section>
+    <div class="section-header">
+      <h2>4つの鉄板パターン</h2>
+      <span class="section-tag tag-blue">エントリーパターン</span>
+      <div class="section-line"></div>
+    </div>
+    <div class="pattern-grid">
+      <div class="pattern-card">
+        <div class="pattern-num">Pattern 01</div>
+        <div class="pattern-icon">📊</div>
+        <div class="pattern-name">4時間足レベルの<br>押し目・戻り目</div>
+        <div class="pattern-desc">
+          最も汎用性が高いメインパターン。4H足でダウ理論転換を確認後、適切なエントリーポイントを狙う。
+        </div>
+        <span class="pattern-tag ptag-main">メイン・全トレードの80%</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-num">Pattern 02</div>
+        <div class="pattern-icon">⏱️</div>
+        <div class="pattern-name">1時間足レベルの<br>押し目・戻り目</div>
+        <div class="pattern-desc">
+          1H足で細かいダウ転換を捉えるサブパターン。短期トレードや高頻度エントリーに活用。
+        </div>
+        <span class="pattern-tag ptag-sub">サブパターン</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-num">Pattern 03</div>
+        <div class="pattern-icon">📅</div>
+        <div class="pattern-name">日足レベルの<br>押し目・戻り目</div>
+        <div class="pattern-desc">
+          最大値幅を狙う上位足パターン。日足でのダウ転換確認後、数百pipsの大きな値動きを狙う。
+        </div>
+        <span class="pattern-tag ptag-big">最大値幅・低頻度</span>
+      </div>
+      <div class="pattern-card">
+        <div class="pattern-num">Pattern 04-B</div>
+        <div class="pattern-icon">🔔</div>
+        <div class="pattern-name">日足逆行転換<br>（情報通知のみ）</div>
+        <div class="pattern-desc">
+          トレンド転換の初動を検知するアラートパターン。実トレードは行わず、方向感の変化を事前把握する。
+        </div>
+        <span class="pattern-tag ptag-info">情報通知のみ</span>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<!-- ── FOOTER ── -->
+<footer class="footer">
+  <div class="footer-warning">
+    <strong>⚠️ 免責事項</strong><br>
+    本ダッシュボードの数値は合成データによるシミュレーションです。実際の市場データとは異なります。
+    過去の結果は将来の利益を保証しません。FX取引は元本割れのリスクを伴います。投資判断はご自身の責任で行ってください。
+  </div>
+</footer>
+
+<script>
+  // ── Date Display ──
+  (function() {
+    const d = new Date();
+    const pad = n => String(n).padStart(2,'0');
+    const days = ['日','月','火','水','木','金','土'];
+    const str = `${d.getFullYear()}年${pad(d.getMonth()+1)}月${pad(d.getDate())}日（${days[d.getDay()]}）`;
+    document.getElementById('currentDate').textContent = str;
+  })();
+
+  // ── Chart Data ──
+  const LABELS = [
+    '2021-01','2021-02','2021-03','2021-04','2021-05','2021-06',
+    '2021-07','2021-08','2021-09','2021-10','2021-11','2021-12',
+    '2022-01','2022-02','2022-03','2022-04','2022-05','2022-06',
+    '2022-07','2022-08','2022-09','2022-10','2022-11','2022-12',
+    '2023-01','2023-02','2023-03','2023-04','2023-05','2023-06',
+    '2023-07','2023-08','2023-09','2023-10','2023-11','2023-12'
+  ];
+
+  const DATA = {
+    usdjpy: [-1,-2,1,3,4,4,2,2,3,1,-1,2, 2,0,4,2,-1,2,-1,2,2,2,2,-3, 2,1,0,1,-2,0,-1,2,2,2,-1,0],
+    eurusd: [3,2,0,-1,5,3,3,2,2,1,2,2, 3,1,4,3,0,2,1,2,2,-1,2,-2, 2,1,-1,1,1,1,0,2,1,1,-1,2],
+    gbpusd: [2,-1,1,2,3,2,1,-1,2,1,-2,1, 1,1,3,2,-1,1,-2,1,1,2,1,-3, 1,1,0,1,-2,1,-1,1,2,1,-1,-1],
+    xauusd: [3,-2,2,4,5,3,2,-2,4,2,-3,3, 4,1,5,3,-2,3,-2,3,4,3,3,-4, 3,2,-1,2,-3,1,-2,3,4,3,-2,1]
+  };
+
+  const TITLES = {
+    usdjpy: 'USD/JPY 月次損益',
+    eurusd: 'EUR/USD 月次損益',
+    gbpusd: 'GBP/USD 月次損益',
+    xauusd: 'XAU/USD 月次損益'
+  };
+
+  function calcStats(arr) {
+    const total = arr.reduce((a,b) => a+b, 0);
+    const wins = arr.filter(v => v > 0).length;
+    const max = Math.max(...arr);
+    return { total, wins, max };
+  }
+
+  function makeColors(arr) {
+    return arr.map(v => {
+      if (v > 0) return 'rgba(35,134,54,0.85)';
+      if (v < 0) return 'rgba(248,81,73,0.85)';
+      return 'rgba(80,90,100,0.6)';
+    });
+  }
+
+  function makeBorderColors(arr) {
+    return arr.map(v => {
+      if (v > 0) return '#3fb950';
+      if (v < 0) return '#f85149';
+      return '#484f58';
+    });
+  }
+
+  // ── Chart Init ──
+  const ctx = document.getElementById('plChart').getContext('2d');
+  let currentPair = 'usdjpy';
+
+  const plChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: LABELS,
+      datasets: [{
+        label: '月次損益 (R)',
+        data: DATA.usdjpy,
+        backgroundColor: makeColors(DATA.usdjpy),
+        borderColor: makeBorderColors(DATA.usdjpy),
+        borderWidth: 1,
+        borderRadius: 3,
+        borderSkipped: false,
+      }]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: '#1c2128',
+          borderColor: '#30363d',
+          borderWidth: 1,
+          titleColor: '#8b949e',
+          bodyColor: '#e6edf3',
+          padding: 10,
+          callbacks: {
+            label: ctx => {
+              const v = ctx.raw;
+              const sign = v > 0 ? '+' : '';
+              return ` ${sign}${v.toFixed(1)}R`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          grid: { color: 'rgba(48,54,61,0.5)', drawBorder: false },
+          ticks: {
+            color: '#484f58',
+            maxRotation: 45,
+            font: { size: 9 },
+            callback: function(val, idx) {
+              // Show only Jan labels as year markers, else just month
+              const lbl = LABELS[idx];
+              const [year, month] = lbl.split('-');
+              if (month === '01') return year + '/01';
+              if (idx % 3 === 0) return month + '月';
+              return '';
+            }
+          }
+        },
+        y: {
+          grid: {
+            color: 'rgba(48,54,61,0.5)',
+            drawBorder: false,
+          },
+          ticks: { color: '#8b949e', font: { size: 10 }, callback: v => (v >= 0 ? '+' : '') + v + 'R' },
+          border: { dash: [4,4] }
+        }
+      }
+    }
+  });
+
+  // Update stats UI
+  function updateStats(pair) {
+    const s = calcStats(DATA[pair]);
+    const totalEl = document.getElementById('chartTotal');
+    const total = s.total.toFixed(1);
+    totalEl.textContent = (s.total >= 0 ? '+' : '') + total + 'R';
+    totalEl.className = 'chart-stat-value ' + (s.total >= 0 ? 'text-green' : 'text-red');
+    document.getElementById('chartWinMonths').textContent = s.wins + '月';
+    document.getElementById('chartMaxMonth').textContent = '+' + s.max.toFixed(1) + 'R';
+    document.getElementById('chartTitle').textContent = TITLES[pair];
+  }
+
+  updateStats('usdjpy');
+
+  // ── Tab Switching ──
+  function switchChart(pair, el) {
+    if (pair === currentPair) return;
+    currentPair = pair;
+
+    // Update tabs
+    document.querySelectorAll('.chart-tab').forEach(t => {
+      t.classList.remove('active');
+      t.classList.remove('eurusd','gbpusd','xauusd');
+    });
+    el.classList.add('active');
+    if (pair !== 'usdjpy') el.classList.add(pair);
+
+    // Update chart
+    const d = DATA[pair];
+    plChart.data.datasets[0].data = d;
+    plChart.data.datasets[0].backgroundColor = makeColors(d);
+    plChart.data.datasets[0].borderColor = makeBorderColors(d);
+    plChart.update('active');
+
+    updateStats(pair);
+  }
+</script>
+</body>
+</html>
