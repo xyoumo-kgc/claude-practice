@@ -6,9 +6,9 @@
 
 使い方:
     pip install edge-tts
-    python generate_narration.py --preset presets/cupboard.json --outdir ./out
     python generate_narration.py --infile lines.txt --outdir ./out
     python generate_narration.py --voice ja-JP-NanamiNeural --rate +2% --infile lines.txt --outdir ./out
+    python generate_narration.py --preset lines.json --outdir ./out   # {"0": "...", "1": "..."}
 
 注意:
     edge-tts は speech.platform.bing.com に接続する。このホストが許可された
