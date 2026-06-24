@@ -41,6 +41,10 @@ python generate.py "a cat surfing a big wave at sunset, cinematic"
 # 画像から動画 (image-to-video)
 python generate.py "slow zoom in, gentle wind" --image input.jpg
 
+# 既存動画を作り変える (video-to-video) — エフェクト/スタイル/動きを変更
+python generate.py "make it look like a watercolor painting" \
+    --video clip.mp4 --model <video-to-video モデル>
+
 # モデルを切り替える（一覧: https://replicate.com/collections/text-to-video ）
 python generate.py "neon city flythrough" --model tencent/hunyuan-video
 
@@ -55,6 +59,7 @@ python generate.py "a paper plane flying" --output plane.mp4
 - 大半のサービスは**有料（従量課金）**です。料金は各サービスのページで確認してください。
 - プロンプトは**英語**の方が品質が安定しやすいです。
 - モデルは頻繁に更新・終了します。動かない場合は上記コレクションで現行モデル名を確認してください。
+- `--video`（video-to-video）対応モデルは https://replicate.com/collections/video-to-video で確認してください（例: スタイル変換・ロト・モーション編集など）。入力動画は短いほど安定・低コストです。
 - 生成物の利用範囲は各サービスの利用規約に従ってください。
 
 ## ローカル（GPU）で無料で動かしたい場合
