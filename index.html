@@ -12,6 +12,8 @@
       <span id="logo">Web CAD</span>
       <div class="tool-group shape-tools">
         <button data-shape="room" title="部屋(床+壁)を配置">部屋</button>
+        <button data-shape="door" title="ドアを配置(壁に吸着して開口部が開きます)">ドア</button>
+        <button data-shape="window" title="窓を配置(壁に吸着して開口部が開きます)">窓</button>
         <button data-shape="chair" title="イスを配置">イス</button>
         <button data-shape="table" title="テーブルを配置">テーブル</button>
         <button data-shape="sofa" title="ソファを配置">ソファ</button>
@@ -29,6 +31,7 @@
         <button id="mode-translate" class="active" title="移動モード (1)">移動</button>
         <button id="mode-rotate" title="回転モード (2)">回転</button>
         <button id="mode-scale" title="拡大縮小モード (3)">拡縮</button>
+        <button id="plan-toggle" title="真上から見る平面図モードの切替">平面図</button>
       </div>
       <div class="tool-group">
         <button id="snap-toggle" class="active" title="グリッドスナップの切替">スナップ</button>
@@ -45,6 +48,7 @@
         <button id="save" title="JSON形式で保存">保存</button>
         <button id="load" title="JSONファイルを開く">開く</button>
         <button id="export-stl" title="STL形式でエクスポート">STL出力</button>
+        <button id="export-pdf" title="保存したアングルを1ページずつPDFに出力">PDF出力</button>
         <input type="file" id="file-input" accept=".json,application/json" hidden />
       </div>
     </header>
@@ -84,7 +88,19 @@
           <label class="prop-row">色
             <input id="prop-color" type="color" />
           </label>
+          <fieldset id="room-params" hidden>
+            <legend>部屋の寸法 (m)</legend>
+            <div class="vec3">
+              <label>幅<input id="prop-rw" type="number" step="0.5" min="1" /></label>
+              <label>奥行<input id="prop-rd" type="number" step="0.5" min="1" /></label>
+              <label>壁高<input id="prop-rh" type="number" step="0.1" min="0.5" /></label>
+            </div>
+          </fieldset>
         </div>
+        <h2>提案用アングル</h2>
+        <button id="add-view" class="wide">現在の視点を保存</button>
+        <ul id="view-list"></ul>
+        <p class="hint">視点をいくつか保存して「PDF出力」を押すと、1ページ1アングルの提案書PDFができます。</p>
         <h2>操作方法</h2>
         <ul id="help">
           <li>左ドラッグ: 視点回転</li>
@@ -93,6 +109,8 @@
           <li>クリック: 選択</li>
           <li>1 / 2 / 3: 移動・回転・拡縮</li>
           <li>R: 配置中に90°回転</li>
+          <li>平面図ボタン: 真上から表示</li>
+          <li>家具が重なると赤く表示</li>
           <li>Esc: 配置キャンセル / 選択解除</li>
         </ul>
       </aside>

@@ -173,6 +173,46 @@ input[type="color"] {
   line-height: 1.7;
 }
 
+button.wide {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+#view-list {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+#view-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid #3d4049;
+  border-radius: 4px;
+  margin-bottom: 4px;
+  font-size: 12px;
+}
+
+.view-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.view-actions button {
+  padding: 2px 6px;
+  font-size: 11px;
+}
+
+.hint {
+  color: #777d88;
+  font-size: 11px;
+  line-height: 1.5;
+  margin: 0 0 10px;
+}
+
 #status {
   padding: 4px 10px;
   background: #2a2c33;

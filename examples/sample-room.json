@@ -1,13 +1,21 @@
 {
   "format": "web-cad",
-  "version": 2,
+  "version": 3,
   "objects": [
-    { "type": "room", "name": "部屋 1", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#c9a97a" },
-    { "type": "table", "name": "テーブル 1", "position": [0.6, 0, 0.6], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#8a6a48" },
-    { "type": "chair", "name": "イス 1", "position": [0.4, 0, 1.35], "rotation": [0, 3.14159, 0], "scale": [1, 1, 1], "color": "#b5835a" },
-    { "type": "chair", "name": "イス 2", "position": [0.9, 0, -0.15], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#b5835a" },
-    { "type": "sofa", "name": "ソファ 1", "position": [-1.0, 0, -1.35], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#6b8cae" },
-    { "type": "bed", "name": "ベッド 1", "position": [1.3, 0, -0.7], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#9a7b5c" },
-    { "type": "shelf", "name": "棚 1", "position": [-1.7, 0, 0.9], "rotation": [0, -1.5708, 0], "scale": [1, 1, 1], "color": "#a8845f" }
+    { "type": "room", "name": "部屋 1", "position": [0, 0, 0], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#c9a97a", "params": { "width": 4.5, "depth": 4, "height": 2.4 } },
+    { "type": "door", "name": "ドア 1", "position": [1.3, 0.05, 1.94], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#8a6a48" },
+    { "type": "window", "name": "窓 1", "position": [-2.19, 0.05, -0.6], "rotation": [0, 1.5708, 0], "scale": [1, 1, 1], "color": "#f0f2f4" },
+    { "type": "window", "name": "窓 2", "position": [-0.6, 0.05, -1.94], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#f0f2f4" },
+    { "type": "table", "name": "テーブル 1", "position": [0.7, 0.05, 0.6], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#8a6a48" },
+    { "type": "chair", "name": "イス 1", "position": [0.5, 0.05, 1.3], "rotation": [0, 3.14159, 0], "scale": [1, 1, 1], "color": "#b5835a" },
+    { "type": "chair", "name": "イス 2", "position": [0.35, 0.05, -0.1], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#b5835a" },
+    { "type": "sofa", "name": "ソファ 1", "position": [-1.2, 0.05, -1.4], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#6b8cae" },
+    { "type": "bed", "name": "ベッド 1", "position": [1.5, 0.05, -0.8], "rotation": [0, 0, 0], "scale": [1, 1, 1], "color": "#9a7b5c" },
+    { "type": "shelf", "name": "棚 1", "position": [-1.95, 0.05, 1.0], "rotation": [0, -1.5708, 0], "scale": [1, 1, 1], "color": "#a8845f" }
+  ],
+  "views": [
+    { "name": "リビング全体", "mode": "persp", "position": [6.5, 4.5, 7.5], "target": [0, 0.8, 0] },
+    { "name": "ドア側から", "mode": "persp", "position": [3.5, 2.2, 6.5], "target": [0, 0.8, 0] },
+    { "name": "平面図", "mode": "plan", "position": [0, 30, 0], "target": [0, 0, 0], "zoom": 1.8 }
   ]
 }
