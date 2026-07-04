@@ -12,9 +12,14 @@ Claude Codeの練習用リポジトリです。
 
 ```bash
 npm install
-npm run dev      # 開発サーバー(http://localhost:5173)
-npm run build    # 本番ビルド(dist/ に出力)
+npm run dev           # 開発サーバー(http://localhost:5173)
+npm run build         # 本番ビルド(dist/ に出力)
+npm run build:single  # 配布用の単一 HTML(dist-single/index.html)
 ```
+
+### 配布用の単一 HTML
+
+`npm run build:single` で、JS・CSS・PDF 変換エンジンまで全部入りの **HTML ファイル 1 個**が `dist-single/index.html` にできます。サーバー不要で、ダブルクリックするだけでブラウザで動きます(お客様への配布やオフライン利用に)。公開サイトの [web-cad.html](https://xyoumo-kgc.github.io/claude-practice/web-cad.html) からもダウンロードできます。
 
 ### 機能
 
