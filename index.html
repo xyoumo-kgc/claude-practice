@@ -10,7 +10,15 @@
   <div id="app">
     <header id="toolbar">
       <span id="logo">Web CAD</span>
-      <div class="tool-group" id="shape-tools">
+      <div class="tool-group shape-tools">
+        <button data-shape="room" title="部屋(床+壁)を配置">部屋</button>
+        <button data-shape="chair" title="イスを配置">イス</button>
+        <button data-shape="table" title="テーブルを配置">テーブル</button>
+        <button data-shape="sofa" title="ソファを配置">ソファ</button>
+        <button data-shape="bed" title="ベッドを配置">ベッド</button>
+        <button data-shape="shelf" title="棚を配置">棚</button>
+      </div>
+      <div class="tool-group shape-tools">
         <button data-shape="box" title="立方体を配置">立方体</button>
         <button data-shape="sphere" title="球を配置">球</button>
         <button data-shape="cylinder" title="円柱を配置">円柱</button>
@@ -84,6 +92,7 @@
           <li>ホイール: ズーム</li>
           <li>クリック: 選択</li>
           <li>1 / 2 / 3: 移動・回転・拡縮</li>
+          <li>R: 配置中に90°回転</li>
           <li>Esc: 配置キャンセル / 選択解除</li>
         </ul>
       </aside>

@@ -5,13 +5,14 @@ import { STLExporter } from 'three/examples/jsm/exporters/STLExporter.js';
 import { History, type Command } from './history';
 import {
   BASE_HEIGHT,
-  DEFAULT_COLOR,
   PRIMITIVE_LABELS,
-  createCadMesh,
-  createGeometry,
-  deserializeMesh,
-  isCadMesh,
-  serializeMesh,
+  createCadObject,
+  deserializeObject,
+  getObjectColor,
+  isCadObject,
+  objectMaterials,
+  serializeObject,
+  setObjectColor,
   type PrimitiveType,
   type SceneData,
 } from './objects';
@@ -28,18 +29,18 @@ interface TransformState {
   scale: THREE.Vector3;
 }
 
-function captureTransform(mesh: THREE.Mesh): TransformState {
+function captureTransform(object: THREE.Object3D): TransformState {
   return {
-    position: mesh.position.clone(),
-    rotation: mesh.rotation.clone(),
-    scale: mesh.scale.clone(),
+    position: object.position.clone(),
+    rotation: object.rotation.clone(),
+    scale: object.scale.clone(),
   };
 }
 
-function applyTransform(mesh: THREE.Mesh, state: TransformState): void {
-  mesh.position.copy(state.position);
-  mesh.rotation.copy(state.rotation);
-  mesh.scale.copy(state.scale);
+function applyTransform(object: THREE.Object3D, state: TransformState): void {
+  object.position.copy(state.position);
+  object.rotation.copy(state.rotation);
+  object.scale.copy(state.scale);
 }
 
 function transformEquals(a: TransformState, b: TransformState): boolean {
@@ -81,8 +82,9 @@ class CadApp {
   private readonly statusBar = element<HTMLElement>('status');
 
   private activeTool: PrimitiveType | null = null;
-  private ghost: THREE.Mesh | null = null;
-  private selected: THREE.Mesh | null = null;
+  private ghost: THREE.Object3D | null = null;
+  private ghostRotation = 0;
+  private selected: THREE.Object3D | null = null;
   private snapEnabled = true;
   private dragStartState: TransformState | null = null;
   private pointerDown: { x: number; y: number } | null = null;
@@ -125,7 +127,7 @@ class CadApp {
       this.renderer.render(this.scene, this.camera);
     });
 
-    this.setStatus('準備完了。ツールバーから図形を選んで配置してください。');
+    this.setStatus('準備完了。「部屋」を置いてから家具を配置してみてください。');
   }
 
   // ---------------------------------------------------------------- 環境
@@ -184,18 +186,20 @@ class CadApp {
 
   // ---------------------------------------------------------------- 選択
 
-  private select(mesh: THREE.Mesh | null): void {
-    if (this.selected === mesh) return;
-    if (this.selected) {
-      const material = this.selected.material as THREE.MeshStandardMaterial;
-      material.emissive.setHex(0x000000);
+  private setHighlight(object: THREE.Object3D, on: boolean): void {
+    for (const material of objectMaterials(object)) {
+      material.emissive.setHex(on ? 0x1a4d99 : 0x000000);
     }
-    this.selected = mesh;
-    if (mesh) {
-      const material = mesh.material as THREE.MeshStandardMaterial;
-      material.emissive.setHex(0x1a4d99);
-      this.transform.attach(mesh);
-      this.setStatus(`「${mesh.name}」を選択中`);
+  }
+
+  private select(object: THREE.Object3D | null): void {
+    if (this.selected === object) return;
+    if (this.selected) this.setHighlight(this.selected, false);
+    this.selected = object;
+    if (object) {
+      this.setHighlight(object, true);
+      this.transform.attach(object);
+      this.setStatus(`「${object.name}」を選択中`);
     } else {
       this.transform.detach();
     }
@@ -205,47 +209,47 @@ class CadApp {
 
   // ------------------------------------------------------------- コマンド
 
-  private makeAddCommand(mesh: THREE.Mesh, label: string): Command {
+  private makeAddCommand(object: THREE.Object3D, label: string): Command {
     return {
       label,
       redo: () => {
-        this.objects.add(mesh);
-        this.select(mesh);
+        this.objects.add(object);
+        this.select(object);
       },
       undo: () => {
-        if (this.selected === mesh) this.select(null);
-        this.objects.remove(mesh);
+        if (this.selected === object) this.select(null);
+        this.objects.remove(object);
       },
     };
   }
 
-  private makeDeleteCommand(mesh: THREE.Mesh): Command {
+  private makeDeleteCommand(object: THREE.Object3D): Command {
     return {
       label: '削除',
       redo: () => {
-        if (this.selected === mesh) this.select(null);
-        this.objects.remove(mesh);
+        if (this.selected === object) this.select(null);
+        this.objects.remove(object);
       },
       undo: () => {
-        this.objects.add(mesh);
-        this.select(mesh);
+        this.objects.add(object);
+        this.select(object);
       },
     };
   }
 
   private makeTransformCommand(
-    mesh: THREE.Mesh,
+    object: THREE.Object3D,
     before: TransformState,
     after: TransformState,
   ): Command {
     return {
       label: '変形',
       redo: () => {
-        applyTransform(mesh, after);
+        applyTransform(object, after);
         this.syncPanel();
       },
       undo: () => {
-        applyTransform(mesh, before);
+        applyTransform(object, before);
         this.syncPanel();
       },
     };
@@ -332,36 +336,50 @@ class CadApp {
 
   private selectAt(event: PointerEvent): void {
     this.raycaster.setFromCamera(this.pointerToNdc(event), this.camera);
-    const hits = this.raycaster.intersectObjects(this.objects.children, false);
-    const hit = hits.find((h) => isCadMesh(h.object));
-    this.select(hit ? (hit.object as THREE.Mesh) : null);
+    const hits = this.raycaster.intersectObjects(this.objects.children, true);
+    for (const hit of hits) {
+      // 当たったパーツから、objects 直下のトップレベルオブジェクトまで遡る
+      let target: THREE.Object3D | null = hit.object;
+      while (target && target.parent !== this.objects) {
+        target = target.parent;
+      }
+      if (target && isCadObject(target)) {
+        this.select(target);
+        return;
+      }
+    }
+    this.select(null);
   }
 
   // ---------------------------------------------------------------- 配置
 
   private setTool(tool: PrimitiveType | null): void {
     this.activeTool = tool;
+    this.ghostRotation = 0;
     if (this.ghost) {
       this.scene.remove(this.ghost);
-      (this.ghost.material as THREE.Material).dispose();
+      for (const material of objectMaterials(this.ghost)) material.dispose();
       this.ghost = null;
     }
-    document.querySelectorAll<HTMLButtonElement>('#shape-tools button').forEach((button) => {
+    document.querySelectorAll<HTMLButtonElement>('.shape-tools button').forEach((button) => {
       button.classList.toggle('active', button.dataset.shape === tool);
     });
     if (tool) {
       this.select(null);
-      const material = new THREE.MeshStandardMaterial({
-        color: DEFAULT_COLOR,
-        transparent: true,
-        opacity: 0.45,
-        depthWrite: false,
+      const ghost = createCadObject(tool, undefined, true);
+      for (const material of objectMaterials(ghost)) {
+        material.transparent = true;
+        material.opacity = 0.45;
+        material.depthWrite = false;
+      }
+      ghost.traverse((child) => {
+        child.castShadow = false;
+        child.receiveShadow = false;
       });
-      const ghost = new THREE.Mesh(createGeometry(tool), material);
       ghost.visible = false;
       this.ghost = ghost;
       this.scene.add(ghost);
-      this.setStatus(`${PRIMITIVE_LABELS[tool]}を配置: クリックで確定 / Esc でキャンセル`);
+      this.setStatus(`${PRIMITIVE_LABELS[tool]}を配置: クリックで確定 / R で90°回転 / Esc でキャンセル`);
     }
   }
 
@@ -370,10 +388,17 @@ class CadApp {
     const point = this.raycastGround(event);
     if (!point) return;
     const type = this.activeTool;
-    const mesh = createCadMesh(type);
-    mesh.position.set(this.snapValue(point.x), BASE_HEIGHT[type], this.snapValue(point.z));
-    this.history.push(this.makeAddCommand(mesh, `${PRIMITIVE_LABELS[type]}を追加`));
-    this.setStatus(`「${mesh.name}」を追加しました。続けてクリックで配置 / Esc で終了`);
+    const object = createCadObject(type);
+    object.position.set(this.snapValue(point.x), BASE_HEIGHT[type], this.snapValue(point.z));
+    object.rotation.y = this.ghostRotation;
+    this.history.push(this.makeAddCommand(object, `${PRIMITIVE_LABELS[type]}を追加`));
+    this.setStatus(`「${object.name}」を追加しました。続けてクリックで配置 / Esc で終了`);
+  }
+
+  private rotateGhost(): void {
+    if (!this.ghost) return;
+    this.ghostRotation = (this.ghostRotation + Math.PI / 2) % (Math.PI * 2);
+    this.ghost.rotation.y = this.ghostRotation;
   }
 
   // ---------------------------------------------------------------- 編集
@@ -388,8 +413,7 @@ class CadApp {
   private duplicateSelected(): void {
     if (!this.selected) return;
     const source = this.selected;
-    const material = source.material as THREE.MeshStandardMaterial;
-    const copy = createCadMesh(source.userData.cadType as PrimitiveType, `#${material.color.getHexString()}`);
+    const copy = createCadObject(source.userData.cadType as PrimitiveType, getObjectColor(source));
     copy.position.copy(source.position).add(new THREE.Vector3(GRID_SNAP, 0, GRID_SNAP));
     copy.rotation.copy(source.rotation);
     copy.scale.copy(source.scale);
@@ -408,15 +432,15 @@ class CadApp {
 
   // ------------------------------------------------------------ 保存/読込
 
-  private cadMeshes(): THREE.Mesh[] {
-    return this.objects.children.filter(isCadMesh);
+  private cadObjects(): THREE.Object3D[] {
+    return this.objects.children.filter(isCadObject);
   }
 
   private saveScene(): void {
     const data: SceneData = {
       format: 'web-cad',
-      version: 1,
-      objects: this.cadMeshes().map(serializeMesh),
+      version: 2,
+      objects: this.cadObjects().map(serializeObject),
     };
     downloadBlob(
       new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
@@ -435,7 +459,7 @@ class CadApp {
       this.setTool(null);
       this.objects.clear();
       for (const objectData of data.objects) {
-        this.objects.add(deserializeMesh(objectData));
+        this.objects.add(deserializeObject(objectData));
       }
       this.history.clear();
       this.setStatus(`「${file.name}」から ${data.objects.length} 個のオブジェクトを読み込みました`);
@@ -445,21 +469,21 @@ class CadApp {
   }
 
   private exportStl(): void {
-    const meshes = this.cadMeshes();
-    if (meshes.length === 0) {
+    const objects = this.cadObjects();
+    if (objects.length === 0) {
       this.setStatus('エクスポートするオブジェクトがありません');
       return;
     }
     const exporter = new STLExporter();
     const result = exporter.parse(this.objects, { binary: true });
     downloadBlob(new Blob([result.buffer as ArrayBuffer], { type: 'model/stl' }), 'model.stl');
-    this.setStatus(`${meshes.length} 個のオブジェクトを STL に出力しました`);
+    this.setStatus(`${objects.length} 個のオブジェクトを STL に出力しました`);
   }
 
   // ------------------------------------------------------------ ツールバー
 
   private setupToolbar(): void {
-    document.querySelectorAll<HTMLButtonElement>('#shape-tools button').forEach((button) => {
+    document.querySelectorAll<HTMLButtonElement>('.shape-tools button').forEach((button) => {
       button.addEventListener('click', () => {
         const shape = button.dataset.shape as PrimitiveType;
         this.setTool(this.activeTool === shape ? null : shape);
@@ -506,10 +530,10 @@ class CadApp {
   private syncPanel(): void {
     const body = element<HTMLDivElement>('panel-body');
     const empty = element<HTMLParagraphElement>('panel-empty');
-    const mesh = this.selected;
-    body.hidden = !mesh;
-    empty.hidden = !!mesh;
-    if (!mesh) return;
+    const object = this.selected;
+    body.hidden = !object;
+    empty.hidden = !!object;
+    if (!object) return;
 
     const set = (id: string, value: string) => {
       const input = element<HTMLInputElement>(id);
@@ -517,17 +541,17 @@ class CadApp {
     };
     const round = (v: number) => String(Math.round(v * 1000) / 1000);
 
-    set('prop-name', mesh.name);
-    set('prop-px', round(mesh.position.x));
-    set('prop-py', round(mesh.position.y));
-    set('prop-pz', round(mesh.position.z));
-    set('prop-rx', round(THREE.MathUtils.radToDeg(mesh.rotation.x)));
-    set('prop-ry', round(THREE.MathUtils.radToDeg(mesh.rotation.y)));
-    set('prop-rz', round(THREE.MathUtils.radToDeg(mesh.rotation.z)));
-    set('prop-sx', round(mesh.scale.x));
-    set('prop-sy', round(mesh.scale.y));
-    set('prop-sz', round(mesh.scale.z));
-    set('prop-color', `#${(mesh.material as THREE.MeshStandardMaterial).color.getHexString()}`);
+    set('prop-name', object.name);
+    set('prop-px', round(object.position.x));
+    set('prop-py', round(object.position.y));
+    set('prop-pz', round(object.position.z));
+    set('prop-rx', round(THREE.MathUtils.radToDeg(object.rotation.x)));
+    set('prop-ry', round(THREE.MathUtils.radToDeg(object.rotation.y)));
+    set('prop-rz', round(THREE.MathUtils.radToDeg(object.rotation.z)));
+    set('prop-sx', round(object.scale.x));
+    set('prop-sy', round(object.scale.y));
+    set('prop-sz', round(object.scale.z));
+    set('prop-color', getObjectColor(object));
   }
 
   private setupPanel(): void {
@@ -541,41 +565,40 @@ class CadApp {
     }
 
     element<HTMLInputElement>('prop-name').addEventListener('change', () => {
-      const mesh = this.selected;
-      if (!mesh) return;
-      const before = mesh.name;
+      const object = this.selected;
+      if (!object) return;
+      const before = object.name;
       const after = element<HTMLInputElement>('prop-name').value.trim() || before;
       if (before === after) return;
       this.history.push({
         label: '名前変更',
-        redo: () => { mesh.name = after; this.syncPanel(); },
-        undo: () => { mesh.name = before; this.syncPanel(); },
+        redo: () => { object.name = after; this.syncPanel(); },
+        undo: () => { object.name = before; this.syncPanel(); },
       });
     });
 
     element<HTMLInputElement>('prop-color').addEventListener('change', () => {
-      const mesh = this.selected;
-      if (!mesh) return;
-      const material = mesh.material as THREE.MeshStandardMaterial;
-      const before = `#${material.color.getHexString()}`;
+      const object = this.selected;
+      if (!object) return;
+      const before = getObjectColor(object);
       const after = element<HTMLInputElement>('prop-color').value;
       if (before === after) return;
       this.history.push({
         label: '色変更',
-        redo: () => { material.color.set(after); this.syncPanel(); },
-        undo: () => { material.color.set(before); this.syncPanel(); },
+        redo: () => { setObjectColor(object, after); this.syncPanel(); },
+        undo: () => { setObjectColor(object, before); this.syncPanel(); },
       });
     });
   }
 
   private applyPanelTransform(): void {
-    const mesh = this.selected;
-    if (!mesh) return;
+    const object = this.selected;
+    if (!object) return;
     const num = (id: string, fallback: number) => {
       const value = Number.parseFloat(element<HTMLInputElement>(id).value);
       return Number.isFinite(value) ? value : fallback;
     };
-    const before = captureTransform(mesh);
+    const before = captureTransform(object);
     const after: TransformState = {
       position: new THREE.Vector3(
         num('prop-px', before.position.x),
@@ -594,7 +617,7 @@ class CadApp {
       ),
     };
     if (transformEquals(before, after)) return;
-    this.history.push(this.makeTransformCommand(mesh, before, after));
+    this.history.push(this.makeTransformCommand(object, before, after));
   }
 
   // ------------------------------------------------------------ キーボード
@@ -634,6 +657,10 @@ class CadApp {
           break;
         case '3':
           this.setTransformMode('scale');
+          break;
+        case 'r':
+        case 'R':
+          if (this.activeTool) this.rotateGhost();
           break;
         case 'Delete':
         case 'Backspace':
