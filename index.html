@@ -62,11 +62,11 @@
             <input id="prop-name" type="text" />
           </label>
           <fieldset>
-            <legend>位置</legend>
+            <legend>位置 (mm)</legend>
             <div class="vec3">
-              <label>X<input id="prop-px" type="number" step="0.1" /></label>
-              <label>Y<input id="prop-py" type="number" step="0.1" /></label>
-              <label>Z<input id="prop-pz" type="number" step="0.1" /></label>
+              <label>X<input id="prop-px" type="number" step="100" /></label>
+              <label>Y<input id="prop-py" type="number" step="100" /></label>
+              <label>Z<input id="prop-pz" type="number" step="100" /></label>
             </div>
           </fieldset>
           <fieldset>
@@ -89,14 +89,21 @@
             <input id="prop-color" type="color" />
           </label>
           <fieldset id="room-params" hidden>
-            <legend>部屋の寸法 (m)</legend>
+            <legend>部屋の寸法 (mm)</legend>
             <div class="vec3">
-              <label>幅<input id="prop-rw" type="number" step="0.5" min="1" /></label>
-              <label>奥行<input id="prop-rd" type="number" step="0.5" min="1" /></label>
-              <label>壁高<input id="prop-rh" type="number" step="0.1" min="0.5" /></label>
+              <label>幅<input id="prop-rw" type="number" step="100" min="1000" /></label>
+              <label>奥行<input id="prop-rd" type="number" step="100" min="1000" /></label>
+              <label>壁高<input id="prop-rh" type="number" step="100" min="500" /></label>
             </div>
           </fieldset>
         </div>
+        <h2>提案書情報</h2>
+        <label class="prop-row">物件名
+          <input id="proposal-project" type="text" placeholder="〇〇様邸 1LDK" />
+        </label>
+        <label class="prop-row">お客様名
+          <input id="proposal-customer" type="text" placeholder="山田 太郎" />
+        </label>
         <h2>提案用アングル</h2>
         <button id="add-view" class="wide">現在の視点を保存</button>
         <ul id="view-list"></ul>

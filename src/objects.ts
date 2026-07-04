@@ -48,11 +48,17 @@ export interface SavedViewData {
   zoom?: number;
 }
 
+export interface ProposalMeta {
+  project?: string;
+  customer?: string;
+}
+
 export interface SceneData {
   format: 'web-cad';
   version: number;
   objects: CadObjectData[];
   views?: SavedViewData[];
+  meta?: ProposalMeta;
 }
 
 export const PRIMITIVE_LABELS: Record<PrimitiveType, string> = {
