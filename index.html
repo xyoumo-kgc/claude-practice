@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Web CAD</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📐</text></svg>" />
+</head>
+<body>
+  <div id="app">
+    <header id="toolbar">
+      <span id="logo">Web CAD</span>
+      <div class="tool-group" id="shape-tools">
+        <button data-shape="box" title="立方体を配置">立方体</button>
+        <button data-shape="sphere" title="球を配置">球</button>
+        <button data-shape="cylinder" title="円柱を配置">円柱</button>
+        <button data-shape="cone" title="円錐を配置">円錐</button>
+        <button data-shape="torus" title="トーラスを配置">トーラス</button>
+      </div>
+      <div class="tool-group">
+        <button id="mode-translate" class="active" title="移動モード (1)">移動</button>
+        <button id="mode-rotate" title="回転モード (2)">回転</button>
+        <button id="mode-scale" title="拡大縮小モード (3)">拡縮</button>
+      </div>
+      <div class="tool-group">
+        <button id="snap-toggle" class="active" title="グリッドスナップの切替">スナップ</button>
+      </div>
+      <div class="tool-group">
+        <button id="undo" title="元に戻す (Ctrl+Z)" disabled>元に戻す</button>
+        <button id="redo" title="やり直す (Ctrl+Y)" disabled>やり直す</button>
+      </div>
+      <div class="tool-group">
+        <button id="duplicate" title="複製 (Ctrl+D)" disabled>複製</button>
+        <button id="delete" title="削除 (Delete)" disabled>削除</button>
+      </div>
+      <div class="tool-group">
+        <button id="save" title="JSON形式で保存">保存</button>
+        <button id="load" title="JSONファイルを開く">開く</button>
+        <button id="export-stl" title="STL形式でエクスポート">STL出力</button>
+        <input type="file" id="file-input" accept=".json,application/json" hidden />
+      </div>
+    </header>
+    <main id="workspace">
+      <div id="viewport"></div>
+      <aside id="panel">
+        <h2>プロパティ</h2>
+        <p id="panel-empty">オブジェクトを選択してください</p>
+        <div id="panel-body" hidden>
+          <label class="prop-row">名前
+            <input id="prop-name" type="text" />
+          </label>
+          <fieldset>
+            <legend>位置</legend>
+            <div class="vec3">
+              <label>X<input id="prop-px" type="number" step="0.1" /></label>
+              <label>Y<input id="prop-py" type="number" step="0.1" /></label>
+              <label>Z<input id="prop-pz" type="number" step="0.1" /></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>回転 (°)</legend>
+            <div class="vec3">
+              <label>X<input id="prop-rx" type="number" step="5" /></label>
+              <label>Y<input id="prop-ry" type="number" step="5" /></label>
+              <label>Z<input id="prop-rz" type="number" step="5" /></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>スケール</legend>
+            <div class="vec3">
+              <label>X<input id="prop-sx" type="number" step="0.1" /></label>
+              <label>Y<input id="prop-sy" type="number" step="0.1" /></label>
+              <label>Z<input id="prop-sz" type="number" step="0.1" /></label>
+            </div>
+          </fieldset>
+          <label class="prop-row">色
+            <input id="prop-color" type="color" />
+          </label>
+        </div>
+        <h2>操作方法</h2>
+        <ul id="help">
+          <li>左ドラッグ: 視点回転</li>
+          <li>右ドラッグ: 平行移動</li>
+          <li>ホイール: ズーム</li>
+          <li>クリック: 選択</li>
+          <li>1 / 2 / 3: 移動・回転・拡縮</li>
+          <li>Esc: 配置キャンセル / 選択解除</li>
+        </ul>
+      </aside>
+    </main>
+    <footer id="status">準備完了</footer>
+  </div>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>

@@ -1,0 +1,182 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  font-family: "Hiragino Sans", "Noto Sans JP", "Yu Gothic UI", sans-serif;
+  font-size: 13px;
+  background: #1e1f24;
+  color: #e6e6e8;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 10px;
+  background: #2a2c33;
+  border-bottom: 1px solid #14151a;
+  flex-wrap: wrap;
+}
+
+#logo {
+  font-weight: 700;
+  margin-right: 4px;
+  color: #7ab3ff;
+}
+
+.tool-group {
+  display: flex;
+  gap: 4px;
+  padding-right: 12px;
+  border-right: 1px solid #3d4049;
+}
+
+.tool-group:last-of-type {
+  border-right: none;
+}
+
+button {
+  background: #3a3d46;
+  color: #e6e6e8;
+  border: 1px solid #4a4d58;
+  border-radius: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: #4a4e5a;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+button.active {
+  background: #2f6fd0;
+  border-color: #4d8ae8;
+}
+
+#workspace {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+
+#viewport {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+#viewport canvas {
+  display: block;
+}
+
+#panel {
+  width: 250px;
+  background: #26282e;
+  border-left: 1px solid #14151a;
+  padding: 10px;
+  overflow-y: auto;
+}
+
+#panel h2 {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #9aa0ab;
+  margin: 6px 0 8px;
+}
+
+#panel-empty {
+  color: #777d88;
+}
+
+fieldset {
+  border: 1px solid #3d4049;
+  border-radius: 4px;
+  margin: 0 0 8px;
+  padding: 6px 8px 8px;
+}
+
+legend {
+  color: #9aa0ab;
+  padding: 0 4px;
+  font-size: 11px;
+}
+
+.vec3 {
+  display: flex;
+  gap: 6px;
+}
+
+.vec3 label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  color: #9aa0ab;
+  font-size: 11px;
+}
+
+.prop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #9aa0ab;
+}
+
+input[type="text"],
+input[type="number"] {
+  width: 100%;
+  background: #1b1c21;
+  border: 1px solid #3d4049;
+  border-radius: 3px;
+  color: #e6e6e8;
+  padding: 4px 6px;
+  font-size: 12px;
+}
+
+input[type="text"] {
+  flex: 1;
+}
+
+input[type="color"] {
+  background: none;
+  border: 1px solid #3d4049;
+  border-radius: 3px;
+  width: 48px;
+  height: 26px;
+  padding: 2px;
+}
+
+#help {
+  margin: 0;
+  padding-left: 18px;
+  color: #858b96;
+  line-height: 1.7;
+}
+
+#status {
+  padding: 4px 10px;
+  background: #2a2c33;
+  border-top: 1px solid #14151a;
+  color: #9aa0ab;
+  min-height: 24px;
+}
