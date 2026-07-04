@@ -24,6 +24,7 @@ import {
   type SavedViewData,
   type SceneData,
 } from './objects';
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import './style.css';
 
 const GRID_SNAP = 0.5;
@@ -181,6 +182,7 @@ class CadApp {
     this.setupToolbar();
     this.setupPanel();
     this.setupKeyboard();
+    this.setupDragDrop();
     this.applySnapSettings();
 
     this.history.onChange = () => {
@@ -1107,29 +1109,84 @@ class CadApp {
   }
 
   private loadUnderlay(file: File): void {
+    if (file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf')) {
+      void this.loadUnderlayPdf(file).catch((error) => {
+        this.setStatus(`PDF の読み込みに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+      });
+      return;
+    }
     const url = URL.createObjectURL(file);
     new THREE.TextureLoader().load(url, (texture) => {
       URL.revokeObjectURL(url);
       texture.colorSpace = THREE.SRGBColorSpace;
-      this.removeUnderlay();
       const image = texture.image as { width: number; height: number };
-      const geometry = new THREE.PlaneGeometry(1, 1);
-      geometry.rotateX(-Math.PI / 2);
-      const material = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: Number.parseFloat(element<HTMLInputElement>('underlay-opacity').value) || 0.7,
-        depthWrite: false,
-      });
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.userData.aspect = image.height / image.width;
-      mesh.position.y = 0.005;
-      mesh.renderOrder = -1;
-      this.underlay = mesh;
-      this.scene.add(mesh);
-      this.resizeUnderlay();
-      element<HTMLButtonElement>('underlay-remove').disabled = false;
+      this.applyUnderlayTexture(texture, image.height / image.width);
       this.setStatus('下絵を読み込みました。平面図モードで「部屋」ツールをドラッグしてなぞってください');
+    });
+  }
+
+  /** スキャンした PDF の1ページ目を画像化して下絵にする */
+  private async loadUnderlayPdf(file: File): Promise<void> {
+    this.setStatus('PDF を読み込んでいます...');
+    const pdfjs = await import('pdfjs-dist');
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+    const doc = await pdfjs.getDocument({ data: await file.arrayBuffer() }).promise;
+    const page = await doc.getPage(1);
+    const viewport = page.getViewport({ scale: 2 });
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.ceil(viewport.width);
+    canvas.height = Math.ceil(viewport.height);
+    const ctx = canvas.getContext('2d')!;
+    await page.render({ canvasContext: ctx, viewport }).promise;
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.applyUnderlayTexture(texture, canvas.height / canvas.width);
+    const pages = doc.numPages > 1 ? `(全 ${doc.numPages} ページ中の1ページ目)` : '';
+    this.setStatus(`PDF を下絵にしました${pages}。平面図モードで「部屋」ツールでなぞってください`);
+  }
+
+  private applyUnderlayTexture(texture: THREE.Texture, aspect: number): void {
+    this.removeUnderlay();
+    const geometry = new THREE.PlaneGeometry(1, 1);
+    geometry.rotateX(-Math.PI / 2);
+    const material = new THREE.MeshBasicMaterial({
+      map: texture,
+      transparent: true,
+      opacity: Number.parseFloat(element<HTMLInputElement>('underlay-opacity').value) || 0.7,
+      depthWrite: false,
+    });
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.userData.aspect = aspect;
+    mesh.position.y = 0.005;
+    mesh.renderOrder = -1;
+    this.underlay = mesh;
+    this.scene.add(mesh);
+    this.resizeUnderlay();
+    element<HTMLButtonElement>('underlay-remove').disabled = false;
+  }
+
+  /** ビューポートへのドラッグ&ドロップ(画像/PDF は下絵、JSON はシーン読み込み) */
+  private setupDragDrop(): void {
+    const dom = this.viewport;
+    dom.addEventListener('dragover', (event) => {
+      event.preventDefault();
+      if (event.dataTransfer) event.dataTransfer.dropEffect = 'copy';
+    });
+    dom.addEventListener('dragenter', () => {
+      this.setStatus('ここにドロップ: 画像・PDF は下絵に、保存した JSON はシーンとして読み込みます');
+    });
+    dom.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const file = event.dataTransfer?.files?.[0];
+      if (!file) return;
+      const name = file.name.toLowerCase();
+      if (file.type.startsWith('image/') || file.type === 'application/pdf' || name.endsWith('.pdf')) {
+        this.loadUnderlay(file);
+      } else if (name.endsWith('.json')) {
+        void this.loadScene(file);
+      } else {
+        this.setStatus('対応していないファイルです(画像 / PDF / 保存した JSON をドロップできます)');
+      }
     });
   }
 
