@@ -19,6 +19,7 @@ import {
   setObjectColor,
   type Opening,
   type PrimitiveType,
+  type ProposalMeta,
   type RoomParams,
   type SavedViewData,
   type SceneData,
@@ -96,6 +97,8 @@ class CadApp {
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   /** ユーザーが作成した CAD オブジェクトだけを入れるグループ */
   private readonly objects = new THREE.Group();
+  /** 平面図モードで表示する寸法線(部屋ごとのサブグループ) */
+  private readonly dimensions = new THREE.Group();
   private readonly history = new History();
 
   private readonly viewport = element<HTMLDivElement>('viewport');
@@ -125,6 +128,8 @@ class CadApp {
 
     this.scene.background = new THREE.Color(BG_EDIT);
     this.scene.add(this.objects);
+    this.dimensions.visible = false;
+    this.scene.add(this.dimensions);
 
     this.camera = new THREE.PerspectiveCamera(50, 1, 0.1, 500);
     this.camera.position.set(7, 6, 9);
@@ -166,6 +171,7 @@ class CadApp {
     this.renderer.setAnimationLoop(() => {
       (this.planMode ? this.planOrbit : this.orbit).update();
       this.updateWallVisibility();
+      this.syncDimensions();
       this.renderer.render(this.scene, this.activeCamera);
     });
 
@@ -302,6 +308,111 @@ class CadApp {
       }
     }
     this.refreshTints();
+    this.updateDimensions();
+  }
+
+  // ------------------------------------------------------------ 寸法線
+
+  /** 寸法値ラベル(mm 表記)のスプライトを作る */
+  private makeDimLabel(text: string, vertical = false): THREE.Sprite {
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 96;
+    const ctx = canvas.getContext('2d')!;
+    ctx.fillStyle = '#ffffff';
+    const r = 16;
+    ctx.beginPath();
+    ctx.roundRect(4, 4, canvas.width - 8, canvas.height - 8, r);
+    ctx.fill();
+    ctx.strokeStyle = '#2f80ed';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.fillStyle = '#1f2933';
+    ctx.font = 'bold 52px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, canvas.width / 2, canvas.height / 2 + 2);
+    const texture = new THREE.CanvasTexture(canvas);
+    const material = new THREE.SpriteMaterial({ map: texture, depthTest: false });
+    if (vertical) material.rotation = Math.PI / 2;
+    const sprite = new THREE.Sprite(material);
+    sprite.scale.set(0.95, 0.36, 1);
+    sprite.renderOrder = 11;
+    return sprite;
+  }
+
+  /** 1 部屋分の寸法線(幅・奥行、mm 表記)を組み立てる */
+  private buildRoomDimensions(room: THREE.Object3D): THREE.Group {
+    const params = room.userData.params as RoomParams;
+    const group = new THREE.Group();
+    const W = params.width;
+    const D = params.depth;
+    const off = 0.55; // 部屋の外側へのオフセット
+    const tick = 0.12;
+    const y = 0.02;
+    const mm = (v: number) => Math.round(v * 1000).toLocaleString('ja-JP');
+
+    const points: number[] = [];
+    // 幅の寸法線(部屋の手前 = +z 側)
+    const z1 = D / 2 + off;
+    points.push(-W / 2, y, z1, W / 2, y, z1);
+    points.push(-W / 2, y, z1 - tick, -W / 2, y, z1 + tick);
+    points.push(W / 2, y, z1 - tick, W / 2, y, z1 + tick);
+    points.push(-W / 2, y, D / 2, -W / 2, y, z1); // 補助線
+    points.push(W / 2, y, D / 2, W / 2, y, z1);
+    // 奥行の寸法線(部屋の左 = -x 側)
+    const x1 = -W / 2 - off;
+    points.push(x1, y, -D / 2, x1, y, D / 2);
+    points.push(x1 - tick, y, -D / 2, x1 + tick, y, -D / 2);
+    points.push(x1 - tick, y, D / 2, x1 + tick, y, D / 2);
+    points.push(-W / 2, y, -D / 2, x1, y, -D / 2);
+    points.push(-W / 2, y, D / 2, x1, y, D / 2);
+
+    const geometry = new THREE.BufferGeometry();
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3));
+    const lines = new THREE.LineSegments(
+      geometry,
+      new THREE.LineBasicMaterial({ color: 0x2f80ed, depthTest: false }),
+    );
+    lines.renderOrder = 10;
+    group.add(lines);
+
+    const widthLabel = this.makeDimLabel(mm(W));
+    widthLabel.position.set(0, y, z1 + 0.4);
+    const depthLabel = this.makeDimLabel(mm(D), true);
+    depthLabel.position.set(x1 - 0.4, y, 0);
+    group.add(widthLabel, depthLabel);
+
+    group.userData.room = room;
+    return group;
+  }
+
+  /** 寸法線を全部屋分作り直す(部屋の追加・削除・寸法変更時) */
+  private updateDimensions(): void {
+    for (const child of [...this.dimensions.children]) {
+      child.traverse((node) => {
+        const mesh = node as THREE.Mesh;
+        mesh.geometry?.dispose();
+        const material = mesh.material as THREE.Material & { map?: THREE.Texture };
+        material?.map?.dispose();
+        material?.dispose?.();
+      });
+    }
+    this.dimensions.clear();
+    for (const room of this.rooms()) {
+      this.dimensions.add(this.buildRoomDimensions(room));
+    }
+    this.syncDimensions();
+  }
+
+  /** 寸法線の位置・向きを部屋に追従させる(毎フレーム、再構築なしで安価に) */
+  private syncDimensions(): void {
+    for (const child of this.dimensions.children) {
+      const room = child.userData.room as THREE.Object3D | undefined;
+      if (!room) continue;
+      child.position.copy(room.position);
+      child.quaternion.copy(room.quaternion);
+    }
   }
 
   /** カメラ側を向いている壁を隠して、部屋の中が見えるようにする */
@@ -715,6 +826,7 @@ class CadApp {
     this.planOrbit.enabled = on;
     this.transform.camera = this.activeCamera;
     this.sun.castShadow = !on; // 平面図では影を落とさず室内を明るく見せる
+    this.dimensions.visible = on; // 寸法線は平面図でのみ表示
     this.setStatus(on ? '平面図モード(ドラッグで移動 / ホイールで拡大縮小)' : '3D ビュー');
   }
 
@@ -724,12 +836,20 @@ class CadApp {
     return this.objects.children.filter(isCadObject);
   }
 
+  private proposalMeta(): ProposalMeta {
+    return {
+      project: element<HTMLInputElement>('proposal-project').value.trim(),
+      customer: element<HTMLInputElement>('proposal-customer').value.trim(),
+    };
+  }
+
   private saveScene(): void {
     const data: SceneData = {
       format: 'web-cad',
-      version: 3,
+      version: 4,
       objects: this.cadObjects().map(serializeObject),
       views: this.savedViews,
+      meta: this.proposalMeta(),
     };
     downloadBlob(
       new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }),
@@ -752,6 +872,8 @@ class CadApp {
       }
       this.savedViews = data.views ?? [];
       this.renderViewList();
+      element<HTMLInputElement>('proposal-project').value = data.meta?.project ?? '';
+      element<HTMLInputElement>('proposal-customer').value = data.meta?.customer ?? '';
       this.history.clear();
       this.setStatus(`「${file.name}」から ${data.objects.length} 個のオブジェクトを読み込みました`);
     } catch (error) {
@@ -868,6 +990,52 @@ class CadApp {
     return { data: canvas.toDataURL('image/jpeg', 0.9), w: canvas.width, h: canvas.height };
   }
 
+  /** 物件名・お客様名入りの表紙を A4 横比率のキャンバスで作る */
+  private makeCoverImage(): string {
+    const w = 1684;
+    const h = 1190;
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d')!;
+    const meta = this.proposalMeta();
+    const project = meta.project || 'お部屋レイアウトのご提案';
+
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, w, h);
+    ctx.fillStyle = '#2f80ed';
+    ctx.fillRect(0, 0, w, 16);
+    ctx.fillRect(0, h - 16, w, 16);
+
+    ctx.fillStyle = '#616e7c';
+    ctx.font = '32px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('R O O M   P L A N   P R O P O S A L', w / 2, h * 0.24);
+
+    ctx.fillStyle = '#1f2933';
+    ctx.font = 'bold 88px sans-serif';
+    ctx.fillText(project, w / 2, h * 0.42);
+
+    ctx.strokeStyle = '#2f80ed';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(w / 2 - 180, h * 0.48);
+    ctx.lineTo(w / 2 + 180, h * 0.48);
+    ctx.stroke();
+
+    if (meta.customer) {
+      ctx.fillStyle = '#1f2933';
+      ctx.font = '56px sans-serif';
+      ctx.fillText(`${meta.customer} 様`, w / 2, h * 0.58);
+    }
+
+    ctx.fillStyle = '#616e7c';
+    ctx.font = '36px sans-serif';
+    ctx.fillText(`ご提案日: ${new Date().toLocaleDateString('ja-JP')}`, w / 2, h * 0.78);
+
+    return canvas.toDataURL('image/jpeg', 0.92);
+  }
+
   private async exportPdf(): Promise<void> {
     const views = this.savedViews.length > 0
       ? this.savedViews
@@ -875,33 +1043,37 @@ class CadApp {
     this.setStatus('PDF を作成しています...');
     const { jsPDF } = await import('jspdf');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+    const pageW = 297;
+    const pageH = 210;
+
+    // 1ページ目: 表紙
+    doc.addImage(this.makeCoverImage(), 'JPEG', 0, 0, pageW, pageH);
 
     const restoreView = this.captureViewState('');
     const restoreSelected = this.selected;
     this.select(null);
     this.setPresentation(true);
     try {
-      const pageW = 297;
-      const pageH = 210;
       const margin = 10;
-      views.forEach((view, index) => {
+      for (const view of views) {
         this.applyViewState(view);
         this.updateWallVisibility();
+        this.syncDimensions();
         this.renderer.render(this.scene, this.activeCamera);
         const image = this.captureImage(view.name);
-        if (index > 0) doc.addPage();
+        doc.addPage();
         const ratio = Math.min((pageW - margin * 2) / image.w, (pageH - margin * 2) / image.h);
         const w = image.w * ratio;
         const h = image.h * ratio;
         doc.addImage(image.data, 'JPEG', (pageW - w) / 2, (pageH - h) / 2, w, h);
-      });
+      }
     } finally {
       this.setPresentation(false);
       this.applyViewState(restoreView);
       this.select(restoreSelected);
     }
     doc.save('room-plan.pdf');
-    this.setStatus(`${views.length} アングルの提案書 PDF を出力しました`);
+    this.setStatus(`表紙 + ${views.length} アングルの提案書 PDF を出力しました`);
   }
 
   // ------------------------------------------------------------ ツールバー
@@ -968,10 +1140,12 @@ class CadApp {
     };
     const round = (v: number) => String(round3(v));
 
+    const mm = (v: number) => String(Math.round(v * 1000));
+
     set('prop-name', object.name);
-    set('prop-px', round(object.position.x));
-    set('prop-py', round(object.position.y));
-    set('prop-pz', round(object.position.z));
+    set('prop-px', mm(object.position.x));
+    set('prop-py', mm(object.position.y));
+    set('prop-pz', mm(object.position.z));
     set('prop-rx', round(THREE.MathUtils.radToDeg(object.rotation.x)));
     set('prop-ry', round(THREE.MathUtils.radToDeg(object.rotation.y)));
     set('prop-rz', round(THREE.MathUtils.radToDeg(object.rotation.z)));
@@ -984,9 +1158,9 @@ class CadApp {
     element<HTMLFieldSetElement>('room-params').hidden = !isRoom;
     if (isRoom) {
       const params = object.userData.params as RoomParams;
-      set('prop-rw', String(params.width));
-      set('prop-rd', String(params.depth));
-      set('prop-rh', String(params.height));
+      set('prop-rw', mm(params.width));
+      set('prop-rd', mm(params.depth));
+      set('prop-rh', mm(params.height));
     }
   }
 
@@ -1039,10 +1213,11 @@ class CadApp {
     const room = this.selected;
     if (!room || room.userData.cadType !== 'room') return;
     const before = { ...(room.userData.params as RoomParams) };
+    // 入力は mm、内部は m で保持する
     const after: RoomParams = {
-      width: Math.max(1, this.panelNumber('prop-rw', before.width)),
-      depth: Math.max(1, this.panelNumber('prop-rd', before.depth)),
-      height: Math.max(0.5, this.panelNumber('prop-rh', before.height)),
+      width: Math.max(1, this.panelNumber('prop-rw', before.width * 1000) / 1000),
+      depth: Math.max(1, this.panelNumber('prop-rd', before.depth * 1000) / 1000),
+      height: Math.max(0.5, this.panelNumber('prop-rh', before.height * 1000) / 1000),
     };
     if (JSON.stringify(before) === JSON.stringify(after)) return;
     this.history.push({
@@ -1056,11 +1231,12 @@ class CadApp {
     const object = this.selected;
     if (!object) return;
     const before = captureTransform(object);
+    // 位置の入力は mm、内部は m で保持する
     const after: TransformState = {
       position: new THREE.Vector3(
-        this.panelNumber('prop-px', before.position.x),
-        this.panelNumber('prop-py', before.position.y),
-        this.panelNumber('prop-pz', before.position.z),
+        this.panelNumber('prop-px', before.position.x * 1000) / 1000,
+        this.panelNumber('prop-py', before.position.y * 1000) / 1000,
+        this.panelNumber('prop-pz', before.position.z * 1000) / 1000,
       ),
       rotation: new THREE.Euler(
         THREE.MathUtils.degToRad(this.panelNumber('prop-rx', THREE.MathUtils.radToDeg(before.rotation.x))),
