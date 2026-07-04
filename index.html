@@ -32,6 +32,7 @@
         <button id="mode-rotate" title="回転モード (2)">回転</button>
         <button id="mode-scale" title="拡大縮小モード (3)">拡縮</button>
         <button id="plan-toggle" title="真上から見る平面図モードの切替">平面図</button>
+        <button id="tour-toggle" title="一人称視点で部屋の中を歩き回る(WASD移動 / ドラッグ見回し)">ルームツアー</button>
       </div>
       <div class="tool-group">
         <button id="snap-toggle" class="active" title="グリッドスナップの切替">スナップ</button>
@@ -97,6 +98,15 @@
             </div>
           </fieldset>
         </div>
+        <h2>下絵(間取り画像)</h2>
+        <button id="underlay-load" class="wide">間取り画像を読み込み</button>
+        <input type="file" id="underlay-input" accept="image/*" hidden />
+        <div class="vec3">
+          <label>幅 (mm)<input id="underlay-width" type="number" step="500" min="1000" value="10000" /></label>
+          <label>透明度<input id="underlay-opacity" type="range" min="0.1" max="1" step="0.05" value="0.7" /></label>
+        </div>
+        <button id="underlay-remove" class="wide" disabled>下絵を削除</button>
+        <p class="hint">間取り画像を床に敷き、平面図モードで「部屋」ツールをドラッグしてなぞると概算サイズで3D化できます。寸法は後からパネルで調整してください。</p>
         <h2>提案書情報</h2>
         <label class="prop-row">物件名
           <input id="proposal-project" type="text" placeholder="〇〇様邸 1LDK" />
@@ -116,9 +126,12 @@
           <li>クリック: 選択</li>
           <li>1 / 2 / 3: 移動・回転・拡縮</li>
           <li>R: 配置中に90°回転</li>
+          <li>部屋ツール: ドラッグでサイズ指定</li>
+          <li>部屋同士は近づけると辺が吸着</li>
           <li>平面図ボタン: 真上から表示</li>
+          <li>ルームツアー: WASD移動+ドラッグ見回し</li>
           <li>家具が重なると赤く表示</li>
-          <li>Esc: 配置キャンセル / 選択解除</li>
+          <li>Esc: 配置キャンセル / 選択解除 / ツアー終了</li>
         </ul>
       </aside>
     </main>

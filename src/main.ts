@@ -94,6 +94,7 @@ class CadApp {
   private readonly planOrbit: OrbitControls;
   private readonly transform: TransformControls;
   private readonly raycaster = new THREE.Raycaster();
+  private readonly wallRaycaster = new THREE.Raycaster();
   private readonly groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
   /** ユーザーが作成した CAD オブジェクトだけを入れるグループ */
   private readonly objects = new THREE.Group();
@@ -107,6 +108,7 @@ class CadApp {
   private gridHelper!: THREE.GridHelper;
   private axesHelper!: THREE.AxesHelper;
   private sun!: THREE.DirectionalLight;
+  private hemisphere!: THREE.HemisphereLight;
 
   private activeTool: PrimitiveType | null = null;
   private ghost: THREE.Object3D | null = null;
@@ -118,6 +120,23 @@ class CadApp {
   private pointerDown: { x: number; y: number } | null = null;
   private readonly collided = new Set<THREE.Object3D>();
   private savedViews: SavedViewData[] = [];
+
+  // 部屋のドラッグ描画
+  private roomDragStart: THREE.Vector3 | null = null;
+  private dragRect: THREE.Mesh | null = null;
+
+  // 下絵(間取り画像)
+  private underlay: THREE.Mesh | null = null;
+
+  // ルームツアー(一人称ウォークスルー)
+  private tourMode = false;
+  private readonly walkCamera: THREE.PerspectiveCamera;
+  private readonly pressedKeys = new Set<string>();
+  private readonly walkVelocity = new THREE.Vector3();
+  private lookPointer: { x: number; y: number } | null = null;
+  private yaw = 0;
+  private pitch = 0;
+  private readonly clock = new THREE.Clock();
 
   constructor() {
     this.renderer = new THREE.WebGLRenderer({ antialias: true });
@@ -148,6 +167,11 @@ class CadApp {
     this.planOrbit.screenSpacePanning = false;
     this.planOrbit.enabled = false;
 
+    // ルームツアー用カメラ(目線の高さ 1.45m)
+    this.walkCamera = new THREE.PerspectiveCamera(65, 1, 0.05, 200);
+    this.walkCamera.rotation.order = 'YXZ';
+    this.walkCamera.position.set(0, 1.45, 4);
+
     this.transform = new TransformControls(this.camera, this.renderer.domElement);
     this.scene.add(this.transform.getHelper());
 
@@ -169,7 +193,9 @@ class CadApp {
     window.addEventListener('resize', () => this.resize());
     this.resize();
     this.renderer.setAnimationLoop(() => {
-      (this.planMode ? this.planOrbit : this.orbit).update();
+      const dt = Math.min(this.clock.getDelta(), 0.1);
+      if (this.tourMode) this.updateTour(dt);
+      else (this.planMode ? this.planOrbit : this.orbit).update();
       this.updateWallVisibility();
       this.syncDimensions();
       this.renderer.render(this.scene, this.activeCamera);
@@ -179,14 +205,15 @@ class CadApp {
   }
 
   private get activeCamera(): THREE.Camera {
+    if (this.tourMode) return this.walkCamera;
     return this.planMode ? this.planCamera : this.camera;
   }
 
   // ---------------------------------------------------------------- 環境
 
   private setupEnvironment(): void {
-    const hemisphere = new THREE.HemisphereLight('#cfd8e6', '#3a3f4a', 0.9);
-    this.scene.add(hemisphere);
+    this.hemisphere = new THREE.HemisphereLight('#cfd8e6', '#3a3f4a', 0.9);
+    this.scene.add(this.hemisphere);
 
     this.sun = new THREE.DirectionalLight('#ffffff', 1.6);
     this.sun.position.set(8, 14, 6);
@@ -217,6 +244,8 @@ class CadApp {
     const aspect = clientWidth / Math.max(clientHeight, 1);
     this.camera.aspect = aspect;
     this.camera.updateProjectionMatrix();
+    this.walkCamera.aspect = aspect;
+    this.walkCamera.updateProjectionMatrix();
     this.planCamera.left = -8 * aspect;
     this.planCamera.right = 8 * aspect;
     this.planCamera.updateProjectionMatrix();
@@ -276,18 +305,21 @@ class CadApp {
         const spec = OPENING_SPECS[opener.userData.cadType as PrimitiveType];
         if (!spec) continue;
         const local = room.worldToLocal(opener.getWorldPosition(_v1).clone());
+        // 隣の部屋の壁に付けたドアでも自分側の壁が開くように、
+        // 判定範囲を壁厚の 1.25 倍(背中合わせの壁の中心線まで)に広げる
+        const reach = t * 1.25;
         let side: Opening['side'] | null = null;
         let offset = 0;
-        if (Math.abs(local.z - (-halfD + t / 2)) < t && Math.abs(local.x) < halfW) {
+        if (Math.abs(local.z - (-halfD + t / 2)) < reach && Math.abs(local.x) < halfW) {
           side = 'n';
           offset = local.x;
-        } else if (Math.abs(local.z - (halfD - t / 2)) < t && Math.abs(local.x) < halfW) {
+        } else if (Math.abs(local.z - (halfD - t / 2)) < reach && Math.abs(local.x) < halfW) {
           side = 's';
           offset = local.x;
-        } else if (Math.abs(local.x - (-halfW + t / 2)) < t && Math.abs(local.z) < halfD) {
+        } else if (Math.abs(local.x - (-halfW + t / 2)) < reach && Math.abs(local.z) < halfD) {
           side = 'w';
           offset = local.z;
-        } else if (Math.abs(local.x - (halfW - t / 2)) < t && Math.abs(local.z) < halfD) {
+        } else if (Math.abs(local.x - (halfW - t / 2)) < reach && Math.abs(local.z) < halfD) {
           side = 'e';
           offset = local.z;
         }
@@ -422,7 +454,8 @@ class CadApp {
       for (const child of room.children) {
         const normal = child.userData.wallNormal as THREE.Vector3 | undefined;
         if (!normal) continue;
-        if (this.planMode) {
+        if (this.planMode || this.tourMode) {
+          // 平面図では間取り確認のため、ツアーでは室内にいるため全ての壁を表示する
           child.visible = true;
           continue;
         }
@@ -626,6 +659,8 @@ class CadApp {
       const type = this.selected.userData.cadType as string;
       if (type === 'door' || type === 'window') {
         this.snapOpeningToWall(this.selected);
+      } else if (type === 'room' && this.transform.mode === 'translate') {
+        this.snapRoomToRooms(this.selected);
       } else if (type !== 'room' && this.transform.mode === 'translate') {
         this.snapFurnitureToWalls(this.selected);
       }
@@ -648,6 +683,29 @@ class CadApp {
     const dom = this.renderer.domElement;
 
     dom.addEventListener('pointermove', (event) => {
+      if (this.tourMode) {
+        if (this.lookPointer) {
+          const dx = event.clientX - this.lookPointer.x;
+          const dy = event.clientY - this.lookPointer.y;
+          this.lookPointer = { x: event.clientX, y: event.clientY };
+          this.yaw -= dx * 0.0045;
+          this.pitch = THREE.MathUtils.clamp(this.pitch - dy * 0.0045, -1.2, 1.2);
+        }
+        return;
+      }
+      if (this.roomDragStart) {
+        if ((event.buttons & 1) === 0) {
+          // 画面外でボタンが離された場合はドラッグを中止して視点操作を戻す
+          this.roomDragStart = null;
+          this.removeDragRect();
+          this.orbit.enabled = !this.planMode;
+          this.planOrbit.enabled = this.planMode;
+        } else {
+          const point = this.raycastGround(event);
+          if (point) this.updateDragRect(this.roomDragStart, point);
+          return;
+        }
+      }
       if (this.activeTool && this.ghost) {
         const point = this.raycastGround(event);
         if (point) {
@@ -665,11 +723,45 @@ class CadApp {
 
     dom.addEventListener('pointerdown', (event) => {
       if (event.button !== 0) return;
+      if (this.tourMode) {
+        this.lookPointer = { x: event.clientX, y: event.clientY };
+        return;
+      }
       this.pointerDown = { x: event.clientX, y: event.clientY };
+      if (this.activeTool === 'room') {
+        const point = this.raycastGround(event);
+        if (point) {
+          // ドラッグでサイズ指定して部屋を描けるように、視点操作を一時停止する
+          this.roomDragStart = point.clone();
+          this.orbit.enabled = false;
+          this.planOrbit.enabled = false;
+        }
+      }
     });
 
     dom.addEventListener('pointerup', (event) => {
-      if (event.button !== 0 || !this.pointerDown) return;
+      if (event.button !== 0) return;
+      if (this.tourMode) {
+        this.lookPointer = null;
+        return;
+      }
+
+      if (this.roomDragStart) {
+        const start = this.roomDragStart;
+        this.roomDragStart = null;
+        this.orbit.enabled = !this.planMode;
+        this.planOrbit.enabled = this.planMode;
+        const hadRect = this.dragRect !== null;
+        this.removeDragRect();
+        const point = this.raycastGround(event);
+        if (hadRect && point) {
+          this.pointerDown = null;
+          this.placeRoomRect(start, point);
+          return;
+        }
+      }
+
+      if (!this.pointerDown) return;
       const moved = Math.hypot(
         event.clientX - this.pointerDown.x,
         event.clientY - this.pointerDown.y,
@@ -684,6 +776,92 @@ class CadApp {
         this.selectAt(event);
       }
     });
+  }
+
+  // ------------------------------------------------- 部屋のドラッグ描画
+
+  private updateDragRect(start: THREE.Vector3, current: THREE.Vector3): void {
+    const w = Math.abs(current.x - start.x);
+    const d = Math.abs(current.z - start.z);
+    if (!this.dragRect) {
+      if (Math.max(w, d) < 0.3) return; // 小さいうちはクリック扱いのまま
+      const geometry = new THREE.PlaneGeometry(1, 1);
+      geometry.rotateX(-Math.PI / 2);
+      const material = new THREE.MeshBasicMaterial({
+        color: 0x4da3ff,
+        transparent: true,
+        opacity: 0.3,
+        depthWrite: false,
+      });
+      this.dragRect = new THREE.Mesh(geometry, material);
+      this.dragRect.renderOrder = 5;
+      this.scene.add(this.dragRect);
+      if (this.ghost) this.ghost.visible = false;
+    }
+    this.dragRect.scale.set(Math.max(w, 0.01), 1, Math.max(d, 0.01));
+    this.dragRect.position.set((start.x + current.x) / 2, 0.02, (start.z + current.z) / 2);
+  }
+
+  private removeDragRect(): void {
+    if (!this.dragRect) return;
+    this.scene.remove(this.dragRect);
+    this.dragRect.geometry.dispose();
+    (this.dragRect.material as THREE.Material).dispose();
+    this.dragRect = null;
+  }
+
+  /** ドラッグした矩形の大きさで部屋を作る(下絵のトレース用) */
+  private placeRoomRect(start: THREE.Vector3, end: THREE.Vector3): void {
+    const x0 = this.snapValue(start.x);
+    const x1 = this.snapValue(end.x);
+    const z0 = this.snapValue(start.z);
+    const z1 = this.snapValue(end.z);
+    const width = Math.max(1, Math.abs(x1 - x0));
+    const depth = Math.max(1, Math.abs(z1 - z0));
+    const room = createCadObject('room', undefined, false, { width, depth, height: 2.4 });
+    room.position.set((x0 + x1) / 2, 0, (z0 + z1) / 2);
+    this.snapRoomToRooms(room);
+    this.history.push(this.makeAddCommand(room, '部屋を追加'));
+    this.setStatus(
+      `「${room.name}」(${Math.round(width * 1000)} × ${Math.round(depth * 1000)} mm)を追加しました。寸法はパネルで調整できます`,
+    );
+  }
+
+  /** 部屋の辺を近くの部屋の辺に吸着させて間取りを連結する */
+  private snapRoomToRooms(room: THREE.Object3D): void {
+    const params = room.userData.params as RoomParams;
+    const SNAP = 0.35;
+    for (const other of this.rooms()) {
+      if (other === room) continue;
+      // 軸に平行な部屋同士のみ吸着対象にする
+      if (Math.abs(room.rotation.y % (Math.PI / 2)) > 0.01) continue;
+      if (Math.abs(other.rotation.y % (Math.PI / 2)) > 0.01) continue;
+      const op = other.userData.params as RoomParams;
+      const myMinX = room.position.x - params.width / 2;
+      const myMaxX = room.position.x + params.width / 2;
+      const myMinZ = room.position.z - params.depth / 2;
+      const myMaxZ = room.position.z + params.depth / 2;
+      const otMinX = other.position.x - op.width / 2;
+      const otMaxX = other.position.x + op.width / 2;
+      const otMinZ = other.position.z - op.depth / 2;
+      const otMaxZ = other.position.z + op.depth / 2;
+      const overlapZ = myMinZ < otMaxZ + SNAP && myMaxZ > otMinZ - SNAP;
+      const overlapX = myMinX < otMaxX + SNAP && myMaxX > otMinX - SNAP;
+
+      if (overlapZ) {
+        if (Math.abs(myMinX - otMaxX) < SNAP) room.position.x += otMaxX - myMinX;
+        else if (Math.abs(myMaxX - otMinX) < SNAP) room.position.x += otMinX - myMaxX;
+      }
+      if (overlapX) {
+        if (Math.abs(myMinZ - otMaxZ) < SNAP) room.position.z += otMaxZ - myMinZ;
+        else if (Math.abs(myMaxZ - otMinZ) < SNAP) room.position.z += otMinZ - myMaxZ;
+      }
+      // 接続方向と直交する辺も揃える
+      if (Math.abs(myMinX - otMinX) < SNAP) room.position.x += otMinX - myMinX;
+      else if (Math.abs(myMaxX - otMaxX) < SNAP) room.position.x += otMaxX - myMaxX;
+      if (Math.abs(myMinZ - otMinZ) < SNAP) room.position.z += otMinZ - myMinZ;
+      else if (Math.abs(myMaxZ - otMaxZ) < SNAP) room.position.z += otMaxZ - myMaxZ;
+    }
   }
 
   private pointerToNdc(event: PointerEvent): THREE.Vector2 {
@@ -767,7 +945,9 @@ class CadApp {
     object.rotation.y = this.ghostRotation;
     if (type === 'door' || type === 'window') {
       this.snapOpeningToWall(object);
-    } else if (type !== 'room') {
+    } else if (type === 'room') {
+      this.snapRoomToRooms(object);
+    } else {
       this.snapFurnitureToWalls(object);
     }
     this.history.push(this.makeAddCommand(object, `${PRIMITIVE_LABELS[type]}を追加`));
@@ -820,14 +1000,155 @@ class CadApp {
   // ------------------------------------------------------------ 平面図モード
 
   private setPlanMode(on: boolean): void {
+    if (on && this.tourMode) this.setTourMode(false);
     this.planMode = on;
     element<HTMLButtonElement>('plan-toggle').classList.toggle('active', on);
-    this.orbit.enabled = !on;
+    this.orbit.enabled = !on && !this.tourMode;
     this.planOrbit.enabled = on;
     this.transform.camera = this.activeCamera;
     this.sun.castShadow = !on; // 平面図では影を落とさず室内を明るく見せる
     this.dimensions.visible = on; // 寸法線は平面図でのみ表示
     this.setStatus(on ? '平面図モード(ドラッグで移動 / ホイールで拡大縮小)' : '3D ビュー');
+  }
+
+  // ------------------------------------------------------------ ルームツアー
+
+  private setTourMode(on: boolean): void {
+    if (on && this.planMode) this.setPlanMode(false);
+    this.tourMode = on;
+    element<HTMLButtonElement>('tour-toggle').classList.toggle('active', on);
+    this.orbit.enabled = !on && !this.planMode;
+    this.planOrbit.enabled = !on && this.planMode;
+    this.gridHelper.visible = !on;
+    this.axesHelper.visible = !on;
+    if (on) {
+      this.setTool(null);
+      this.select(null);
+      const rooms = this.rooms();
+      const start = rooms.length > 0 ? rooms[0].position : new THREE.Vector3(0, 0, 4);
+      this.walkCamera.position.set(start.x, 1.45, start.z);
+      this.yaw = 0;
+      this.pitch = 0;
+      // 間取り全体の中心の方を向いてスタートする
+      if (rooms.length > 1) {
+        const centroid = new THREE.Vector3();
+        for (const room of rooms) centroid.add(room.position);
+        centroid.divideScalar(rooms.length);
+        if (centroid.distanceTo(start) > 0.3) {
+          this.yaw = Math.atan2(-(centroid.x - start.x), -(centroid.z - start.z));
+        }
+      }
+      this.walkVelocity.set(0, 0, 0);
+      this.scene.background = new THREE.Color('#b9cde0'); // 昼光風の明るい背景
+      this.hemisphere.intensity = 1.6; // 室内を明るく
+      this.setStatus('ルームツアー: WASD / 矢印キーで移動、ドラッグで見回し、Esc で終了');
+    } else {
+      this.pressedKeys.clear();
+      this.lookPointer = null;
+      this.scene.background = new THREE.Color(BG_EDIT);
+      this.hemisphere.intensity = 0.9;
+      this.setStatus('3D ビュー');
+    }
+  }
+
+  /** 一人称移動をなめらかに更新する(毎フレーム) */
+  private updateTour(dt: number): void {
+    const forward = _v1.set(-Math.sin(this.yaw), 0, -Math.cos(this.yaw));
+    const right = _v2.set(-forward.z, 0, forward.x);
+    const target = new THREE.Vector3();
+    const keys = this.pressedKeys;
+    if (keys.has('w') || keys.has('arrowup')) target.add(forward);
+    if (keys.has('s') || keys.has('arrowdown')) target.sub(forward);
+    if (keys.has('d') || keys.has('arrowright')) target.add(right);
+    if (keys.has('a') || keys.has('arrowleft')) target.sub(right);
+    if (target.lengthSq() > 0) target.normalize().multiplyScalar(2.6);
+    this.walkVelocity.lerp(target, 1 - Math.exp(-8 * dt));
+    this.collideWalls(dt);
+    this.walkCamera.position.addScaledVector(this.walkVelocity, dt);
+    this.walkCamera.position.y = 1.45; // 目線の高さを固定
+    this.walkCamera.rotation.set(this.pitch, this.yaw, 0);
+  }
+
+  /** 壁をすり抜けないように速度を壁沿いにスライドさせる(ドアの開口部は通れる) */
+  private collideWalls(dt: number): void {
+    const speed = this.walkVelocity.length();
+    if (speed < 0.0001) return;
+    const walls: THREE.Object3D[] = [];
+    for (const room of this.rooms()) {
+      for (const child of room.children) {
+        if (child.userData.wallNormal) walls.push(child);
+      }
+    }
+    if (walls.length === 0) return;
+    // 2回まで反復して、スライド後に別の壁へ向かうケースも処理する
+    for (let i = 0; i < 2; i += 1) {
+      const v = this.walkVelocity;
+      if (v.lengthSq() < 0.0001) return;
+      const dir = _v1.copy(v).normalize();
+      const origin = _v2.copy(this.walkCamera.position);
+      origin.y = 1.2;
+      this.wallRaycaster.set(origin, dir);
+      this.wallRaycaster.far = v.length() * dt + 0.35;
+      const hit = this.wallRaycaster.intersectObjects(walls, false)[0];
+      if (!hit || !hit.face) return;
+      const normal = hit.face.normal.clone().transformDirection(hit.object.matrixWorld);
+      normal.y = 0;
+      if (normal.lengthSq() < 0.0001) return;
+      normal.normalize();
+      const into = v.dot(normal);
+      if (into < 0) v.addScaledVector(normal, -into);
+    }
+  }
+
+  // ------------------------------------------------------ 下絵(間取り画像)
+
+  private underlayWidthM(): number {
+    return Math.max(1, this.panelNumber('underlay-width', 10000) / 1000);
+  }
+
+  private loadUnderlay(file: File): void {
+    const url = URL.createObjectURL(file);
+    new THREE.TextureLoader().load(url, (texture) => {
+      URL.revokeObjectURL(url);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      this.removeUnderlay();
+      const image = texture.image as { width: number; height: number };
+      const geometry = new THREE.PlaneGeometry(1, 1);
+      geometry.rotateX(-Math.PI / 2);
+      const material = new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: Number.parseFloat(element<HTMLInputElement>('underlay-opacity').value) || 0.7,
+        depthWrite: false,
+      });
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.userData.aspect = image.height / image.width;
+      mesh.position.y = 0.005;
+      mesh.renderOrder = -1;
+      this.underlay = mesh;
+      this.scene.add(mesh);
+      this.resizeUnderlay();
+      element<HTMLButtonElement>('underlay-remove').disabled = false;
+      this.setStatus('下絵を読み込みました。平面図モードで「部屋」ツールをドラッグしてなぞってください');
+    });
+  }
+
+  private resizeUnderlay(): void {
+    if (!this.underlay) return;
+    const width = this.underlayWidthM();
+    const aspect = this.underlay.userData.aspect as number;
+    this.underlay.scale.set(width, 1, width * aspect);
+  }
+
+  private removeUnderlay(): void {
+    if (!this.underlay) return;
+    this.scene.remove(this.underlay);
+    this.underlay.geometry.dispose();
+    const material = this.underlay.material as THREE.MeshBasicMaterial;
+    material.map?.dispose();
+    material.dispose();
+    this.underlay = null;
+    element<HTMLButtonElement>('underlay-remove').disabled = true;
   }
 
   // ------------------------------------------------------------ 保存/読込
@@ -896,6 +1217,17 @@ class CadApp {
   // -------------------------------------------------- アングル保存と PDF
 
   private captureViewState(name: string): SavedViewData {
+    if (this.tourMode) {
+      // ツアー中の視点は通常の3Dアングルとして保存する(PDF の室内カットに使える)
+      const direction = this.walkCamera.getWorldDirection(_v1);
+      const target = this.walkCamera.position.clone().addScaledVector(direction, 3);
+      return {
+        name,
+        mode: 'persp',
+        position: this.walkCamera.position.toArray() as [number, number, number],
+        target: target.toArray() as [number, number, number],
+      };
+    }
     if (this.planMode) {
       return {
         name,
@@ -1051,6 +1383,7 @@ class CadApp {
 
     const restoreView = this.captureViewState('');
     const restoreSelected = this.selected;
+    if (this.tourMode) this.setTourMode(false);
     this.select(null);
     this.setPresentation(true);
     try {
@@ -1090,6 +1423,23 @@ class CadApp {
     element<HTMLButtonElement>('mode-rotate').addEventListener('click', () => this.setTransformMode('rotate'));
     element<HTMLButtonElement>('mode-scale').addEventListener('click', () => this.setTransformMode('scale'));
     element<HTMLButtonElement>('plan-toggle').addEventListener('click', () => this.setPlanMode(!this.planMode));
+    element<HTMLButtonElement>('tour-toggle').addEventListener('click', () => this.setTourMode(!this.tourMode));
+
+    const underlayInput = element<HTMLInputElement>('underlay-input');
+    element<HTMLButtonElement>('underlay-load').addEventListener('click', () => underlayInput.click());
+    underlayInput.addEventListener('change', () => {
+      const file = underlayInput.files?.[0];
+      if (file) this.loadUnderlay(file);
+      underlayInput.value = '';
+    });
+    element<HTMLInputElement>('underlay-width').addEventListener('change', () => this.resizeUnderlay());
+    element<HTMLInputElement>('underlay-opacity').addEventListener('input', () => {
+      if (this.underlay) {
+        (this.underlay.material as THREE.MeshBasicMaterial).opacity =
+          Number.parseFloat(element<HTMLInputElement>('underlay-opacity').value) || 0.7;
+      }
+    });
+    element<HTMLButtonElement>('underlay-remove').addEventListener('click', () => this.removeUnderlay());
 
     const snapButton = element<HTMLButtonElement>('snap-toggle');
     snapButton.addEventListener('click', () => {
@@ -1256,10 +1606,29 @@ class CadApp {
   // ------------------------------------------------------------ キーボード
 
   private setupKeyboard(): void {
+    const TOUR_KEYS = ['w', 'a', 's', 'd', 'arrowup', 'arrowdown', 'arrowleft', 'arrowright'];
+    window.addEventListener('keyup', (event) => {
+      this.pressedKeys.delete(event.key.toLowerCase());
+    });
+    window.addEventListener('blur', () => this.pressedKeys.clear());
+
     window.addEventListener('keydown', (event) => {
       const target = event.target as HTMLElement | null;
       if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
         return; // 入力欄へのタイプはショートカット扱いしない
+      }
+
+      if (this.tourMode) {
+        if (event.key === 'Escape') {
+          this.setTourMode(false);
+          return;
+        }
+        const key = event.key.toLowerCase();
+        if (TOUR_KEYS.includes(key)) {
+          event.preventDefault();
+          this.pressedKeys.add(key);
+        }
+        return;
       }
 
       if (event.ctrlKey || event.metaKey) {
