@@ -21,6 +21,16 @@ npm run build         # 本番ビルド(dist/ に出力)
 npm run build:single  # 配布用の単一 HTML(dist-single/index.html)
 ```
 
+### テスト
+
+```bash
+npm run typecheck     # 型チェック(本体 + テストコード)
+npm run build         # ビルド(E2E の前に必要)
+npm test              # スキルの検証 + Playwright E2E
+```
+
+PR を出すと同じ内容が CI で自動実行されます(`.github/workflows/ci.yml`)。
+
 ### 配布用の単一 HTML
 
 `npm run build:single` で、JS・CSS・PDF 変換エンジンまで全部入りの **HTML ファイル 1 個**が `dist-single/index.html` にできます。サーバー不要で、ダブルクリックするだけでブラウザで動きます(お客様への配布やオフライン利用に)。公開サイトの [web-cad.html](https://xyoumo-kgc.github.io/claude-practice/web-cad.html) からもダウンロードできます。
@@ -82,3 +92,18 @@ examples/         # サンプルシーン(JSON)
 - Claude Codeの使い方を学ぶ
 - GitとGitHubの基本的なワークフローを練習する
 - PRの作成・レビューを体験する
+
+## はじめかた
+
+1. このリポジトリをクローンする
+   ```bash
+   git clone https://github.com/xyoumo-kgc/claude-practice.git
+   ```
+2. ディレクトリに移動する
+   ```bash
+   cd claude-practice
+   ```
+3. Claude Codeを起動して練習を始める
+   ```bash
+   claude
+   ```

@@ -1,0 +1,25 @@
+{
+  "_note": "サンプル単価です。自社の実勢価格に置き換えてから使ってください。単位は円（税別）。",
+  "currency": "JPY",
+  "area": {
+    "floor": 12000,
+    "wall": 6500,
+    "ceiling": 5500
+  },
+  "fixtures": {
+    "door": 85000,
+    "window": 65000
+  },
+  "furniture": {
+    "chair": 18000,
+    "table": 60000,
+    "sofa": 120000,
+    "bed": 90000,
+    "shelf": 45000
+  },
+  "fees": {
+    "design": 80000,
+    "overhead_rate": 0.1,
+    "tax_rate": 0.1
+  }
+}
