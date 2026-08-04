@@ -2,6 +2,10 @@
 
 Claude Codeの練習用リポジトリです。
 
+## バーチャルオフィス
+
+AI社員（Claude Codeのエージェント構成）の様子と使用量ゲージを1画面で見られる、ピクセルアート調のバーチャルオフィスです。`virtual-office/office.html` をダブルクリックするだけで動きます。Claude Codeの使用量を自動反映する手順は [virtual-office/README.md](virtual-office/README.md) を参照。
+
 ## Web CAD
 
 ブラウザで動く自作の 3D CAD ソフトです(TypeScript + Three.js + Vite)。
