@@ -5,3 +5,12 @@ dist-single/
 
 # 案件ごとの作業ファイル（お客様情報を含むためコミットしない）
 work/
+
+# テスト成果物
+test-results/
+playwright-report/
+blob-report/
+
+# Python のバイトコード
+__pycache__/
+*.pyc

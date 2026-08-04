@@ -43,10 +43,17 @@ npm install
 npm run dev           # 開発サーバー(http://localhost:5173)
 npm run build         # 型チェック + ビルド
 npm run build:single  # 配布用の単一 HTML(dist-single/index.html)
+
+npm run typecheck     # 本体 + テストコードの型チェック
+npm run test:skills   # proposal スキル(シーン生成・見積)の検証
+npm run test:e2e      # Playwright E2E(先に npm run build が必要)
+npm test              # スキル検証 + E2E
 ```
 
-変更したら **`npm run build` が通ること**を確認する。画面の挙動を変えた場合は、
-Playwright（Chromium）で実際に操作して確認し、その結果を PR に書く。
+変更したら **`npm run build` と `npm test` が通ること**を確認する。同じ内容が CI
+（`.github/workflows/ci.yml`）で PR ごとに自動実行される。
+E2E は `tests/e2e/`、スキルの検証は `tests/skills/`。画面の挙動を変えたら、
+対応するテストを足すか更新して、確認結果を PR に書く。
 
 ## 進め方
 

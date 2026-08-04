@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - claude/custom-cad-software-3c3942
   workflow_dispatch:
 
 permissions:
