@@ -78,3 +78,18 @@ examples/         # サンプルシーン(JSON)
 - Claude Codeの使い方を学ぶ
 - GitとGitHubの基本的なワークフローを練習する
 - PRの作成・レビューを体験する
+
+## はじめかた
+
+1. このリポジトリをクローンする
+   ```bash
+   git clone https://github.com/xyoumo-kgc/claude-practice.git
+   ```
+2. ディレクトリに移動する
+   ```bash
+   cd claude-practice
+   ```
+3. Claude Codeを起動して練習を始める
+   ```bash
+   claude
+   ```
