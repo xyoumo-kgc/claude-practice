@@ -6,6 +6,12 @@ Claude Codeの練習用リポジトリです。
 
 AI社員（Claude Codeのエージェント構成）の様子と使用量ゲージを1画面で見られる、ピクセルアート調のバーチャルオフィスです。`virtual-office/office.html` をダブルクリックするだけで動きます。Claude Codeの使用量を自動反映する手順は [virtual-office/README.md](virtual-office/README.md) を参照。
 
+## 英語学習システム
+
+Claude Code を英語の家庭教師にする一式です。学習計画（5フェーズ）・毎日のレッスン・文法ガイドと、
+`/english-lesson` `/english-chat` `/english-roleplay` `/english-review` などの7つのスキル、
+間隔反復（ライトナー方式）の進捗ログで構成しています。使い方は [english-learning/README.md](english-learning/README.md) を参照。
+
 ## Web CAD
 
 ブラウザで動く自作の 3D CAD ソフトです(TypeScript + Three.js + Vite)。
