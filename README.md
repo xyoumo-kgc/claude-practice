@@ -21,6 +21,16 @@ npm run build         # 本番ビルド(dist/ に出力)
 npm run build:single  # 配布用の単一 HTML(dist-single/index.html)
 ```
 
+### テスト
+
+```bash
+npm run typecheck     # 型チェック(本体 + テストコード)
+npm run build         # ビルド(E2E の前に必要)
+npm test              # スキルの検証 + Playwright E2E
+```
+
+PR を出すと同じ内容が CI で自動実行されます(`.github/workflows/ci.yml`)。
+
 ### Blender で編集・パース作成
 
 `blender/webcad_importer.py` は Web CAD の間取り JSON を Blender に読み込むアドオンです(Blender 4.2 以降)。
@@ -103,3 +113,18 @@ examples/         # サンプルシーン(JSON)
 - Claude Codeの使い方を学ぶ
 - GitとGitHubの基本的なワークフローを練習する
 - PRの作成・レビューを体験する
+
+## はじめかた
+
+1. このリポジトリをクローンする
+   ```bash
+   git clone https://github.com/xyoumo-kgc/claude-practice.git
+   ```
+2. ディレクトリに移動する
+   ```bash
+   cd claude-practice
+   ```
+3. Claude Codeを起動して練習を始める
+   ```bash
+   claude
+   ```

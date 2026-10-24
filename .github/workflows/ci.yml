@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - run: npm ci
+
+      # 型チェック(本体 + テストコード)
+      - run: npm run typecheck
+
+      # 本番ビルドと配布用の単一 HTML
+      - run: npm run build
+      - run: npm run build:single
+
+      # proposal スキル(シーン生成・見積)の検証。依存パッケージなし
+      - name: スキルの検証
+        run: npm run test:skills
+
+      - name: Chromium の準備
+        run: npx playwright install --with-deps chromium
+
+      # ビルド済み dist/ を preview で配信して E2E
+      - name: E2E テスト
+        run: npm run test:e2e
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
