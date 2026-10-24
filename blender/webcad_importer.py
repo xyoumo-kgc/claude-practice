@@ -31,8 +31,8 @@ import json
 import math
 import sys
 
+import bpy  # bpy を先に読み込む(pip 版 bpy では bmesh が bpy の後でないと使えない)
 import bmesh
-import bpy
 from bpy.props import StringProperty
 from bpy_extras.io_utils import ImportHelper
 from mathutils import Euler, Matrix, Vector
@@ -239,7 +239,7 @@ def build_door(b, mats):
     frame, panel, knob = mats["frame"], mats["main"], mats["knob"]
     b.box(frame, j, h, t, -(w - j) / 2, h / 2, 0)
     b.box(frame, j, h, t, (w - j) / 2, h / 2, 0)
-    b.box(frame, w, j, t, 0, h - j / 2, 0)
+    b.box(frame, w - j * 2, j, t, 0, h - j / 2, 0)  # 縦枠と重ならないよう内側だけ
     b.box(panel, w - j * 2, h - j, 0.05, 0, (h - j) / 2, 0)
     b.box(knob, 0.05, 0.05, 0.12, w / 2 - 0.16, 1.0, 0)
 
@@ -252,10 +252,11 @@ def build_window(b, mats):
     frame, glass = mats["main"], mats["glass"]
     b.box(frame, j, h, t, -(w - j) / 2, cy, 0)
     b.box(frame, j, h, t, (w - j) / 2, cy, 0)
-    b.box(frame, w, j, t, 0, bottom + j / 2, 0)
-    b.box(frame, w, j, t, 0, bottom + h - j / 2, 0)
+    b.box(frame, w - j * 2, j, t, 0, bottom + j / 2, 0)  # 縦枠と重ならないよう内側だけ
+    b.box(frame, w - j * 2, j, t, 0, bottom + h - j / 2, 0)
     b.box(frame, 0.04, h - j * 2, 0.06, 0, cy, 0)
-    b.box(glass, w - j * 2, h - j * 2, 0.02, 0, cy, 0)
+    b.box(glass, (w - j * 2 - 0.04) / 2, h - j * 2, 0.02, -(w - j * 2 + 0.04) / 4, cy, 0)
+    b.box(glass, (w - j * 2 - 0.04) / 2, h - j * 2, 0.02, (w - j * 2 + 0.04) / 4, cy, 0)
 
 
 BUILDERS = {
@@ -325,19 +326,21 @@ def build_room_children(root, collection, cutters):
     floor_mat = bpy.data.materials.get(root["床マテリアル"])
     wall_mat = bpy.data.materials.get("壁") or make_material("壁", WALL_COLOR, roughness=0.85)
 
-    def part(name, mat, w, h, d, x, y, z):
+    def part(name, mat, w, h, d, x, y, z, normal=None):
         b = MeshBuilder()
         b.box(mat, w, h, d, x, y, z)
         obj = b.to_object(f"{root.name}_{name}", collection)
         obj.parent = root
+        if normal is not None:
+            obj["webcad_wall_normal"] = normal  # 部屋ローカルの外向き法線(カットアウェイ用)
         return obj
 
     part("床", floor_mat, W, F, D, 0, F / 2, 0)
     walls = [
-        part("壁_北", wall_mat, W, H, t, 0, F + H / 2, -D / 2 + t / 2),
-        part("壁_南", wall_mat, W, H, t, 0, F + H / 2, D / 2 - t / 2),
-        part("壁_西", wall_mat, t, H, D - t * 2, -W / 2 + t / 2, F + H / 2, 0),
-        part("壁_東", wall_mat, t, H, D - t * 2, W / 2 - t / 2, F + H / 2, 0),
+        part("壁_北", wall_mat, W, H, t, 0, F + H / 2, -D / 2 + t / 2, (0.0, 1.0, 0.0)),
+        part("壁_南", wall_mat, W, H, t, 0, F + H / 2, D / 2 - t / 2, (0.0, -1.0, 0.0)),
+        part("壁_西", wall_mat, t, H, D - t * 2, -W / 2 + t / 2, F + H / 2, 0, (-1.0, 0.0, 0.0)),
+        part("壁_東", wall_mat, t, H, D - t * 2, W / 2 - t / 2, F + H / 2, 0, (1.0, 0.0, 0.0)),
     ]
     for wall in walls:
         mod = wall.modifiers.new("開口部", "BOOLEAN")
@@ -392,6 +395,73 @@ def create_furniture(data, collection):
     obj = b.to_object(data["name"], collection)
     obj["webcad_type"] = obj_type
     return obj
+
+
+# ---------------------------------------------------------- カットアウェイ
+
+
+def _set_hidden(obj, hidden):
+    obj.hide_viewport = hidden
+    obj.hide_render = hidden
+
+
+def apply_cutaway(scene, camera=None):
+    """カメラ側を向いた壁を隠して室内が見えるようにする(Web CAD と同じ判定)。
+
+    カメラが部屋の中にあるときは、その部屋の壁はすべて表示する。
+    """
+    camera = camera or scene.camera
+    rooms = [o for o in scene.objects if o.get("webcad_type") == "room"]
+    if camera is None or not rooms:
+        return
+    cam_pos = camera.matrix_world.translation
+    is_ortho = camera.type == "CAMERA" and camera.data.type == "ORTHO"
+    walls = []
+    for room in rooms:
+        local = room.matrix_world.inverted() @ cam_pos
+        inside = abs(local.x) <= room["幅_mm"] / 2000 and abs(local.y) <= room["奥行_mm"] / 2000
+        rot = room.matrix_world.to_3x3().normalized()
+        for wall in room.children:
+            normal = wall.get("webcad_wall_normal")
+            if normal is None:
+                continue
+            hide = False
+            if not inside and not is_ortho:
+                n = rot @ Vector(normal)
+                n.z = 0
+                to_cam = cam_pos - wall.matrix_world @ _bound_center(wall)
+                to_cam.z = 0
+                if n.length > 0 and to_cam.length > 0:
+                    hide = n.normalized().dot(to_cam.normalized()) > 0.35
+            _set_hidden(wall, hide)
+            walls.append(wall)
+
+    # 隠した壁にしか付いていないドア・窓も隠す(隣室側の壁が見えていれば表示)
+    for obj in scene.objects:
+        if obj.get("webcad_type") not in OPENING_SPECS:
+            continue
+        p = obj.matrix_world.translation
+        touching = [w for w in walls if _point_near_bounds(w, p, 0.2)]
+        _set_hidden(obj, bool(touching) and all(w.hide_render for w in touching))
+
+
+def _bound_center(obj):
+    corners = [Vector(c) for c in obj.bound_box]
+    return sum(corners, Vector()) / 8
+
+
+def _point_near_bounds(obj, point, margin):
+    local = obj.matrix_world.inverted() @ point
+    corners = [Vector(c) for c in obj.bound_box]
+    lo = Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    hi = Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    return all(lo[i] - margin <= local[i] <= hi[i] + margin for i in range(2))
+
+
+@bpy.app.handlers.persistent
+def _cutaway_before_render(scene, *_args):
+    if scene.get("webcad_cutaway", False):
+        apply_cutaway(scene)
 
 
 # ------------------------------------------------------- カメラ・照明・設定
@@ -511,6 +581,9 @@ def import_webcad(filepath, context=None):
     setup_render(scene)
     if cameras:
         scene.camera = cameras[0]
+    scene["webcad_cutaway"] = True  # レンダー時にカメラ側の壁を自動で隠す
+    bpy.context.view_layer.update()
+    apply_cutaway(scene)
     return {"objects": len(created), "cameras": len(cameras), "title": title}
 
 
@@ -568,6 +641,18 @@ class WEBCAD_OT_rebuild_room(bpy.types.Operator):
         return {"FINISHED"}
 
 
+class WEBCAD_OT_cutaway(bpy.types.Operator):
+    """アクティブカメラから見て手前の壁を隠します(室内が見える外観パース用)"""
+
+    bl_idname = "webcad.cutaway"
+    bl_label = "カメラ側の壁を隠す"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        apply_cutaway(context.scene)
+        return {"FINISHED"}
+
+
 class WEBCAD_OT_toggle_ceilings(bpy.types.Operator):
     """全部屋の天井の表示を切り替えます(室内パース用)"""
 
@@ -603,6 +688,10 @@ class WEBCAD_PT_panel(bpy.types.Panel):
             box.prop(room, '["奥行_mm"]', text="奥行 (mm)")
             box.prop(room, '["壁高_mm"]', text="壁高 (mm)")
             box.operator(WEBCAD_OT_rebuild_room.bl_idname, icon="FILE_REFRESH")
+        col = layout.column(align=True)
+        col.operator(WEBCAD_OT_cutaway.bl_idname, icon="VIEW_CAMERA")
+        if "webcad_cutaway" in context.scene:
+            col.prop(context.scene, '["webcad_cutaway"]', text="レンダー時に自動で隠す")
         layout.operator(WEBCAD_OT_toggle_ceilings.bl_idname, icon="HIDE_OFF")
 
 
@@ -610,16 +699,26 @@ def menu_import(self, context):
     self.layout.operator(WEBCAD_OT_import.bl_idname, text="Web CAD (.json)")
 
 
-CLASSES = (WEBCAD_OT_import, WEBCAD_OT_rebuild_room, WEBCAD_OT_toggle_ceilings, WEBCAD_PT_panel)
+CLASSES = (
+    WEBCAD_OT_import,
+    WEBCAD_OT_rebuild_room,
+    WEBCAD_OT_cutaway,
+    WEBCAD_OT_toggle_ceilings,
+    WEBCAD_PT_panel,
+)
 
 
 def register():
     for cls in CLASSES:
         bpy.utils.register_class(cls)
     bpy.types.TOPBAR_MT_file_import.append(menu_import)
+    if _cutaway_before_render not in bpy.app.handlers.render_pre:
+        bpy.app.handlers.render_pre.append(_cutaway_before_render)
 
 
 def unregister():
+    if _cutaway_before_render in bpy.app.handlers.render_pre:
+        bpy.app.handlers.render_pre.remove(_cutaway_before_render)
     bpy.types.TOPBAR_MT_file_import.remove(menu_import)
     for cls in reversed(CLASSES):
         bpy.utils.unregister_class(cls)
@@ -638,6 +737,7 @@ def _run_from_command_line():
     if len(args) > 1:
         bpy.ops.wm.save_as_mainfile(filepath=args[1])
     if len(args) > 2:
+        apply_cutaway(bpy.context.scene)
         bpy.context.scene.render.filepath = args[2]
         bpy.ops.render.render(write_still=True)
     return True
