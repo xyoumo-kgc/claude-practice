@@ -10,7 +10,7 @@ AI社員（Claude Codeのエージェント構成）の様子と使用量ゲー�
 
 Claude Code を英語の家庭教師にする一式です。学習計画（5フェーズ）・毎日のレッスン・文法ガイドと、
 `/english-lesson` `/english-chat` `/english-roleplay` `/english-review` などの7つのスキル、
-間隔反復（ライトナー方式）の進捗ログで構成しています。使い方は [english-learning/README.md](english-learning/README.md) を参照。
+間隔反復（ライトナー方式）の進捗ログで構成しています。`english-learning/app/index.html` をダブルクリックすれば、同じ内容を**ブラウザアプリ**として使えます（会話・添削など AI 機能は API キー設定時）。使い方は [english-learning/README.md](english-learning/README.md) を参照。
 
 ## Web CAD
 

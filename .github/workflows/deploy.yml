@@ -29,6 +29,7 @@ jobs:
       - run: npm run build
       - run: npm run build:single
       - run: cp dist-single/index.html dist/web-cad.html
+      - run: cp -r english-learning/app dist/english
       - uses: actions/configure-pages@v5
         with:
           enablement: true
