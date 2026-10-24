@@ -1,0 +1,2 @@
+# Windows のバッチファイルは CRLF で配布（LF だと goto などが誤動作することがある）
+*.bat text eol=crlf

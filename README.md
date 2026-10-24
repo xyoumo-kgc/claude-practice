@@ -4,7 +4,7 @@ Claude Codeの練習用リポジトリです。
 
 ## バーチャルオフィス
 
-AI社員（Claude Codeのエージェント構成）の様子と使用量ゲージを1画面で見られる、ピクセルアート調のバーチャルオフィスです。`virtual-office/office.html` をダブルクリックするだけで動きます。Claude Codeの使用量を自動反映する手順は [virtual-office/README.md](virtual-office/README.md) を参照。
+手元の Claude Code が今なにをしているかを、AI社員（メイン＋サブエージェント）の動きとしてリアルタイムに映す、ピクセルアート調のバーチャルオフィスです。Windows なら `virtual-office/setup.bat` をダブルクリックするだけでセットアップできます。詳しくは [virtual-office/README.md](virtual-office/README.md) を参照。
 
 ## Web CAD
 

@@ -121,7 +121,24 @@
   .lamp.work{background:var(--green);animation:blink 1.6s ease-in-out infinite}
   .lamp.idle{background:var(--amber)}
   .lamp.rest{background:#cfd4de}
+  .lamp.wait{background:var(--red);animation:blink .7s ease-in-out infinite}
   @keyframes blink{0%,100%{opacity:1}50%{opacity:.35}}
+  .statusCard.wait{border-color:var(--red);box-shadow:2px 2px 0 rgba(224,82,82,.35)}
+  .statusCard.wait .l2{color:#b23a3a;font-weight:700}
+  .alert{position:absolute;right:38px;bottom:50px;z-index:3;background:var(--red);color:#fff;font-weight:800;font-size:11px;
+    width:16px;height:16px;border-radius:3px;display:grid;place-items:center;animation:bob 1s ease-in-out infinite}
+  .unit.working .pixwrap{animation:typing .45s steps(2) infinite}
+  @keyframes typing{0%{transform:translateY(0)}100%{transform:translateY(-2px)}}
+  .unit.working .monitor::before{animation:screen 1.2s steps(3) infinite}
+  @keyframes screen{0%{filter:brightness(1)}50%{filter:brightness(1.25)}100%{filter:brightness(.9)}}
+
+  .conn{display:inline-flex;align-items:center;gap:6px;margin-left:8px;padding:1px 9px;border-radius:999px;
+    font-size:10.5px;font-weight:700;letter-spacing:.06em;background:#e3e7ee;color:#6b7280}
+  .conn i{width:7px;height:7px;border-radius:50%;background:#aab1bf}
+  .conn.on{background:#dcf5e7;color:#1d7a4a}
+  .conn.on i{background:var(--green);animation:blink 1.6s ease-in-out infinite}
+  .conn.lost{background:#fde2e2;color:#b23a3a}
+  .conn.lost i{background:var(--red)}
 
   .workspace{position:relative;height:84px}
   .desk{
@@ -192,6 +209,11 @@
   .note:hover{transform:rotate(-2deg) scale(1.05)}
   .note::before{content:"";position:absolute;left:50%;top:5px;width:7px;height:7px;border-radius:50%;background:#d84d6a;transform:translateX(-50%);box-shadow:0 1px 0 rgba(0,0,0,.3)}
   .note.urgent::after{content:"急";position:absolute;right:3px;top:3px;background:var(--red);color:#fff;font-size:8px;font-weight:700;border-radius:2px;padding:0 3px}
+  .note.doing{outline:2px solid var(--green);outline-offset:1px}
+  .note.doing::after{content:"作業中";position:absolute;right:3px;top:3px;background:var(--green);color:#fff;font-size:8px;font-weight:700;border-radius:2px;padding:0 3px}
+  .note.done{opacity:.5;text-decoration:line-through}
+  .note.done::after{content:"済";position:absolute;right:3px;top:3px;background:#8b93a5;color:#fff;font-size:8px;font-weight:700;border-radius:2px;padding:0 3px}
+  .note.hint{grid-column:1/-1;aspect-ratio:auto;min-height:60px;background:#fffbe6;cursor:default;font-size:10px}
 
   /* resource monitor */
   .resWrap{flex:1;background:#fdf9ef;padding:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;align-content:start}
@@ -256,6 +278,8 @@
   .msg{max-width:82%;padding:6px 9px;border-radius:8px;font-size:11.5px;line-height:1.45}
   .msg.bot{background:#fff;border:1px solid #d8dcf0;align-self:flex-start}
   .msg.me{background:#5865f2;color:#fff;align-self:flex-end}
+  .msg.log{max-width:100%;background:#fff;border:1px solid #d8dcf0;align-self:stretch;font-size:11px}
+  .msg.log b{color:var(--dim);font-family:ui-monospace,Menlo,monospace;font-weight:600;margin-right:6px}
   .chatForm{display:flex;border-top:2px solid #e3e6f5}
   .chatForm input{flex:1;border:0;padding:9px 10px;font-size:12px;outline:none;min-width:0}
   .chatForm button{border:0;background:#5865f2;color:#fff;font-weight:700;font-size:12px;padding:0 14px;cursor:pointer}
@@ -271,7 +295,8 @@
   .dragGhost{position:fixed;z-index:80;pointer-events:none;transform:translate(-50%,-70%)}
 
   @media (prefers-reduced-motion: reduce){
-    .cloud,.bossSpot,.tickerTrack,.swing .seatgrp,.restee.onHammock,.lamp.work{animation:none}
+    .cloud,.bossSpot,.tickerTrack,.swing .seatgrp,.restee.onHammock,.lamp.work,.lamp.wait,.alert,
+    .unit.working .pixwrap,.unit.working .monitor::before,.conn.on i{animation:none}
   }
 </style>
 
@@ -279,7 +304,7 @@
   <div class="board">
     <header class="masthead">
       <h1><span class="blk">◤</span> MY AI社 バーチャルオフィス <span class="blk">◢</span></h1>
-      <p>― Claude エージェント編成版：社員やボードはクリックで詳細 ―</p>
+      <p>― Claude エージェント編成版：社員やボードはクリックで詳細 ―<span class="conn" id="conn"><i></i><span id="connTxt">オフライン（サンプル表示）</span></span></p>
     </header>
 
     <!-- sky -->
@@ -310,7 +335,7 @@
             <div class="rug"></div>
             <div class="doorDec"></div>
             <div class="dumbbell"></div>
-            <div class="breakHint">💡 休憩中の社員はつまんで自分の机まで運べます</div>
+            <div class="breakHint">💡 休憩中の社員はつまんで自分の部屋まで運べます</div>
           </div>
         </section>
 
@@ -331,11 +356,11 @@
               <div class="foot" id="ccFoot">リセット: 5h→8:50pm ／ 週→7/14, 10am</div>
             </div>
             <div class="resCard">
-              <h4>サブエージェント</h4><div class="sub">いまの編成状況（自動集計）</div>
+              <h4>社員の稼働状況</h4><div class="sub">いまの編成状況（自動集計）</div>
               <div class="barRow"><span class="lb">稼働</span><span class="bar"><i id="barWork" style="width:0%"></i></span><span class="pct" id="cntWork">0</span></div>
               <div class="barRow"><span class="lb">待機</span><span class="bar"><i id="barIdle" class="amber" style="width:0%"></i></span><span class="pct" id="cntIdle">0</span></div>
               <div class="barRow"><span class="lb">休憩</span><span class="bar"><i id="barRest" class="gray" style="width:0%"></i></span><span class="pct" id="cntRest">0</span></div>
-              <div class="foot">休憩中の社員は机に運ぶと稼働に戻ります</div>
+              <div class="foot" id="cntFoot">休憩中の社員は机に運ぶと稼働に戻ります</div>
             </div>
             <div class="resFoot">更新: <span id="stamp" class="mono">--</span> 時点の状況</div>
           </div>
@@ -349,14 +374,14 @@
       </div>
     </div>
 
-    <p class="caption">キャラや掲示板をクリックすると詳細 ／ 部屋の看板の「▶起動」でその部屋の社員が仕事を始めます ／ データはデモ用のサンプルです</p>
+    <p class="caption" id="caption">キャラや掲示板をクリックすると詳細 ／ 部屋の看板の「▶起動」でその部屋の社員が仕事を始めます ／ データはデモ用のサンプルです（server.mjs を起動するとライブ表示になります）</p>
   </div>
 </div>
 
 <!-- popup / chat / toast -->
 <div class="pop" id="pop" role="dialog"><div class="popHead"><span id="popTitle"></span><button class="x" id="popX" aria-label="閉じる">✕</button></div><div class="popBody" id="popBody"></div></div>
 <div class="chat" id="chat" aria-label="秘書チャット窓">
-  <div class="chatHead">💬 Fable 5 のチャット窓 — ここから会社に指示<button class="x" id="chatX" aria-label="閉じる">✕</button></div>
+  <div class="chatHead"><span id="chatTitle">💬 Claude のチャット窓 — ここから会社に指示</span><button class="x" id="chatX" aria-label="閉じる">✕</button></div>
   <div class="chatLog" id="chatLog"></div>
   <form class="chatForm" id="chatForm"><input id="chatIn" placeholder="指示を入力…（例：明日の朝ブリーフまとめて）" aria-label="メッセージ"><button>送信</button></form>
 </div>
@@ -401,18 +426,20 @@ const ROOMS=[
  {id:"hq",  cls:"hq",   name:"CLAUDE本社（窓口・設計・調査・実装）", decor:["shelf","window","clockdec","poster","window"]},
  {id:"env", cls:"small green", name:"環境整備室", decor:["window","poster"]},
 ];
+// ↓ server.mjs が動いていない時（ファイルを直接開いた時）に表示するサンプル。
+//   ライブ表示中はサーバーから届く実際の状態で置き換わります。
 const EMP=[
- {id:"main", name:"Fable 5", role:"窓口/実装", room:"hq", hair:"#31405e", cloth:"#c85a4a", status:"work", chat:true,
+ {id:"main", name:"Claude", role:"窓口/実装", room:"hq", hair:"#31405e", cloth:"#c85a4a", status:"work", chat:true,
   now:"チャット窓で社長の指示待ち受け中", done:"バーチャルオフィス v2 の実装", next:"次の指示が来たらサブエージェントに振り分け"},
- {id:"plan", name:"Plan", role:"設計担当", room:"hq", hair:"#3d4460", cloth:"#5a6acf", status:"idle",
+ {id:"Plan", name:"Plan", role:"設計担当", room:"hq", hair:"#3d4460", cloth:"#5a6acf", status:"idle",
   now:"待機", done:"実装方針の設計と手順書づくり", next:"大きめの変更が来たら実装計画を立案"},
- {id:"explore", name:"Explore", role:"調査担当", room:"hq", hair:"#2f6b4f", cloth:"#e0a53a", status:"idle",
+ {id:"Explore", name:"Explore", role:"調査担当", room:"hq", hair:"#2f6b4f", cloth:"#e0a53a", status:"idle",
   now:"待機", done:"リポジトリ内のコード検索・定義探し", next:"「どこに何がある？」の調査依頼待ち"},
- {id:"gp", name:"general-purpose", role:"何でも屋", room:"hq", hair:"#7a4a2c", cloth:"#3fae6a", status:"idle",
+ {id:"general-purpose", name:"general-purpose", role:"何でも屋", room:"hq", hair:"#7a4a2c", cloth:"#3fae6a", status:"idle",
   now:"待機", done:"複数ステップの調べもの一式", next:"重めのマルチステップ作業の下請け"},
- {id:"guide", name:"code-guide", role:"Claude Code案内", room:"hq", hair:"#8f5d9e", cloth:"#7f6ad4", status:"rest", spot:"hammock",
+ {id:"claude-code-guide", name:"code-guide", role:"Claude Code案内", room:"hq", hair:"#8f5d9e", cloth:"#7f6ad4", status:"rest",
   now:"休憩中（質問が来たら出動）", done:"Claude Code の使い方Q&A対応", next:"フック・スキル・MCP の解説準備"},
- {id:"status", name:"statusline", role:"環境整備", room:"env", hair:"#4a5568", cloth:"#2fae9e", status:"rest", spot:"swing",
+ {id:"statusline-setup", name:"statusline", role:"環境整備", room:"env", hair:"#4a5568", cloth:"#2fae9e", status:"rest",
   now:"休憩中（出番待ち）", done:"ステータスラインの設定", next:"表示カスタマイズの相談待ち"},
 ];
 const NOTES=[
@@ -443,7 +470,15 @@ const $=s=>document.querySelector(s);
 function el(tag,cls,html){const d=document.createElement(tag);if(cls)d.className=cls;if(html!=null)d.innerHTML=html;return d;}
 const toastEl=$("#toast");let toastT;
 function toast(m){toastEl.textContent=m;toastEl.classList.add("show");clearTimeout(toastT);toastT=setTimeout(()=>toastEl.classList.remove("show"),2200);}
-function esc(s){return s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+function esc(s){return String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));}
+
+/* server.mjs から http で開かれた時だけライブモード（file:// ならサンプル表示） */
+const LIVE=location.protocol.startsWith("http")&&"EventSource" in window;
+let liveLog=[];
+function post(path,body){
+  return fetch(path,{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify(body||{})})
+    .then(r=>r.ok?r.json().catch(()=>({})):Promise.reject(r.status));
+}
 
 function makePix(emp,s){
   const pal={H:emp.hair,F:"#f6cfa4",E:"#2a2a33",C:emp.cloth,P:"#3a3f52",S:"#22252e",
@@ -466,7 +501,7 @@ function makePix(emp,s){
 }
 
 /* ═══════════ rooms ═══════════ */
-const STAT_TXT={work:"作業中",idle:"待機",rest:"休憩中"};
+const STAT_TXT={work:"作業中",idle:"待機",rest:"休憩中",wait:"確認待ち"};
 function decorNode(kind){
   const d=el("span",kind);
   if(kind==="shelf"){["#c85a4a","#e0a53a","#4a7fc8","#3fae6a","#8f5d9e","#e07a3f"].forEach(c=>{
@@ -482,9 +517,17 @@ function renderRooms(){
     head.appendChild(el("span","grow",esc(r.name)));
     const btn=el("button","launch","▶起動");
     btn.addEventListener("click",()=>{
+      const label=r.name.split("（")[0];
+      if(LIVE){
+        post("/api/summon",{room:r.id}).then(res=>{
+          const n=(res.summoned||[]).length;
+          toast(n?"🚀 "+label+"：休憩中の "+n+" 人を席に呼び戻しました":"全員もう席についています");
+        }).catch(()=>toast("サーバーに届きませんでした"));
+        return;
+      }
       EMP.filter(e=>e.room===r.id).forEach(e=>{if(e.status!=="work"){e.status="work";e.now="仕事を再開";}});
       renderRooms();renderBreak();
-      toast("🚀 "+r.name.split("（")[0]+" を起動しました");
+      toast("🚀 "+label+" を起動しました");
     });
     head.appendChild(btn);
     room.appendChild(head);
@@ -498,16 +541,16 @@ function renderRooms(){
   if(document.getElementById("cntWork"))updateCounts();
 }
 function unitNode(e){
-  const u=el("div","unit");
-  const lampCls=e.status==="work"?"work":e.status==="idle"?"idle":"rest";
-  const card=el("div","statusCard");
-  card.innerHTML='<div class="l1"><span class="lamp '+lampCls+'"></span>'+esc(e.name)+
-    ' <span class="role">〈'+esc(e.role)+'〉</span></div><div class="l2">'+esc(e.status==="idle"?"待機":e.now)+"</div>";
+  const u=el("div","unit"+(e.status==="work"?" working":""));
+  const card=el("div","statusCard"+(e.status==="wait"?" wait":""));
+  card.title=STAT_TXT[e.status]||"";
+  card.innerHTML='<div class="l1"><span class="lamp '+esc(e.status)+'"></span>'+esc(e.name)+
+    ' <span class="role">〈'+esc(e.role)+'〉</span></div><div class="l2">'+esc(e.now)+"</div>";
   card.addEventListener("click",ev=>openEmpPop(e,ev));
   u.appendChild(card);
 
   const ws=el("div","workspace");
-  ws.appendChild(el("span","monitor"+(e.status==="work"?"":" off")));
+  ws.appendChild(el("span","monitor"+(e.status==="work"||e.status==="wait"?"":" off")));
   ws.appendChild(el("span","desk"));
   ws.appendChild(el("span","chairSeat"));
   ws.appendChild(el("span","plantMini"));
@@ -517,6 +560,7 @@ function unitNode(e){
     p.addEventListener("click",ev=>openEmpPop(e,ev));
     ws.appendChild(p);
     if(e.status==="idle")ws.appendChild(el("span","zzz","…"));
+    if(e.status==="wait")ws.appendChild(el("span","alert","!"));
   }else{
     ws.appendChild(el("span","zzz","休憩中"));
   }
@@ -525,15 +569,24 @@ function unitNode(e){
 }
 
 /* ═══════════ break room ═══════════ */
+// 休憩室の居場所（来た順にハンモック→ブランコ→ラグ→コーヒー前…）
+const SPOTS=[
+  {left:"52px",top:"10px",cls:" onHammock"},
+  {right:"86px",top:"30px"},
+  {left:"64px",bottom:"34px"},
+  {right:"10px",top:"92px"},
+  {right:"124px",bottom:"16px"},
+  {left:"12px",bottom:"40px"},
+];
 function renderBreak(){
   document.querySelectorAll(".restee").forEach(n=>n.remove());
   const br=$("#breakroom");
-  EMP.filter(e=>e.status==="rest").forEach(e=>{
-    const n=el("div","restee"+(e.spot==="hammock"?" onHammock":""));
+  EMP.filter(e=>e.status==="rest").forEach((e,i)=>{
+    const spot=SPOTS[i%SPOTS.length];
+    const n=el("div","restee"+(spot.cls||""));
     n.appendChild(makePix(e,3));
     n.appendChild(el("div","tag",esc(e.name)));
-    if(e.spot==="hammock"){n.style.left="52px";n.style.top="10px";}
-    else{n.style.right="86px";n.style.top="30px";}
+    ["left","right","top","bottom"].forEach(k=>{if(spot[k])n.style[k]=spot[k];});
     enableDrag(n,e);
     br.appendChild(n);
   });
@@ -555,6 +608,13 @@ function enableDrag(node,emp){
       const hit=document.elementFromPoint(e2.clientX,e2.clientY);
       const room=hit&&hit.closest(".room");
       if(room&&room.dataset.room===emp.room){
+        if(LIVE){
+          // 実際の仕事は Claude Code から振られるので、ここでは「席に戻って待機」まで
+          post("/api/summon",{id:emp.id})
+            .then(()=>toast("🫴 "+emp.name+" を席に戻しました（仕事は Claude Code から振られます）"))
+            .catch(()=>toast("サーバーに届きませんでした"));
+          return;
+        }
         emp.status="work";emp.now="仕事を再開";
         renderRooms();renderBreak();
         toast("💪 "+emp.name+" が机に戻って仕事を始めました");
@@ -582,10 +642,12 @@ function showPop(x,y){
 }
 function openEmpPop(e,ev){
   popTitle.textContent="▶ "+e.name+" 〈"+e.role+"〉";
-  let h='<div class="row"><span class="k">いま</span><span>'+esc(e.now)+'</span></div>'+
-        '<div class="row"><span class="k">きょうの完了</span><span>'+esc(e.done)+'</span></div>'+
+  const cnt=e.doneToday?'（きょう '+e.doneToday+' 件）':"";
+  let h='<div class="row"><span class="k">状態</span><span>'+esc(STAT_TXT[e.status]||"")+'</span></div>'+
+        '<div class="row"><span class="k">いま</span><span>'+esc(e.now)+'</span></div>'+
+        '<div class="row"><span class="k">きょうの完了</span><span>'+esc(e.done)+esc(cnt)+'</span></div>'+
         '<div class="row"><span class="k">つぎ</span><span>'+esc(e.next)+'</span></div>';
-  if(e.chat)h+='<button class="popBtn" id="openChat">💬 チャット窓を開く</button>';
+  if(e.chat)h+='<button class="popBtn" id="openChat">'+(LIVE?"📜 活動ログを開く":"💬 チャット窓を開く")+'</button>';
   h+='<div class="popNote">クリックで固定／✕で解除</div>';
   popBody.innerHTML=h;
   showPop(ev.clientX,ev.clientY);
@@ -608,25 +670,40 @@ $("#advTab").addEventListener("click",ev=>{
 });
 
 /* ═══════════ bulletin ═══════════ */
+const NOTE_TXT={doing:"（作業中）",done:"（完了）",todo:"（未着手）"};
 function renderNotes(){
   const cork=$("#cork");cork.innerHTML="";
   const pastel=["#fef3b0","#ffd9e0","#d3f0d8","#d8e6ff","#f5e0c8","#e8d8f5"];
+  if(!NOTES.length){
+    cork.appendChild(el("div","note hint","Claude が TODO リストを作ると、ここに付箋が自動で貼られます"));
+  }
   NOTES.forEach((n,i)=>{
-    const note=el("div","note"+(n.urgent?" urgent":""),esc(n.t));
+    const note=el("div","note"+(n.urgent?" urgent":"")+(n.state?" "+n.state:""),esc(n.t));
     note.style.background=pastel[i%pastel.length];
     note.style.transform="rotate("+((i%3)-1)*2+"deg)";
-    note.addEventListener("click",()=>toast("📌 案件: "+n.t+(n.urgent?"（急ぎ）":"")));
+    note.addEventListener("click",()=>toast("📌 案件: "+n.t+(n.urgent?"（急ぎ）":NOTE_TXT[n.state]||"")));
     cork.appendChild(note);
   });
-  $("#urgentBadge").textContent=NOTES.filter(n=>n.urgent).length+"件急ぎ";
+  $("#urgentBadge").textContent=LIVE
+    ?"残り"+NOTES.filter(n=>n.state!=="done").length+"件"
+    :NOTES.filter(n=>n.urgent).length+"件急ぎ";
 }
 
 /* ═══════════ chat ═══════════ */
 const chat=$("#chat"),chatLog=$("#chatLog");
 function openChat(){
   chat.classList.add("show");
-  if(!chatLog.children.length)botSay("Fable 5です！社長、ご用件をどうぞ📋");
+  if(LIVE){renderChatLog();return;}
+  if(!chatLog.children.length)botSay("Claude です！社長、ご用件をどうぞ📋");
   $("#chatIn").focus();
+}
+// ライブ時は「活動ログ」として、社員の動きを時系列で表示
+function renderChatLog(){
+  if(!chat.classList.contains("show"))return;
+  chatLog.innerHTML="";
+  if(!liveLog.length)chatLog.appendChild(el("div","msg log","まだ記録がありません。Claude Code で何か頼むとここに流れます。"));
+  liveLog.forEach(l=>chatLog.appendChild(el("div","msg log","<b>"+esc(l.t)+"</b>"+esc(l.text))));
+  chatLog.scrollTop=1e5;
 }
 $("#chatX").addEventListener("click",()=>chat.classList.remove("show"));
 function botSay(t){const m=el("div","msg bot",esc(t));chatLog.appendChild(m);chatLog.scrollTop=1e5;}
@@ -651,8 +728,11 @@ function renderSky(){
   const boss={boss:true,hair:"#e8e4da",cloth:"#c85a4a"};
   $("#bossPix").replaceWith(makePix(boss,3));
 }
+let tickerKey="";
 function renderTicker(){
   const items=NEWS.map(n=>"<span>◆ "+esc(n)+"</span>").join("");
+  if(items===tickerKey)return; // 同じ内容なら流れを止めない
+  tickerKey=items;
   $("#tickerTrack").innerHTML=items+items;
 }
 function stamp(){
@@ -660,13 +740,17 @@ function stamp(){
   $("#stamp").textContent=d.getFullYear()+"/"+p(d.getMonth()+1)+"/"+p(d.getDate())+" "+p(d.getHours())+":"+p(d.getMinutes());
 }
 function updateCounts(){
-  const total=EMP.length;
-  const n={work:0,idle:0,rest:0};
-  EMP.forEach(e=>n[e.status]++);
-  $("#cntWork").textContent=n.work;$("#cntIdle").textContent=n.idle;$("#cntRest").textContent=n.rest;
-  $("#barWork").style.width=(n.work/total*100)+"%";
+  const total=EMP.length||1;
+  const n={work:0,idle:0,rest:0,wait:0};
+  EMP.forEach(e=>{if(e.status in n)n[e.status]++;});
+  const busy=n.work+n.wait; // 確認待ちも「仕事の途中」なので稼働に数える
+  $("#cntWork").textContent=busy;$("#cntIdle").textContent=n.idle;$("#cntRest").textContent=n.rest;
+  $("#barWork").style.width=(busy/total*100)+"%";
   $("#barIdle").style.width=(n.idle/total*100)+"%";
   $("#barRest").style.width=(n.rest/total*100)+"%";
+  $("#cntFoot").textContent=n.wait
+    ?"🔔 社長の確認待ちが "+n.wait+" 件あります（Claude Code の画面へ）"
+    :"休憩中の社員は机に運ぶと席に戻ります";
 }
 
 /* ═══════════ live usage (usage.js / ccusage) ═══════════ */
@@ -698,15 +782,51 @@ function applyUsage(){
   if(u.block)gauge($("#ccBar5"),$("#ccPct5"),u.block.pct,u.block.tokens);
   if(u.week)gauge($("#ccBarW"),$("#ccPctW"),u.week.pct,u.week.tokens);
   const bits=[];
-  if(u.block&&u.block.resetAt)bits.push("5hリセット: "+String(u.block.resetAt).replace("T"," ").slice(5,16));
+  if(u.block&&u.block.resetAt){
+    const r=new Date(u.block.resetAt);
+    if(!isNaN(r))bits.push("5hリセット: "+(r.getMonth()+1)+"/"+r.getDate()+" "+String(r.getHours()).padStart(2,"0")+":"+String(r.getMinutes()).padStart(2,"0"));
+  }
   if(u.block&&u.block.costUSD!=null)bits.push("今ブロック $"+Number(u.block.costUSD).toFixed(2));
   if(u.week&&u.week.costUSD!=null)bits.push("今週 $"+Number(u.week.costUSD).toFixed(2));
   if(bits.length)foot.textContent=bits.join(" ／ ");
 }
 
+/* ═══════════ live connection (server.mjs → SSE) ═══════════ */
+function setConn(state){
+  const c=$("#conn");c.className="conn "+state;
+  $("#connTxt").textContent=state==="on"?"LIVE 接続中":state==="lost"?"再接続中…":"オフライン（サンプル表示）";
+}
+let pending=null;
+function applyState(s){
+  pending=s;
+  requestAnimationFrame(()=>{ // 連続で届いても描画は1フレームに1回
+    if(!pending)return;
+    const st=pending;pending=null;
+    EMP.splice(0,EMP.length,...st.employees);
+    NOTES.splice(0,NOTES.length,...(st.notes||[]));
+    liveLog=st.log||[];
+    const recent=liveLog.slice(-8).reverse().map(l=>l.t+" "+l.text);
+    NEWS.splice(0,NEWS.length,...(recent.length?recent:["Claude Code で何か頼むと、ここに社員の動きが流れます"]));
+    renderRooms();renderBreak();renderNotes();renderTicker();renderChatLog();
+    window.USAGE=st.usage;
+    if(st.usage)applyUsage();else $("#ccSub").textContent="使用量を集計中…（初回は1分ほどかかります）";
+    stamp();
+  });
+}
+function connectLive(){
+  $("#caption").textContent="Claude Code の動きをリアルタイム表示中 ／ キャラをクリックで詳細 ／ 休憩中の社員は自分の部屋へ運ぶと席に戻ります";
+  $("#chatTitle").textContent="📜 活動ログ（ライブ）";
+  $("#chatForm").style.display="none";
+  const es=new EventSource("/events");
+  es.addEventListener("state",ev=>{setConn("on");applyState(JSON.parse(ev.data));});
+  es.onopen=()=>setConn("on");
+  es.onerror=()=>setConn("lost"); // EventSource が自動で再接続します
+}
+
 /* ═══════════ boot ═══════════ */
 renderSky();renderRooms();renderBreak();renderNotes();renderTicker();
 updateCounts();applyUsage();stamp();setInterval(stamp,30000);
+if(LIVE)connectLive();
 })();
 </script>
 
