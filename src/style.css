@@ -213,6 +213,10 @@ button.wide {
   margin: 0 0 10px;
 }
 
+.hint a {
+  color: #7ab3ff;
+}
+
 #status {
   padding: 4px 10px;
   background: #2a2c33;
