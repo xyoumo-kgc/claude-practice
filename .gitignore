@@ -2,3 +2,5 @@ node_modules/
 dist/
 dist-single/
 *.local
+__pycache__/
+*.pyc
