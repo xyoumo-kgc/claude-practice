@@ -11,6 +11,7 @@
 | --- | --- | --- |
 | `src/`, `index.html` | Web CAD 本体（部屋・建具・家具・平面図・提案書 PDF・ルームツアー） | TypeScript + Three.js + Vite |
 | `examples/` | サンプルシーン（JSON） | |
+| `blender/` | Web CAD の JSON を読み込む Blender アドオン（パース作成） | Python（Blender 4.2+） |
 | `video_gen/` | AI 動画生成のサンプル CLI（Replicate） | Python |
 | `virtual-office/` | 稼働状況と Claude 使用量のダッシュボード（サーバー不要の HTML） | HTML/JS |
 | `x-article-*.md` | X（旧 Twitter）記事のプロンプトテンプレと検証メモ | |
@@ -60,6 +61,7 @@ E2E は `tests/e2e/`、スキルの検証は `tests/skills/`。画面の挙動�
 - **1 PR = 1 目的**。作業ブランチは `claude/<内容>`。
 - PR 本文は日本語で、「概要 / 変更点 / 動作確認」を書く。スクリーンショットがあると伝わる。
 - 大きめの改修は先に方針を出して合意してから実装する。
+- **このリポジトリは公開（public）です。** 見積システム（みつも郎）の本体・商品マスタ（原価・割引率）・口座番号・社員名・お客様の情報はコミットしない。社内向けの成果物はファイルで直接渡す。
 - お客様の氏名・住所・金額などが入るファイルはコミットしない（`work/` は .gitignore 済み）。
 - API キー・トークンは環境変数で渡す。ファイルに書かない。
 
