@@ -31,6 +31,27 @@ npm test              # スキルの検証 + Playwright E2E
 
 PR を出すと同じ内容が CI で自動実行されます(`.github/workflows/ci.yml`)。
 
+### Blender で編集・パース作成
+
+`blender/webcad_importer.py` は Web CAD の間取り JSON を Blender に読み込むアドオンです(Blender 4.2 以降)。
+
+1. Blender の「編集 > プリファレンス > アドオン」右上の「ディスクからインストール」で `webcad_importer.py` を選ぶ([公開サイトからダウンロード](https://xyoumo-kgc.github.io/claude-practice/webcad_importer.py))
+2. Web CAD で「保存」した JSON を「ファイル > インポート > Web CAD (.json)」で読み込む
+3. 保存アングルがカメラになっているので、F12 でパースをレンダリング
+
+読み込んだシーンでできること:
+
+- 部屋を選んでサイドバー(N キー)の「Web CAD」タブで幅・奥行・壁高を **mm** で変更 →「部屋を再構築」
+- ドア・窓を動かすと壁の開口部も追従(Boolean モディファイア)。複製すれば新しい開口部になる
+- 家具・床・壁はマテリアルが分かれているので、色や質感を個別に変更できる
+- 「天井の表示切替」で室内パース用の天井を表示
+
+コマンドラインで .blend とレンダー画像を直接作ることもできます:
+
+```bash
+blender --background --python blender/webcad_importer.py -- examples/sample-room.json room.blend render.png
+```
+
 ### 配布用の単一 HTML
 
 `npm run build:single` で、JS・CSS・PDF 変換エンジンまで全部入りの **HTML ファイル 1 個**が `dist-single/index.html` にできます。サーバー不要で、ダブルクリックするだけでブラウザで動きます(お客様への配布やオフライン利用に)。公開サイトの [web-cad.html](https://xyoumo-kgc.github.io/claude-practice/web-cad.html) からもダウンロードできます。
