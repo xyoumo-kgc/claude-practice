@@ -574,15 +574,15 @@ def run_python(bars, base, offset_h=0, sw=None, extra_closed=(), extra_early=(),
                 fills[t] = pend
                 pend = None
         evs = events.get(t)
-        if not evs:                                            # 5) 時刻・建玉による見送り
-            if flat[t]:
+        if not evs:                                            # 5) 時刻・建玉による見送り（run_h1 と同じ順: 決済足 →
+            if flat[t]:                                        #    新規停止・ロールオーバー → 建玉あり。SPEC 付録E の E-13）
                 code = 'T1' if (S['calendar'] and ny[t].date() in closed) else 'T5'
-            elif open_at[t]:
-                code = 'T4'
             elif no_new[t]:
                 code = 'T2'
             elif rollover[t]:
                 code = 'T3'
+            elif open_at[t]:
+                code = 'T4'
             else:
                 raise RuntimeError(f'足 {t}（{ny[t]}）で判定も見送りも再現できません（strategy.py の処理順が変わった可能性）')
             if code != 'T4':

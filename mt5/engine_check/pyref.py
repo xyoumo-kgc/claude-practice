@@ -38,9 +38,11 @@ src = rep(src, "        return dict(dir=d, key=key, price=price, sl=sl, tp1=tp1,
           "        return dict(dir=d, key=key, price=price, sl=sl, tp1=tp1, meta=meta)\n")
 src = rep(src, "        if flat[t]:\n            pend = None; market = None\n            continue\n",
           "        if flat[t]:\n            TC.append((t, 'FLAT'))\n            pend = None; market = None\n            continue\n")
-src = rep(src, "        if br.open or market is not None:\n            continue\n        if no_new[t] or rollover[t]:\n            pend = None\n            continue\n",
-          "        if br.open or market is not None:\n            TC.append((t, 'T4'))\n            continue\n"
-          "        if no_new[t] or rollover[t]:\n            TC.append((t, 'T2' if no_new[t] else 'T3'))\n            pend = None\n            continue\n")
+# run_h1 の見送りの順: 決済足 → 新規停止・ロールオーバー → 建玉あり（SPEC 付録E の E-13）
+src = rep(src, "        if no_new[t] or rollover[t]:\n            pend = None; market = None",
+          "        if no_new[t] or rollover[t]:\n            TC.append((t, 'T2' if no_new[t] else 'T3'))\n            pend = None; market = None")
+src = rep(src, "        if br.open or market is not None:\n            continue\n",
+          "        if br.open or market is not None:\n            TC.append((t, 'T4'))\n            continue\n")
 src = rep(src, "            funnel['ARMED'] = funnel.get('ARMED', 0) + 1\n",
           "            funnel['ARMED'] = funnel.get('ARMED', 0) + 1\n            ACT.append((t, 'ARMED', best['dir'], best['meta']['pattern']))\n")
 src = rep(src, "        else:                                                  # 同じセットアップ: 価格・SL を置き直す\n",

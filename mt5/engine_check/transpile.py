@@ -4,7 +4,7 @@
 import re
 import sys
 
-src = open(sys.argv[1], encoding='utf-8').read()
+src = open(sys.argv[1], encoding='utf-8-sig').read()          # BOM つき（MetaEditor の UTF-8）でも読む
 a = re.search(r'^//@@ENGINE_BEGIN\s*$', src, re.M).start()
 b = re.search(r'^//@@ENGINE_END\s*$', src, re.M).start()
 eng = src[a:b]
