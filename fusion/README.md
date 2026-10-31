@@ -16,7 +16,7 @@
 | Python 参照実装 | `strategy.py` |
 | MT5 EA（通知・パネル・任意の自動売買） | `../mt5/FX_Fusion_EA.mq5`、[../mt5/README_FUSION.md](../mt5/README_FUSION.md) |
 | ダッシュボード | `../dashboard/fusion_app.py`（`streamlit run dashboard/fusion_app.py`） |
-| チャート分析スキル | `/fx-fusion`（`../.claude/commands/fx-fusion.md`） |
+| チャート分析スキル | `/fx-fusion`（[`.claude/skills/fx-fusion/SKILL.md`](../.claude/skills/fx-fusion/SKILL.md)） |
 
 ```
 fusion/

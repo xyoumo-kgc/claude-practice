@@ -259,6 +259,6 @@
 - 賢人 本人ブログ：fx-trader-style.com の dow-theory／moving-average／sell-on-rallies／buying-on-dips／loss-cutting-method／trailing-stop／line-the-order-is-concentrated／rule-of-granville／trend-line-return-move／function-of-trend-line／analysis-of-market/20190110／trade-environment
 - 賢人 本人ツイートまとめ：togetter.com/li/1168459、posfie.com/@nomorepropagand/p/cMpdLJz
 - 100億 本人X：x.com/million_trader8/status/1602501059229802498（2022-12-13 鉄板パターン）、1561597242611359746（2022-08-22 上手いトレーダー5選）、1775151194924802226（2024-04-02 80MA）、1793839346820538876（2024-05-24 乖離）、1822990168430895350（2024-08頃 待つ）、1665916425687678979（5ステップ）
-- 100億 基準：.claude/commands/fx-analyze.md（二次要約）、multimillionaire-trade.com（本人を名乗るブログ、運営者未確認。/406/ は賢人ツイートの解説記事）
+- 100億 基準：fx-analyze.md（二次要約。調査時の置き場所は .claude/commands/、現在は .claude/skills/fx-analyze/SKILL.md）、multimillionaire-trade.com（本人を名乗るブログ、運営者未確認。/406/ は賢人ツイートの解説記事）
 - 第三者：lisafx.hatenablog.com、note.com/li2afx、x.com/lossrangerREDFX、note.com/fx_wizard、note.com/snowman5656、4taku22.com、note.com/jin_yuichi、ameblo.jp/runachi-fx、maneru-fx.com
 - 賢人ダイジェスト：二重リサーチ（Fable と Opus が独立に WebSearch）の中間成果。リポジトリには含めていない
