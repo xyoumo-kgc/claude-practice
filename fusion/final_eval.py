@@ -262,16 +262,17 @@ def to_frame(trades, sym):
     df['exit_time'] = pd.to_datetime(df['exit_time'])
     for c in ('entry', 'initial_sl', 'risk', 'pnl_r', 'mfe_r', 'mae_r'):
         df[c] = df[c].astype(float)
-    df['direction'] = df['direction'].astype(int)
+    df['direction'] = df['direction'].astype(np.int64)
+    df['bars_held'] = df['bars_held'].astype(np.int64)
     df['seq'] = np.arange(len(df), dtype=np.int64)
     df['sym_i'] = SYMBOLS.index(sym) if sym in SYMBOLS else len(SYMBOLS)
     return df
 
 
 def _job(job):
-    """job = (銘柄, 構成, 切断日 or None)。戻り値 (job, 取引, 理由コード別件数, 足の情報, 秒)"""
+    """job = (銘柄, 構成, 切断日 or None)。戻り値 (job, 取引, 理由コード別件数, 足の情報, (経過秒, CPU秒))"""
     sym, cfg, cut = job
-    t0 = time.perf_counter()
+    t0, c0 = time.perf_counter(), time.process_time()
     h1 = _frame(sym, 'H1')
     if cut is not None:
         h1 = h1[h1.index < cut]
@@ -285,7 +286,7 @@ def _job(job):
         trades = REG[cfg]({'H1': h1}, sym)
     else:
         trades, funnel = fs.run_h1(h1, sym, fs.config(cfg))
-    return job, to_frame(trades, sym), dict(funnel), info, time.perf_counter() - t0
+    return job, to_frame(trades, sym), dict(funnel), info, (time.perf_counter() - t0, time.process_time() - c0)
 
 
 def build_jobs(syms, m15_syms, cfgs, cuts):
@@ -298,7 +299,9 @@ def build_jobs(syms, m15_syms, cfgs, cuts):
 
 
 def execute(jobs, data_dir, clip, workers, log):
+    """仕事を並列に実行する。戻り値 ({job: (取引, 理由コード別件数, 足の情報)}, 仕事ごとの CPU 秒の合計)"""
     out = {}
+    cpu = 0.0
     t0 = time.perf_counter()
     if workers <= 1:
         _init(data_dir, clip)
@@ -308,15 +311,17 @@ def execute(jobs, data_dir, clip, workers, log):
         pool = mp.get_context('spawn').Pool(workers, initializer=_init, initargs=(data_dir, clip))
         it = pool.imap_unordered(_job, jobs, chunksize=1)
     try:
-        for k, (job, df, funnel, info, sec) in enumerate(it, 1):
+        for k, (job, df, funnel, info, (sec, csec)) in enumerate(it, 1):
             out[job] = (df, funnel, info)
+            cpu += csec
             tag = f'{job[1]}' + (f'（{job[2]} で切断）' if job[2] else '')
-            log(f'[{k:>4}/{len(jobs)}] {job[0]} {tag:<24} {len(df):>6}件 {sec:6.1f}秒  経過 {time.perf_counter() - t0:7.0f}秒')
+            log(f'[{k:>4}/{len(jobs)}] {job[0]} {tag:<24} {len(df):>6}件 {sec:6.1f}秒（CPU {csec:5.1f}秒）'
+                f'  経過 {time.perf_counter() - t0:7.0f}秒')
     finally:
         if pool is not None:
             pool.close()
             pool.join()
-    return out
+    return out, cpu
 
 
 # ---------------------------------------------------------------- 統計（PREREGISTRATION §6）
@@ -893,7 +898,7 @@ def run_all(data_dir, out_dir, workers=4, dry_run=False, log=print, spec=None, c
         + (f'  見つからない銘柄: {" ".join(missing)}' if missing else ''))
     jobs = build_jobs(syms, m15_syms, cfgs, spec['cuts'])
     log(f'[final_eval] 実行: {len(syms)}銘柄 × {len(cfgs)}構成（M15 のない銘柄の p2 を除く）＋切断テスト = {len(jobs)}件、{workers}並列')
-    out = execute(jobs, data_dir, spec['clip'], workers, log)
+    out, cpu = execute(jobs, data_dir, spec['clip'], workers, log)
     t_run = time.perf_counter() - t_start
 
     log('[final_eval] 集計中…')
@@ -945,7 +950,8 @@ def run_all(data_dir, out_dir, workers=4, dry_run=False, log=print, spec=None, c
     log(f'[final_eval] 判定{tag}: {"合格" if v["pass"] else "不合格"}  '
         + ' '.join(f'{k}={"○" if v[k]["ok"] else "×"}' for k in ('P1', 'P2', 'P3', 'P4', 'P5', 'P6')))
     log(f'[final_eval] 出力: {out_dir}/results.json, trades.csv.gz, report.md')
-    log(f'[final_eval] 所要時間: 実行 {t_run:.0f}秒、合計 {time.perf_counter() - t_start:.0f}秒')
+    log(f'[final_eval] 所要時間: 実行 {t_run:.0f}秒（仕事の CPU 時間の合計 {cpu:.0f}秒）、'
+        f'合計 {time.perf_counter() - t_start:.0f}秒')
     return res
 
 
