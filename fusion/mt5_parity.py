@@ -7,9 +7,11 @@ MT5 EA（mt5/FX_Fusion_EA.mq5）のログと Python 参照実装（fusion/strate
 入力（EA は MQL5/Files/FusionEA/ に書く。InpLogsCommon=true なら Terminal/Common/Files/FusionEA/）
   --bars    MT5 で書き出した H1 足。EA の <銘柄>_bars.csv（判定に使った足）を推奨。
             MT5 の「チャートバー」書き出しなど、fusion.data.load_mt5_csv で読める形なら何でもよい
-  --trades  EA の取引ログ <銘柄>_trades.csv（仮想ブローカー）。自動売買の実約定 <銘柄>_real.csv も読める
+  --trades  EA の取引ログ <銘柄>_trades.csv（仮想ブローカー）。自動売買の実約定 <銘柄>_real.csv（テスターでは
+            <銘柄>_real_tester.csv）も読める
   --eval    EA の評価ログ <銘柄>_eval.csv（任意。足ごと・方向ごとの理由コードを比べる。診断用）
-  --symbol  銘柄名。EURUSD.a のような接尾辞つきでよい（先頭6文字で SPEC §10.3 の表を引く。GOLD〜 は XAUUSD）
+  --symbol  銘柄名。EURUSD.a のような接尾辞つきでよい（先頭6文字で SPEC §10.3 の表を引く。GOLD〜 は XAUUSD。
+            m.EURUSD・#XAUUSD のように表の名前をただ1つ含む名前も引ける。EA の InpSymbolMap を使ったときは表の名前を渡す）
   --offset  サーバー時間 −（NY+7）［時間］。EA の InpServerOffsetHours と同じ意味。省略時は _info.csv の値、なければ 0
   --from / --to  比べる期間（サーバー時間）。Python は足の先頭から回し、比べる範囲だけを絞る
   <銘柄>_info.csv が --trades と同じ場所にあれば自動で読み、EA と同じ条件で Python を回す:
@@ -38,7 +40,7 @@ Python 側
 その他    : --export-python DIR は Python の結果を EA と同じ形式（<銘柄>_trades.csv・_eval.csv・_bars.csv・
             _info.csv）で書く。--json PATH は指標と最初の食い違いを JSON で書く。
 
-成績の評価はしない（取引の一致だけを見る）。優位性は検証中（結果は fusion/RESULTS.md）。
+成績の評価はしない（取引の一致だけを見る）。成績の結論は fusion/RESULTS.md（最終検証は不合格で、優位性は確認できなかった）。
 """
 import argparse
 import contextlib
@@ -123,12 +125,23 @@ REAL_RELEVANT = ('SHIFT', 'SL', 'EXIT_REASON', 'EXIT_TIME', 'KEY')     # 実約�
 
 
 # ---------------------------------------------------------------- 小道具
+_TABLE_NAMES = ('EURUSD', 'GBPUSD', 'USDJPY', 'EURJPY', 'GBPJPY', 'AUDUSD', 'USDCAD', 'AUDJPY', 'XAUUSD')
+
+
 def symbol_base(symbol):
-    """銘柄名 → SPEC §10.3 の表の名前（EA の FE_SymbolBase と同じ: 大文字にし、GOLD〜 は XAUUSD、ほかは先頭6文字）"""
+    """銘柄名 → SPEC §10.3 の表の名前（EA の ResolveBase の InpSymbolMap 以外と同じ）:
+    1) 大文字にして先頭6文字（GOLD〜 は XAUUSD）が表にあればそれ
+    2) 英数字だけにして表の名前（と GOLD）をただ1つ含むならそれ（m.EURUSD・#XAUUSD など）
+    3) それ以外は 1) の名前（表にない銘柄）。EA で InpSymbolMap を使ったときは --symbol に表の名前を渡す"""
     s = str(symbol).strip().upper()
-    if s.startswith('GOLD'):
-        return 'XAUUSD'
-    return s[:6]
+    b = 'XAUUSD' if s.startswith('GOLD') else s[:6]
+    if b in _TABLE_NAMES:
+        return b
+    u = ''.join(ch for ch in s if 'A' <= ch <= 'Z' or '0' <= ch <= '9')
+    hits = {n for n in _TABLE_NAMES if n in u}
+    if 'GOLD' in u:
+        hits.add('XAUUSD')
+    return hits.pop() if len(hits) == 1 else b
 
 
 def default_point(base):
@@ -329,6 +342,26 @@ def config_name(sw):
         if v == sw:
             return name
     return 'fusion + ' + ' '.join(f'{k}={v}' for k, v in sorted(sw.items()))
+
+
+def config_tag(sw):
+    """_info.csv の config（ASCII。EA の ConfigTag と同じ: 既定は fusion、任意ゲートは F+G3+d1soft の形で足す）"""
+    S = dict(fs.DEFAULT_SW)
+    S.update(sw or {})
+    s = ''
+    s += '+G3' if S['g3'] else ''
+    s += {'strict': '+d1', 'soft': '+d1soft'}.get(S['d1_gate'], '')
+    s += '+gap' if S['gap_gate'] else ''
+    s += ('+clear_d1' if S['cf_scope'] == 'daily' else '+clear') if S['clear_gate'] else ''
+    s += '+support' if S['support_gate'] else ''
+    s += '+slnode' if S['sl_mode'] == 'node' else ''
+    s += '+p3' if S['p3'] else ''
+    return 'F' + s if s else 'fusion'
+
+
+def core_changed(sw):
+    """核心パラメータ（SPEC §12.1）を既定から変えているか（_info.csv の core_changed）"""
+    return any(k in fs.CORE and abs(float(v) - float(fs.CORE[k])) > 1e-9 for k, v in (sw or {}).items())
 
 
 def _info_switches(sw):
@@ -690,13 +723,14 @@ def write_python_logs(py, out_dir, tag=None):
         for ts, o, h, l, c in zip(py.bars.index, *(py.bars[k].to_numpy(float) for k in ('Open', 'High', 'Low', 'Close'))):
             f.write(f'{_ft(ts)},{o:.10f},{h:.10f},{l:.10f},{c:.10f}\r\n')
     days = lambda s: ';'.join(sorted(d.strftime('%Y.%m.%d') for d in s))
-    info = [('ea', 'fusion.strategy.run_h1（Python 参照実装を EA の形式で書き出したもの）'), ('symbol', tag), ('base', py.base),
+    info = [('ea', 'fusion.strategy.run_h1 (Python reference written in the EA log format)'), ('symbol', tag), ('base', py.base),
             ('s_nom', f'{py.s_nom:.8f}'), ('is_xau', '1' if py.base == 'XAUUSD' else '0'),
             ('server_offset_h', str(py.offset_h)), ('first_bar_time', _ft(py.bars.index[0])),
             ('first_eval_time', _ft(py.bars.index[py.first]) if py.first < len(py.bars) else ''),
-            ('bars_loaded', str(len(py.bars))), ('history_bars_input', str(len(py.bars))), ('config', config_name(py.sw)),
+            ('bars_loaded', str(len(py.bars))), ('history_bars_input', str(len(py.bars))), ('config', config_tag(py.sw)),
+            ('core_changed', '1' if core_changed(py.sw) else '0'),
             ('switches', _info_switches(py.sw)), ('params', _info_params(py.P)),
-            ('extra_closed', days(py.extra_closed)), ('extra_early', days(py.extra_early))]
+            ('extra_closed', days(py.extra_closed)), ('extra_early', days(py.extra_early)), ('auto_trade', '0'), ('tester', '0')]
     with open(paths['info'], 'w', encoding='utf-8', newline='') as f:
         f.write('key,value\r\n')
         for k, v in info:
@@ -1511,7 +1545,7 @@ class ParityResult:
 
 def _guess_info(trades_path):
     d, b = os.path.split(trades_path)
-    for suf in ('_trades.csv', '_real.csv'):
+    for suf in ('_trades.csv', '_real_tester.csv', '_real.csv'):
         if b.endswith(suf):
             p = os.path.join(d, b[:-len(suf)] + '_info.csv')
             return p if os.path.exists(p) else None
@@ -1922,7 +1956,7 @@ def build_parser():
         epilog='例: python -m fusion.mt5_parity --bars FusionEA/EURUSD_bars.csv --trades FusionEA/EURUSD_trades.csv '
                '--eval FusionEA/EURUSD_eval.csv --symbol EURUSD')
     ap.add_argument('--bars', required=True, help='MT5 で書き出した H1 足の CSV（EA の <銘柄>_bars.csv を推奨）')
-    ap.add_argument('--trades', required=True, help='EA の <銘柄>_trades.csv（自動売買の <銘柄>_real.csv も可）')
+    ap.add_argument('--trades', required=True, help='EA の <銘柄>_trades.csv（自動売買の <銘柄>_real.csv・テスターの <銘柄>_real_tester.csv も可）')
     ap.add_argument('--eval', help='EA の <銘柄>_eval.csv（任意。理由コードを比べる）')
     ap.add_argument('--symbol', required=True, help='銘柄名（EURUSD.a などの接尾辞つき可）')
     ap.add_argument('--offset', type=int, default=None,

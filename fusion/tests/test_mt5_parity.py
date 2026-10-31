@@ -13,6 +13,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import shutil
 import tempfile
 import unittest
@@ -66,15 +67,24 @@ def run_cli(argv):
     return code, out.getvalue()
 
 
+# EA の <銘柄>_real.csv の列（FX_Fusion_EA.mq5 の FUS_REAL_HEADER と同じ）
+REAL_HEADER = ('entry_time,dir,entry,initial_sl,exit_time,exit_reason,R,key_time,score,ticket,exit_price,volume,planned_entry,'
+               'slippage_pts,profit,swap,commission,login,magic')
+
+
 def write_trades(df, path, real=False):
-    """EA の取引ログ形式で書く（real=True なら _real.csv と同じく ticket 列をつける）"""
+    """EA の取引ログ形式で書く（real=True なら _real.csv と同じ列: ticket・計画価格・スリッページ・損益など）"""
     with open(path, 'w', encoding='utf-8', newline='') as f:
         if real:
-            f.write('entry_time,dir,entry,initial_sl,exit_time,exit_reason,R,key_time,score,ticket\r\n')
+            f.write(REAL_HEADER + '\r\n')
             for i, r in enumerate(df.to_dict('records')):
-                f.write(','.join([r['entry_time'].strftime(mp.TIME_FMT), str(int(r['dir'])), f"{r['entry']:.8f}",
+                d = int(r['dir'])
+                exit_px = r['entry'] + d * r['R'] * abs(r['entry'] - r['initial_sl'])
+                f.write(','.join([r['entry_time'].strftime(mp.TIME_FMT), str(d), f"{r['entry']:.8f}",
                                   f"{r['initial_sl']:.8f}", r['exit_time'].strftime(mp.TIME_FMT), r['exit_reason'],
-                                  f"{r['R']:.6f}", r['key_time'].strftime(mp.TIME_FMT), str(int(r['score'])), str(1000 + i)]) + '\r\n')
+                                  f"{r['R']:.6f}", r['key_time'].strftime(mp.TIME_FMT), str(int(r['score'])), str(1000 + i),
+                                  f"{exit_px:.8f}", '0.10', f"{r['entry'] - d * 1e-5:.8f}", '1.0', '-12.34', '0.00', '-0.70',
+                                  '12345678', '20261031']) + '\r\n')
         else:
             f.write(mp.TRADE_HEADER + '\r\n')
             for r in df.to_dict('records'):
@@ -454,9 +464,43 @@ class Helpers(unittest.TestCase):
         self.assertEqual(mp.symbol_base('eurusd.a'), 'EURUSD')
         self.assertEqual(mp.symbol_base('XAUUSDm'), 'XAUUSD')
         self.assertEqual(mp.symbol_base('GOLD.pro'), 'XAUUSD')
+        self.assertEqual(mp.symbol_base('m.EURUSD'), 'EURUSD')        # 接頭辞つき（EA の ResolveBase と同じ）
+        self.assertEqual(mp.symbol_base('#XAUUSD'), 'XAUUSD')
+        self.assertEqual(mp.symbol_base('#GOLD'), 'XAUUSD')
+        self.assertEqual(mp.symbol_base('EURGBP'), 'EURGBP')          # 表にない銘柄はそのまま（s_nom が要る）
+        self.assertEqual(mp.symbol_base('x.EURUSDGBPUSD'), 'X.EURU')  # 2つ当たるときは決めない
         self.assertEqual(mp.default_point('USDJPY'), 0.001)
         self.assertEqual(mp.default_point('XAUUSD'), 0.01)
         self.assertEqual(mp.default_point('EURUSD'), 0.00001)
+
+    def test_guess_info_names(self):
+        """_info.csv は _trades.csv・_real.csv・テスターの _real_tester.csv と同じ場所から自動で読む"""
+        with tempfile.TemporaryDirectory() as d:
+            info = os.path.join(d, 'EURUSD.a_info.csv')
+            open(info, 'w').close()
+            for n in ('EURUSD.a_trades.csv', 'EURUSD.a_real.csv', 'EURUSD.a_real_tester.csv'):
+                self.assertEqual(mp._guess_info(os.path.join(d, n)), info)
+            self.assertIsNone(mp._guess_info(os.path.join(d, 'EURUSD.a_eval.csv')))
+
+    def test_spread_table_matches_ea(self):
+        """s_nom の表は EA（FE_SpreadTable）・fusion/broker.py（NOMINAL_SPREAD）・このハーネス（_TABLE_NAMES）の3か所にある。
+        銘柄名と値が同じであること（銘柄を足すときに1か所だけ直すと、銘柄名の判定や s_nom が食い違う）"""
+        from fusion import broker
+        ea = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), 'mt5', 'FX_Fusion_EA.mq5')
+        if not os.path.exists(ea):
+            self.skipTest('mt5/FX_Fusion_EA.mq5 がない')
+        with open(ea, encoding='utf-8-sig') as f:
+            src = f.read()
+        body = src[src.index('int FE_SpreadTable('):]
+        body = body[:body.index('\n  }\n')]
+        names = dict(re.findall(r'names\[(\d+)\] = "(\w+)";', body))
+        vals = dict(re.findall(r'vals\[(\d+)\] = ([0-9.]+);', body))
+        self.assertEqual(set(names), set(vals))
+        size = re.search(r'ArrayResize\(names, (\d+)\)', body)
+        self.assertEqual(int(size.group(1)), len(names))
+        table = {names[i]: float(vals[i]) for i in names}
+        self.assertEqual(set(table), set(mp._TABLE_NAMES))
+        self.assertEqual(table, {k: float(v) for k, v in broker.NOMINAL_SPREAD.items()})
 
     def test_parse_helpers(self):
         self.assertEqual(mp.parse_days('2024.12.26;2025-01-02, 2025/01/03;x'),
@@ -465,6 +509,22 @@ class Helpers(unittest.TestCase):
         self.assertTrue(pd.isna(mp.parse_time('')))
         self.assertTrue(mp._reason_equal('SL', 'SL_gap', real=True))
         self.assertFalse(mp._reason_equal('SL', 'SL_gap', real=False))
+
+    def test_config_tag_matches_ea(self):
+        """_info.csv の config は ASCII（EA の ConfigTag と同じ名前）"""
+        self.assertEqual(mp.config_tag({}), 'fusion')
+        self.assertEqual(mp.config_tag({'g3': True, 'd1_gate': 'soft'}), 'F+G3+d1soft')
+        self.assertEqual(mp.config_tag({'clear_gate': True, 'cf_scope': 'daily', 'p3': True}), 'F+clear_d1+p3')
+        self.assertFalse(mp.core_changed({'g3': True}))
+        self.assertTrue(mp.core_changed({'R_MAX_ATR': 2.5}))
+        with tempfile.TemporaryDirectory() as d:
+            py = mp.run_python(holiday_h1(1500), 'EURUSD')
+            info_path = mp.write_python_logs(py, d)['info']
+            with open(info_path, 'rb') as f:
+                f.read().decode('ascii')                        # 日本語を含まない（EA も ASCII で書く）
+            info = mp.read_info(info_path)
+        self.assertEqual(info['config'], 'fusion')
+        self.assertEqual(info['core_changed'], '0')
 
     def test_switches_from_info(self):
         info = {'switches': 'g3=1 d1_gate=2 gap_gate=0 clear_gate=1 cf_scope=1 support_gate=0 sl_mode=1 p3=1',

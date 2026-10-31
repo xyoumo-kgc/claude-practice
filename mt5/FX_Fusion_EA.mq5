@@ -1,4 +1,4 @@
-//+------------------------------------------------------------------+
+﻿//+------------------------------------------------------------------+
 //|  FX_Fusion_EA.mq5                                                |
 //|  融合FXシステム FUSION-CORE v1.0                                  |
 //|  「賢人のデイトレード × 100億円トレーダー」                        |
@@ -15,12 +15,16 @@
 //|   分割・建値移動・固定利確・時間決済はしない。                     |
 //|                                                                  |
 //|  【優位性の状態】                                                 |
-//|   検証中（結果は fusion/RESULTS.md）。設計時の開発期間の成績は、   |
-//|   約190構成の探索による選択バイアスを含む。前身 MinCore の審査     |
-//|   ホールドアウトは 2010〜2012 が PF1.06、AUDUSD・USDCAD 2013〜2017 |
-//|   が PF0.76。従来版EA・4P-Score も実データの検証期間ではマイナス。 |
-//|   自動売買は既定 OFF。§21 の検証に合格し、デモでのフォワード3か月 |
-//|   を終えるまでは、シグナル通知とパネルだけで使う。                 |
+//|   最終検証（未接触データで1回だけ）は不合格（fusion/RESULTS.md）。 |
+//|   合格基準 P1〜P6 を一つも満たさず、v1.0 は「優位性なし」と記録  |
+//|   した（7銘柄・約15年で1,609回、平均 +0.055R、95%区間 −0.049〜  |
+//|   +0.163R。トレンド方向にでたらめに入る素朴なやり方と区別できな |
+//|   い）。設計時の開発期間の成績は約190構成の探索による選択バイアス |
+//|   を含む。前身 MinCore の審査ホールドアウトは 2010〜2012 が PF1.06、|
+//|   AUDUSD・USDCAD 2013〜2017 が PF0.76。従来版EA・4P-Score も実デー |
+//|   タではマイナス。SPEC §21 の「判定後の扱い」により、自動売買は無効 |
+//|   （既定 OFF）のまま、シナリオ・パネル・通知の裁量の補助ツールとし |
+//|   てだけ使う。改良は v1.1 として事前登録し、新しい未接触データで評価。|
 //|                                                                  |
 //|  【使い方】                                                       |
 //|   ・どの時間足のチャートに付けてもよい。判定は常に H1 の確定足。   |
@@ -42,7 +46,9 @@
 //|     して検出する（OnTick はチャートの銘柄でしか来ないため）。初回の |
 //|     読込・読み直しはタイマーから1回に1銘柄ずつ行う。               |
 //|   ・同じ口座・マジックの同じ銘柄は1つのチャートだけが監視する     |
-//|     （端末のグローバル変数で監視の権利を取る。2つ目は監視しない）。|
+//|     （端末のグローバル変数で監視の権利を取る。2つ目は監視しない。  |
+//|     持ち主は10秒ごとに権利を確かめ、別のチャートに移っていたら、そ |
+//|     の銘柄の監視・注文・決済をやめて知らせる）。                   |
 //|                                                                  |
 //|  【処理順】fusion/strategy.py run_h1 のループと同じ               |
 //|   1) 休場明けフォールバック（足の始まりで判定。待機注文を取消し、  |
@@ -64,12 +70,16 @@
 //|     決済・休場明けの成行決済を行う（SPEC §16.5・§17.5）。仮想      |
 //|     ブローカーも並行して動かし、ログ（照合用）は仮想側を書く。     |
 //|     確定足ごとに「置きたい注文」を決め、実際の注文をそれに合わせる |
-//|     （置けない・直せない・取消せないときは同じ足の中で10秒ごとに再 |
-//|     試行）。注文が消えたら履歴で約定か取消かを確かめ、約定なら約定 |
-//|     済み集合に入れてから次の注文を出す（二重の建玉を防ぐ）。決済は |
-//|     建玉が消えるまで再試行し、失敗したらプッシュで知らせる。決済足 |
-//|     の終わりの2分前からは、市場が閉じる前に実建玉を決済する。口座 |
-//|     の引き継ぎ・発注は、取引サーバーにつながって10秒たってから行う。|
+//|     （置けない・直せない・取消せないときは同じ足の中で再試行。間隔 |
+//|     は10秒、証拠金不足・取引停止などの拒否は1分・5分、市場が閉まっ |
+//|     ていたら次のティックまで）。注文が消えたら履歴で約定か取消かを |
+//|     確かめ、約定なら約定済み集合に入れ、その足では新しく置かない   |
+//|     （二重の建玉と、同じセットアップへの入り直しを防ぐ）。決済は建 |
+//|     玉が消えるまで再試行し、失敗したらプッシュで知らせる。決済足の |
+//|     終わりの2分前からは、市場が閉じる前に実建玉を決済する。切断・ |
+//|     停止の間に決済足・休場明けを過ぎた建玉は、つながったらすぐ決済 |
+//|     する。口座の引き継ぎ・発注は、取引サーバーにつながって10秒たっ |
+//|     てから行う。                                                   |
 //|                                                                  |
 //|  【ログ】MQL5/Files/FusionEA/（InpLogsCommon=true なら共通フォルダ）|
 //|   ストラテジーテスターでは各エージェントの砂場（Tester/Agent-*/     |
@@ -77,8 +87,11 @@
 //|   にする（Terminal/Common/Files/FusionEA/ に出る）。最適化中は書かない。|
 //|   _eval/_trades/_bars/_info は起動・読み直しのたびに作り直す（再生 |
 //|   分を含む）。前の回の4つは FusionEA/old/<銘柄>_<日時>/ に移し、   |
-//|   InpLogKeep 世代まで残す（LIVE 行＝稼働中の判定の記録を残すため）。|
-//|   _real.csv と notify_log.csv は追記だけで、消さない。             |
+//|   InpLogKeep 世代まで残す。稼働中の評価行・仮想取引（phase=LIVE）は |
+//|   <銘柄>_live.csv・<銘柄>_live_trades.csv にも追記する（世代が消え |
+//|   ても稼働中の記録は残る。テスターでは書かない）。_real.csv と      |
+//|   notify_log.csv も追記だけで、消さない。テスターの実取引は         |
+//|   <銘柄>_real_tester.csv に書き、テストごとに作り直す。             |
 //|   ヘッダー行つき、カンマ区切り、時刻はサーバー時間                  |
 //|   "YYYY.MM.DD HH:MM"。照合ハーネス fusion/mt5_parity.py が読む:    |
 //|     python -m fusion.mt5_parity --bars FusionEA/<銘柄>_bars.csv     |
@@ -126,10 +139,12 @@
 //|    END は EA の停止時（OnDeinit）に、最後の確定足の終値で残りの    |
 //|    仮想建玉を閉じた行（Python の run_h1 の最後と同じ計算）。       |
 //|   <銘柄>_real.csv … 自動売買の実際の取引（InpAutoTrade=true のとき。|
-//|                     追記。最適化中は書かない）                        |
+//|                     追記。同じ建玉は1回だけ。最適化中は書かない。   |
+//|                     テスターでは <銘柄>_real_tester.csv）            |
 //|    entry_time（約定の時刻）, dir, entry, initial_sl, exit_time,      |
-//|    exit_reason（SL/TRAIL/WEEKEND/GAP_FALLBACK のほか STOPOUT/TP/      |
-//|    MANUAL/EXPERT/OTHER/UNKNOWN）, R, key_time, score, ticket,         |
+//|    exit_reason（EA が決済したときは要求した理由 WEEKEND/GAP_FALLBACK/ |
+//|    TRAIL。ほかは約定の理由 SL/TRAIL/STOPOUT/TP/MANUAL/EXPERT/OTHER、 |
+//|    履歴で確かめられなければ UNKNOWN）, R, key_time, score, ticket,    |
 //|    exit_price, volume, planned_entry（計画した逆指値）, slippage_pts,|
 //|    profit, swap, commission, login, magic                           |
 //|   <銘柄>_bars.csv … 判定に使った H1 確定足（Time,Open,High,Low,Close。|
@@ -139,12 +154,16 @@
 //|                     と、EA と同じ足番号になる。InpServerOffsetHours  |
 //|                     が 0 でないときは、ハーネスが _info.csv の        |
 //|                     server_offset_h で時刻を NY+7 に戻して回す。      |
-//|   <銘柄>_info.csv … key,value（ASCII）: symbol, base, s_nom, is_xau,|
-//|                     server_offset_h, first_bar_time（最初に読み込んだ |
-//|                     足）, first_eval_time（判定開始＝読込の93本目）,  |
-//|                     bars_loaded, config（fusion / F+G3 など）,        |
+//|   <銘柄>_info.csv … key,value（ASCII）: ea, symbol, base, s_nom,    |
+//|                     is_xau, server_offset_h, first_bar_time（最初に  |
+//|                     読み込んだ足）, first_eval_time（判定開始＝読込の |
+//|                     93本目）, bars_loaded, history_bars_input,        |
+//|                     config（fusion / F+G3 など）,                     |
 //|                     core_changed, switches, params, extra_closed/early,|
 //|                     login, magic, auto_trade, tester                  |
+//|   <銘柄>_live.csv・<銘柄>_live_trades.csv … _eval・_trades と同じ列の|
+//|                     稼働中（phase=LIVE）の行だけ。追記（END 行は書か |
+//|                     ない）。テスター・最適化では書かない              |
 //|   notify_log.csv  … 送った通知（UTF-8。server_time, local_time, login,|
 //|                     magic, message）。テスターでは書かない            |
 //|                                                                  |
@@ -180,11 +199,18 @@
 //|   同じ流れ（読込→仮想再生→1本ずつ取り直し）で動かして、Python 参照 |
 //|   実装と足ごと・方向ごとの理由コード、候補の値、取引一覧を突き合わ |
 //|   せる（MetaEditor のない環境での確認用）。この部分を直したら回す。|
+//|   run.sh は、MT5 接続部を含む EA 全体を C++ に写して g++ で構文と  |
+//|   型も確かめる（conncheck.py。MQL5 API は conn_shim.h の代用の宣言 |
+//|   なので、API の本当の引数の形は MetaEditor でしか分からない）。   |
+//|   その写しを、注文・建玉・約定履歴を持つ API の模擬（conn_mock.h） |
+//|   で動かし、自動売買の主なシナリオ（約定してすぐ SL、二重の記録、  |
+//|   建玉2本、市場の休み、停止中の週末、一部約定、監視の権利など）も  |
+//|   確かめる（conntest.cpp。模擬なので MT5 の本当の振る舞いではない）。|
 //+------------------------------------------------------------------+
 #property copyright   "FUSION-CORE v1.0（賢人のデイトレード × 100億円トレーダー）"
 #property version     "1.01"
 #property description "4H の押し目・戻り目 × 1H の転換を H1 の確定足だけで判定（仕様 fusion/SPEC.md、参照実装 fusion/strategy.py）。"
-#property description "既定はシグナル通知＋パネル。優位性は検証中（結果は fusion/RESULTS.md）。自動売買は既定 OFF。"
+#property description "既定はシグナル通知＋パネル。最終検証は不合格で優位性は確認できなかった（fusion/RESULTS.md）。自動売買は無効のまま使う（既定 OFF）。"
 
 #include <Trade\Trade.mqh>
 
@@ -266,7 +292,7 @@ input bool   InpWriteLogs      = true;         // 評価と取引の CSV を書�
 input bool   InpLogsCommon     = false;        // CSV を共通フォルダ（Terminal/Common/Files）に書く（テスターで照合するとき）
 input int    InpLogKeep        = 10;           // 作り直す前のログを FusionEA/old/ に残す世代数（銘柄ごと。0 なら残さない）
 
-input group "=== 自動売買（既定 OFF。§21 の検証合格とデモ3か月の後に限る） ==="
+input group "=== 自動売買（既定 OFF。v1.0 は最終検証で不合格のため実運用には使わない） ==="
 input bool   InpAutoTrade       = false;     // 実際に逆指値を置いて売買する（InpSymbols の指定が必要）
 input double InpRiskPercent     = 0.5;       // 1回のリスク（口座残高の%。0 より大きく 2 以下）
 input long   InpMagicNumber     = 20261031;  // マジックナンバー（1 以上）
@@ -860,27 +886,43 @@ string FE_SymbolBase(const string sym)
    return s;
   }
 
+//--- SPEC §10.3 の s_nom の表（銘柄名と価格単位の値）。表はここだけに書く（FE_NominalSpread と、接続部の銘柄名の判定
+//    ResolveBase が使う）。fusion/broker.py の NOMINAL_SPREAD・fusion/mt5_parity.py の _TABLE_NAMES と同じであることを
+//    fusion/tests/test_mt5_parity.py が確かめる
+int FE_SpreadTable(string &names[], double &vals[])
+  {
+   ArrayResize(names, 9);
+   ArrayResize(vals, 9);
+   names[0] = "EURUSD";
+   vals[0] = 0.00010;
+   names[1] = "GBPUSD";
+   vals[1] = 0.00015;
+   names[2] = "USDJPY";
+   vals[2] = 0.010;
+   names[3] = "EURJPY";
+   vals[3] = 0.015;
+   names[4] = "GBPJPY";
+   vals[4] = 0.025;
+   names[5] = "AUDUSD";
+   vals[5] = 0.00012;
+   names[6] = "USDCAD";
+   vals[6] = 0.00015;
+   names[7] = "AUDJPY";
+   vals[7] = 0.015;
+   names[8] = "XAUUSD";
+   vals[8] = 0.30;
+   return 9;
+  }
+
 //--- SPEC §10.3 の s_nom（価格単位）。表になければ -1
 double FE_NominalSpread(const string base)
   {
-   if(base == "EURUSD")
-      return 0.00010;
-   if(base == "GBPUSD")
-      return 0.00015;
-   if(base == "USDJPY")
-      return 0.010;
-   if(base == "EURJPY")
-      return 0.015;
-   if(base == "GBPJPY")
-      return 0.025;
-   if(base == "AUDUSD")
-      return 0.00012;
-   if(base == "USDCAD")
-      return 0.00015;
-   if(base == "AUDJPY")
-      return 0.015;
-   if(base == "XAUUSD")
-      return 0.30;
+   string names[];
+   double vals[];
+   int n = FE_SpreadTable(names, vals);
+   for(int i = 0; i < n; i++)
+      if(names[i] == base)
+         return vals[i];
    return -1.0;
   }
 
@@ -2886,6 +2928,7 @@ void CFusionEngine::Stats(int &n, int &wins, double &sumR, int &curLoss, int &ma
 #define FUS_CHK_WAIT_MS     ((uint)60000)      // 消えた注文の結果（約定か取消か）を履歴で待つ長さ
 #define FUS_DEAL_WAIT_MS    ((uint)30000)      // 決済の約定が履歴に入るのを待つ長さ
 #define FUS_HIST_WAIT_MS    ((uint)300000)     // 履歴がそろうのを待つ長さ。過ぎたらある分で始める
+#define FUS_SYNC_WAIT_MS    ((uint)30000)      // 新しい足で、足の同期（SERIES_SYNCHRONIZED）を待つ長さ
 #define FUS_LOG_GAP_MS      ((uint)300000)     // 同じ待ち・見送りのログを出す間隔
 #define FUS_NOTIFY_GAP_MS   ((uint)6500)       // プッシュ通知の間隔（SendNotification の上限に備える）
 #define FUS_NOTIFY_OLD_MS   ((uint)900000)     // これより古い通常の通知は送らずに捨てる
@@ -2893,13 +2936,40 @@ void CFusionEngine::Stats(int &n, int &wins, double &sumR, int &curLoss, int &ma
 #define FUS_HEARTBEAT_MS    ((uint)10000)      // 監視の権利の生存記録を書く間隔
 #define FUS_STALE_LOCK_SEC  60                 // 生存記録がこれより古い権利は、持ち主が止まったとみなす
 #define FUS_CLOSE_WARN2_MS  ((uint)300000)     // 決済に失敗し続けたとき、もう一度知らせるまでの時間
+#define FUS_BACKOFF1_MS     ((uint)60000)      // 一時的でない拒否（証拠金不足・取引停止・要求が多すぎる等）の1回目の後の再試行の間隔
+#define FUS_BACKOFF2_MS     ((uint)300000)     // 同じく2回目以降の間隔
+#define FUS_MKT_HOLD_MS     ((uint)1800000)    // 市場が閉まっていたとき、新しいティックが来なくても再試行するまでの長さ
+#define FUS_MKT_TRIES       2                  // 1つの足で成行を試す回数の上限（受け付けた後に拒否される場合に備える）
+#define FUS_RECORDED        8                  // _real.csv に記録した建玉 ID を覚える数（二重の記録を防ぐ）
+#define FUS_ORPHANS         4                  // 追っていない建玉を決済したとき、約定履歴から記録するまで覚える数
+#define FUS_ISL_KEEP_DAYS   30                 // 閉じたことを確かめられない初期 SL のグローバル変数を残す日数
 //--- 注文の取消の結果
 #define FUS_CXL_DONE        0                  // 取消した（または約定せずに消えていた）
 #define FUS_CXL_FAIL        1                  // まだ残っている（あとで再試行）
-#define FUS_CXL_FILLED      2                  // 約定していた
+#define FUS_CXL_FILLED      2                  // 約定していた（一部約定を含む）
 #define FUS_CXL_UNKNOWN     3                  // 消えたが、結果がまだ履歴にない
-//--- 実取引のログ（<銘柄>_real.csv）の列
+//--- 建玉の決済の結果
+#define FUS_CLOSE_DONE      0                  // この EA が決済した
+#define FUS_CLOSE_GONE      1                  // 決済を送る前後に、もう建玉がなかった（SL・ストップアウトなど）
+#define FUS_CLOSE_FAIL      2                  // 決済できなかった（あとで再試行）
+//--- 見送りの通知の種類（同じセットアップ・同じ理由は2回目からログだけにする）
+#define FUS_SKIP_LATE       1                  // 足の途中で価格が逆指値を大きく越えていた
+#define FUS_SKIP_RATIO      2                  // 最小ロットでもリスクが目標の 1.5 倍を超える
+#define FUS_SKIP_MARGIN     3                  // 証拠金が足りない
+#define FUS_SKIP_MARKET     4                  // 成行が約定しなかった（試行の上限）
+//--- 実取引のログ（<銘柄>_real.csv。テスターでは <銘柄>_real_tester.csv）の列
 #define FUS_REAL_HEADER     "entry_time,dir,entry,initial_sl,exit_time,exit_reason,R,key_time,score,ticket,exit_price,volume,planned_entry,slippage_pts,profit,swap,commission,login,magic"
+
+bool        g_tester = false;          // ストラテジーテスターか（待ち・再試行の時計を模擬時刻にする）
+
+//--- 待ち・再試行・ログの間引きの時計（ミリ秒）。GetTickCount は実時間なので、テスターでは模擬時刻（TimeCurrent）で数える。
+//    uint の引き算は桁あふれしても差が正しく出る（49日まで）
+uint NowMs(void)
+  {
+   if(g_tester)
+      return (uint)((ulong)TimeCurrent() * 1000);
+   return GetTickCount();
+  }
 
 //--- 自動売買の実際の状態（仮想ブローカーとは別に持つ）
 class CRealState
@@ -2914,8 +2984,23 @@ public:
    SSetup            wantSetup;
    string            cancelMsg;      // 取消できたら送る通知（INVALID）
    uint              tryMs;          // 最後に発注・修正・取消を試みた時刻（再試行の間隔用。0=すぐ）
+   uint              tryWaitMs;      // 次の再試行までの間隔（拒否の種類で広げる）
+   int               tryFails;
+   int               mktTries;       // この足で成行を試した回数
+   ulong             mktTicket;      // 最後に出した成行の注文番号（約定の通知に「成行」と書く）
    bool              cancelReq;      // 自分の待機注文をすべて取消す（建玉あり・決済中・休場明け）
    uint              cxlTryMs;
+   uint              cxlWaitMs;
+   int               cxlFails;
+   //--- 市場が閉まっていた（MARKET_CLOSED）：新しいティックが来るまで（最長 FUS_MKT_HOLD_MS）注文・決済を送らない
+   uint              holdMs;         // 0=待っていない
+   long              holdMsc;        // そのときの最後のティックの時刻（ミリ秒）
+   bool              holdNoted;      // 決済を待つことを知らせた
+   uint              lastRc;         // 最後に拒否された戻りコード（再試行の間隔を決める）
+   //--- 見送りの通知の重複防止（同じ方向・key・理由）
+   int               skipDir;
+   datetime          skipKeyTime;
+   int               skipCode;
    //--- 置いている逆指値
    ulong             ordTicket;
    int               ordDir;
@@ -2957,15 +3042,28 @@ public:
    uint              closeSinceMs;
    uint              closeTryMs;
    int               closeFails;
+   uint              closeWaitMs;
    bool              closeWarned;
    bool              closeWarned2;
    //--- トレール（確定時に決めた SL。置けるまで同じ足の中で再試行）
    double            trailSl;
    double            trailSw;
    uint              trailTryMs;
+   uint              trailWaitMs;
+   int               trailFails;
+   //--- 切断・停止の間に決済足・休場明けを過ぎていないか、次の巡回で確かめる（起動・再接続・追いつき処理の後）
+   bool              missCheck;
+   bool              multiWarned;    // 自分の建玉が2本以上あることを知らせた
+   //--- _real.csv に記録した建玉 ID（二重の記録を防ぐ）
+   long              recordedPid[FUS_RECORDED];
+   int               recordedNext;
+   //--- 追っていない建玉をこの EA が決済した：約定履歴から記録する
+   long              orphPid[FUS_ORPHANS];
+   int               orphReq[FUS_ORPHANS];
+   uint              orphSinceMs[FUS_ORPHANS];
    //--- そのほか
    bool              prevNoNew;      // 直前の足が新規停止だったか（通知の重複防止）
-   string            tradeNote;      // 取引できない理由（パネル用。空なら取引できる）
+   string            tradeNote;      // 取引できない理由（銘柄ごとのもの。パネル用。空なら取引できる）
    uint              logMs;          // 同じ見送りのログを間引く
    int               nTrades;
    int               nWins;
@@ -2981,6 +3079,7 @@ public:
    int               recNext;
 
                      CRealState(void);
+   void              Reset(void);
    void              ClearOrder(void);
    void              ClearChk(void);
    void              ClearFill(void);
@@ -2988,9 +3087,17 @@ public:
    void              SetChk(const ulong ticket, const int dir, const datetime keyTime, const double planned, const int score);
    void              Remember(const ulong ticket, const int dir, const datetime keyTime, const double planned, const int score);
    int               FindRec(const ulong ticket) const;
+   bool              Recorded(const long pid) const;
+   void              MarkRecorded(const long pid);
   };
 
 CRealState::CRealState(void)
+  {
+   Reset();
+  }
+
+//--- 初めの状態に戻す（起動時と、監視の権利を失ったとき）
+void CRealState::Reset(void)
   {
    cons.Clear();
    adopted = false;
@@ -3000,8 +3107,21 @@ CRealState::CRealState(void)
    FE_SetupClear(wantSetup);
    cancelMsg = "";
    tryMs = 0;
+   tryWaitMs = FUS_RETRY_MS;
+   tryFails = 0;
+   mktTries = 0;
+   mktTicket = 0;
    cancelReq = false;
    cxlTryMs = 0;
+   cxlWaitMs = FUS_RETRY_MS;
+   cxlFails = 0;
+   holdMs = 0;
+   holdMsc = 0;
+   holdNoted = false;
+   lastRc = 0;
+   skipDir = 0;
+   skipKeyTime = 0;
+   skipCode = 0;
    ClearOrder();
    ClearChk();
    ClearFill();
@@ -3010,11 +3130,25 @@ CRealState::CRealState(void)
    closeSinceMs = 0;
    closeTryMs = 0;
    closeFails = 0;
+   closeWaitMs = FUS_RETRY_MS;
    closeWarned = false;
    closeWarned2 = false;
    trailSl = 0.0;
    trailSw = 0.0;
    trailTryMs = 0;
+   trailWaitMs = FUS_RETRY_MS;
+   trailFails = 0;
+   missCheck = false;
+   multiWarned = false;
+   for(int r = 0; r < FUS_RECORDED; r++)
+      recordedPid[r] = 0;
+   recordedNext = 0;
+   for(int o = 0; o < FUS_ORPHANS; o++)
+     {
+      orphPid[o] = 0;
+      orphReq[o] = 0;
+      orphSinceMs[o] = 0;
+     }
    prevNoNew = false;
    tradeNote = "";
    logMs = 0;
@@ -3092,7 +3226,25 @@ void CRealState::SetChk(const ulong ticket, const int dir, const datetime keyTim
    chkKeyTime = keyTime;
    chkPlanned = planned;
    chkScore = score;
-   chkSinceMs = GetTickCount();
+   chkSinceMs = NowMs();
+  }
+
+bool CRealState::Recorded(const long pid) const
+  {
+   if(pid == 0)
+      return false;
+   for(int i = 0; i < FUS_RECORDED; i++)
+      if(recordedPid[i] == pid)
+         return true;
+   return false;
+  }
+
+void CRealState::MarkRecorded(const long pid)
+  {
+   if(pid == 0 || Recorded(pid))
+      return;
+   recordedPid[recordedNext] = pid;
+   recordedNext = (recordedNext + 1) % FUS_RECORDED;
   }
 
 void CRealState::Remember(const ulong ticket, const int dir, const datetime keyTime, const double planned, const int score)
@@ -3141,6 +3293,7 @@ public:
    datetime          lastForming;    // 最後に処理した形成中の足の開始時刻
    datetime          lastDone;       // 最後に処理した確定足の開始時刻（パネル用）
    int               copyFails;
+   uint              syncWaitMs;     // 足の同期を待ち始めた時刻
    bool              lagWarned;
    int               reloadDay;
    int               reloadsToday;
@@ -3161,6 +3314,18 @@ public:
    int               histBars;
    string            note;           // 履歴の状態（パネル用）
    string            alert;          // 一時的な問題（パネルに赤で出す）
+   //--- 監視の権利の持ち主が止まったかを、生存記録が変わらないことで確かめる（自分の時計で）
+   double            lockSeenHb;     // 最後に見た生存記録の値
+   uint              lockSeenMs;     // その値を最初に見た時刻（0=まだ見ていない）
+   uint              lockCheckMs;    // 最後に確かめた時刻
+   int               lockSame;       // 生存記録が変わらなかった回数
+   //--- 読み直しの前の仮想建玉（通知のみの運用で、読み直しで変わったら知らせる）
+   bool              rlHas;
+   bool              rlPosActive;
+   int               rlPosDir;
+   datetime          rlPosTime;
+   double            rlPosEntry;
+   double            rlPosSl;
 
                      CSymbolCtx(void);
   };
@@ -3180,6 +3345,7 @@ CSymbolCtx::CSymbolCtx(void)
    lastForming = 0;
    lastDone = 0;
    copyFails = 0;
+   syncWaitMs = 0;
    lagWarned = false;
    reloadDay = -1;
    reloadsToday = 0;
@@ -3200,6 +3366,16 @@ CSymbolCtx::CSymbolCtx(void)
    histBars = 0;
    note = "";
    alert = "";
+   lockSeenHb = 0.0;
+   lockSeenMs = 0;
+   lockCheckMs = 0;
+   lockSame = 0;
+   rlHas = false;
+   rlPosActive = false;
+   rlPosDir = 0;
+   rlPosTime = 0;
+   rlPosEntry = 0.0;
+   rlPosSl = 0.0;
   }
 
 //+------------------------------------------------------------------+
@@ -3215,7 +3391,6 @@ uint        g_qMs[];                  // 入れた時刻
 int         g_nq = 0;
 uint        g_lastSendMs = 0;
 bool        g_pushWarned = false;
-bool        g_tester = false;
 bool        g_optim = false;
 bool        g_visual = true;          // パネル・描画を行うか（テスターの非ビジュアルでは行わない）
 bool        g_logs = true;            // CSV を書くか（InpWriteLogs かつ最適化中でない）
@@ -3229,9 +3404,11 @@ bool        g_inCycle = false;
 bool        g_conn = false;           // 取引サーバーとつながっているか
 uint        g_connSinceMs = 0;        // つながった（つながり直した）時刻
 datetime    g_lastTickTime = 0;       // OnTick の重複を捨てる（同じ秒の2回目以降）
-long        g_login = 0;
 double      g_token = 0.0;            // このチャートの EA を見分ける値（監視の権利の持ち主）
 uint        g_hbMs = 0;
+bool        g_foreignChecked = false; // 管理していない FUSION の注文・建玉を、接続後に1回数えたか
+string      g_tradeNote = "";         // 端末・EA・口座の理由で取引できない（全銘柄に共通。空なら取引できる）
+bool        g_lagConnWarned = false;  // 未接続による処理の遅れを知らせた（全銘柄で1回）
 int         g_offsetDay = -1;         // 時差の点検を最後に行った日
 bool        g_offsetBad = false;
 string      g_offsetNote = "";
@@ -3256,6 +3433,9 @@ int OnInit()
    g_inCycle = false;
    g_lastTickTime = 0;
    g_hbMs = 0;
+   g_foreignChecked = false;
+   g_tradeNote = "";
+   g_lagConnWarned = false;
    g_offsetDay = -1;
    g_offsetBad = false;
    g_offsetNote = "";
@@ -3263,8 +3443,15 @@ int OnInit()
    g_optim = (MQLInfoInteger(MQL_OPTIMIZATION) != 0);
    g_visual = (!g_tester || MQLInfoInteger(MQL_VISUAL_MODE) != 0);
    g_logs = (InpWriteLogs && !g_optim);
-   g_login = AccountInfoInteger(ACCOUNT_LOGIN);
-   g_token = (double)(GetMicrosecondCount() % (ulong)1000000000000) + 1.0;
+   //--- 監視の権利の持ち主を見分ける値はチャートの ID から作る（端末の中で重ならない）。GetMicrosecondCount は
+   //    「この EA の開始から」の時間なので、同時に起動した2つのチャートで同じ値になりうる
+   long cid = ChartID();
+   if(cid < 0)
+      cid = -cid;
+   if(cid != 0)
+      g_token = (double)(cid % (long)1000000000000000) + 1.0;
+   else
+      g_token = (double)(GetMicrosecondCount() % (ulong)1000000000000) + 1.0;
    if(InpN_BIG < 2 || InpN_SMALL < 1 || InpN_D1 < 2 || InpHistoryBars < FUS_MIN_BARS || InpTimerSeconds < 1)
      {
       Print("[FUSION] 入力が不正です（N_BIG≥2、N_SMALL≥1、N_D1≥2、InpHistoryBars≥600、InpTimerSeconds≥1）");
@@ -3312,10 +3499,12 @@ int OnInit()
       c.tag = FileTag(s);
       c.digits = (int)SymbolInfoInteger(s, SYMBOL_DIGITS);
       c.point = SymbolInfoDouble(s, SYMBOL_POINT);
+      if(c.point <= 0.0)
+         c.point = (c.digits > 0) ? MathPow(10.0, -c.digits) : 1.0;   // 銘柄の情報が読めないとき（ポイントでの割り算の 0 割りを防ぐ）
       c.pip = (c.digits == 3 || c.digits == 5) ? c.point * 10.0 : c.point;
       if(c.pip <= 0.0)
          c.pip = 1.0;
-      c.lockName = GvBase(c) + "_L";
+      c.lockName = LockName(c);
       SFusionParams p;
       FillParams(p, c);
       c.eng.Configure(p, InpExtraClosedDays, InpExtraEarlyDays);
@@ -3339,7 +3528,7 @@ int OnInit()
    for(int j = 0; j < g_nctx; j++)
      {
       CSymbolCtx *cj = g_ctx[j];
-      if(AcquireLock(cj))
+      if(AcquireLock(cj, true))
          nlocked++;
       else
          PrintFormat("[FUSION] %s は別のチャートの FX_Fusion_EA（同じ口座・マジック）が監視中のため、ここでは監視しません", cj.sym);
@@ -3356,9 +3545,18 @@ int OnInit()
    if(g_visual && InpShowPanel)
      {
       uint tw = 0, th = 0;
-      if(TextSetFont(InpPanelFont, -10 * InpPanelFontSize) && TextGetSize("あA", tw, th))
-         g_lineH = MathMax(FUS_LINE_H, (int)th + 3);
+      if(TextSetFont(InpPanelFont, -10 * InpPanelFontSize, 0) && TextGetSize("あA", tw, th))   // 大きさは 1/10 ポイント（負の値）
+         g_lineH = (int)MathMax(FUS_LINE_H, (int)th + 3);
      }
+   //--- テスターの実取引ログ（<銘柄>_real_tester.csv）はテストごとに作り直す（ライブの _real.csv には書かない）
+   if(g_tester && !g_optim && InpAutoTrade)
+      for(int f = 0; f < g_nctx; f++)
+        {
+         CSymbolCtx *cf = g_ctx[f];
+         string rn = RealLogName(cf);
+         if(FileIsExist(rn, LogCommonFlag()))
+            FileDelete(rn, LogCommonFlag());
+        }
    //--- タイマー（テスターでチャートの銘柄だけなら OnTick で足りる）
    bool needTimer = !g_tester;
    int sec = InpTimerSeconds;
@@ -3377,17 +3575,15 @@ int OnInit()
       PrintFormat("[FUSION] タイマーを設定できません（%d）", GetLastError());
       return INIT_FAILED;
      }
-   PrintFormat("[FUSION] FUSION-CORE v1.0 起動: %d 銘柄、%s、構成=%s。優位性は検証中（結果は fusion/RESULTS.md）",
+   PrintFormat("[FUSION] FUSION-CORE v1.0 起動: %d 銘柄、%s、構成=%s。最終検証は不合格で、優位性は確認できなかった（fusion/RESULTS.md）",
                g_nctx, InpAutoTrade ? "自動売買 ON" : "シグナル通知のみ", ConfigName());
    if(InpAutoTrade)
-     {
-      Print("[FUSION] 自動売買は、§21 の検証に合格しデモでのフォワード3か月を終えた後に限って使ってください");
-      WarnForeignOrders();
-     }
+      Print("[FUSION] 注意: v1.0 は最終検証で不合格（優位性なし。fusion/RESULTS.md）。SPEC §21 により自動売買は無効のまま使う決まりです。デモでの動作確認以外には使わないでください");
    g_conn = (g_tester || TerminalInfoInteger(TERMINAL_CONNECTED) != 0);
-   g_connSinceMs = GetTickCount();
-   CheckServerOffset();
-   RunCycle(true);
+   g_connSinceMs = NowMs();
+   //--- 履歴の読込と再生は OnInit では行わない（最初のタイマー、テスターでは最初のティックから。OnInit を重くしない）。
+   //    管理していない注文・建玉の点検と時差の点検は、取引サーバーにつながってから行う
+   RunCycle(false);
    return INIT_SUCCEEDED;
   }
 
@@ -3449,6 +3645,14 @@ void RunCycle(const bool fromTimer)
    g_inCycle = true;
    UpdateConnection();
    Heartbeats();
+   //--- つながって口座の同期を待った後に1回：この EA が管理していない FUSION の注文・建玉を数えて知らせる
+   if(!g_tester && !g_foreignChecked && TradeReady())
+     {
+      g_foreignChecked = true;
+      WarnForeignOrders();
+     }
+   if(InpAutoTrade && TradeReady())
+      CheckGlobalPermission();                  // 端末・EA・口座の理由は全銘柄で1通（銘柄ごとの理由は RealService で）
    bool changed = false;
    //--- 準備済みの銘柄を先に（新しい確定足の処理）
    for(int i = 0; i < g_nctx; i++)
@@ -3503,12 +3707,14 @@ void UpdateConnection(void)
    bool conn = (TerminalInfoInteger(TERMINAL_CONNECTED) != 0);
    if(conn && !g_conn)
      {
-      g_connSinceMs = GetTickCount();
+      g_connSinceMs = NowMs();
       for(int i = 0; i < g_nctx; i++)
         {
          CSymbolCtx *c = g_ctx[i];
          c.real.adopted = false;
         }
+      g_offsetDay = -1;                         // 時差はつながり直すたびに点検し直す
+      g_lagConnWarned = false;
       g_panelDirty = true;
      }
    if(!conn && g_conn)
@@ -3521,7 +3727,7 @@ bool TradeReady(void)
   {
    if(g_tester)
       return true;
-   return (g_conn && GetTickCount() - g_connSinceMs >= FUS_CONN_SETTLE_MS);
+   return (g_conn && NowMs() - g_connSinceMs >= FUS_CONN_SETTLE_MS);
   }
 
 datetime NowServer(void)
@@ -3535,8 +3741,8 @@ bool ProcessSymbol(CSymbolCtx *c)
    datetime ft = iTime(c.sym, PERIOD_H1, 0);           // 形成中の足
    if(ft <= 0 || ft == c.lastForming)
       return false;
-   //--- 新しい足：つながっていて足が同期しているときだけ進める（再接続の直後に欠けた足で判定しない）
-   if(!g_tester && (!g_conn || SeriesInfoInteger(c.sym, PERIOD_H1, SERIES_SYNCHRONIZED) == 0))
+   //--- 新しい足：取引サーバーにつながっているときだけ進める（再接続の直後に欠けた足で判定しない）
+   if(!g_tester && !g_conn)
      {
       CheckLag(c, ft);
       return false;
@@ -3554,6 +3760,19 @@ bool ProcessSymbol(CSymbolCtx *c)
       return false;
      }
    c.copyFails = 0;
+   //--- 足がまだ同期していなければ、少し（最大 FUS_SYNC_WAIT_MS）待つ。待ちきったら進める
+   if(!g_tester && SeriesInfoInteger(c.sym, PERIOD_H1, SERIES_SYNCHRONIZED) == 0)
+     {
+      uint nowMs = NowMs();
+      if(c.syncWaitMs == 0)
+         c.syncWaitMs = nowMs;
+      if(nowMs - c.syncWaitMs < FUS_SYNC_WAIT_MS)
+        {
+         CheckLag(c, ft);
+         return false;
+        }
+     }
+   c.syncWaitMs = 0;
    int res = c.eng.Sync(rates, got);
    if(res < 0)
      {
@@ -3579,6 +3798,8 @@ bool ProcessSymbol(CSymbolCtx *c)
      {
       if(res > 0)
          c.real.barDue = true;
+      if(res > 1)
+         c.real.missCheck = true;               // 途中の足に決済足・休場明けがあれば、建玉を決済する
       if(gapNow)
          c.real.gapBar = ft;
      }
@@ -3587,13 +3808,16 @@ bool ProcessSymbol(CSymbolCtx *c)
       c.lastDone = lastT;
    c.alert = "";
    c.lagWarned = false;
-   //--- 推奨より短い履歴で始めた銘柄は、休場明けに履歴が増えていれば読み直す（建玉は休場前に閉じている）
-   if(c.shallow && gapNow && Bars(c.sym, PERIOD_H1) - 1 >= c.histBars + 500)
+   //--- 推奨より短い履歴で始めた銘柄は、休場明けに、読み込んだ最初の足より古い足が 500 本以上増えていれば
+   //    読み直す（建玉は休場前に閉じている）
+   if(c.shallow && gapNow)
      {
-      if(InpDrawChart && g_visual && c.sym == _Symbol)
-         DrawChart(c);
-      ScheduleReload(c, "履歴が増えた（読込時 " + IntegerToString(c.histBars) + " 本）");
-      return true;
+      datetime first = (datetime)SeriesInfoInteger(c.sym, PERIOD_H1, SERIES_FIRSTDATE);
+      if(first > 0 && first < c.eng.m_T[0] && Bars(c.sym, PERIOD_H1, first, c.eng.m_T[0]) - 1 >= 500)
+        {
+         ScheduleReload(c, "古い履歴が増えた（読込時 " + IntegerToString(c.histBars) + " 本）");
+         return true;
+        }
      }
    if(InpDrawChart && g_visual && c.sym == _Symbol)
       DrawChart(c);
@@ -3615,7 +3839,18 @@ void CheckLag(CSymbolCtx *c, const datetime ft)
    if(!c.lagWarned)
      {
       c.lagWarned = true;
-      Notify(StringFormat("%s %s 注意: %s", ModeTag(), c.sym, c.alert), 1);
+      if(!g_conn)
+        {
+         //--- 未接続は全銘柄に共通なので、通知は1通にまとめる（つながり直したら次の切断でまた知らせる）
+         if(!g_lagConnWarned)
+           {
+            g_lagConnWarned = true;
+            Notify(StringFormat("%s 注意: 取引サーバーに未接続のため、確定足の処理が遅れている（%s ほか。%d 本）。つながると再開する",
+                                ModeTag(), c.sym, lag), 1);
+           }
+        }
+      else
+         Notify(StringFormat("%s %s 注意: %s", ModeTag(), c.sym, c.alert), 1);
      }
   }
 
@@ -3635,6 +3870,16 @@ void ScheduleReload(CSymbolCtx *c, const string why)
    if(c.reloadsToday == 4)
       Notify(StringFormat("%s %s 履歴の食い違いによる読み直しが今日 %d 回目。履歴を確かめてください（表示→銘柄→チャートバー）",
                           ModeTag(), c.sym, c.reloadsToday), 1);
+   //--- 通知のみの運用：読み直しの前の仮想建玉を覚えておき、再生の後と違えば知らせる
+   if(!InpAutoTrade && c.ready)
+     {
+      c.rlHas = true;
+      c.rlPosActive = c.eng.m_pos.active;
+      c.rlPosDir = c.eng.m_pos.dir;
+      c.rlPosTime = c.eng.m_pos.entry_time;
+      c.rlPosEntry = c.eng.m_pos.entry;
+      c.rlPosSl = c.eng.m_pos.sl;
+     }
    ResetSymbol(c);
   }
 
@@ -3653,7 +3898,7 @@ void ResetSymbol(CSymbolCtx *c)
 //--- 間引いたログを出してよいか
 bool LogDue(uint &lastMs)
   {
-   uint now = GetTickCount();
+   uint now = NowMs();
    if(lastMs != 0 && now - lastMs < FUS_LOG_GAP_MS)
       return false;
    lastMs = now;
@@ -3685,7 +3930,7 @@ void RequestOlderHistory(CSymbolCtx *c)
 //--- 初回・読み直し：履歴をそろえて読み込み、先頭から仮想で再生する。読み込んだら true
 bool InitSymbol(CSymbolCtx *c)
   {
-   uint now = GetTickCount();
+   uint now = NowMs();
    if(c.initStartMs == 0)
       c.initStartMs = now;
    int avail = Bars(c.sym, PERIOD_H1);
@@ -3696,20 +3941,33 @@ bool InitSymbol(CSymbolCtx *c)
          PrintFormat("[FUSION] %s: H1 履歴を待っています", c.sym);
       return false;
      }
+   //--- 手元より多く頼むと、端末がサーバーから読み込む（ただし「チャートの最大バー数」を超えては頼まない）。
+   //    テスターと、待ちきった後は手元にある分だけ頼む（必ず読める範囲）
+   int want = InpHistoryBars;
+   int maxBars = (int)TerminalInfoInteger(TERMINAL_MAXBARS);
+   if(maxBars > 1 && want > maxBars - 1)
+      want = maxBars - 1;
+   bool late = (now - c.initStartMs >= FUS_HIST_WAIT_MS);
+   if((g_tester || late) && want > avail - 1)
+      want = avail - 1;
+   //--- 読み込む時点の形成中の足（再生中に次の足が始まっても、読み込んでいない確定足を次の巡回で処理するため、
+   //    再生の後ではなくここで読む）
+   datetime ft = iTime(c.sym, PERIOD_H1, 0);
+   double fo = iOpen(c.sym, PERIOD_H1, 0);
    MqlRates rates[];
    ArraySetAsSeries(rates, false);
-   int got = CopyRates(c.sym, PERIOD_H1, 1, InpHistoryBars, rates);   // 手元より多く頼むと、端末がサーバーから読み込む
+   int got = CopyRates(c.sym, PERIOD_H1, 1, want, rates);
    if(got <= 0)
      {
       c.note = "履歴の読込中";
       return false;                                     // -1（読込中）なら次の巡回で再試行
      }
-   if(!g_tester && got < InpHistoryBars && now - c.initStartMs < FUS_HIST_WAIT_MS && !HistoryExhausted(c, rates[0].time))
+   if(!g_tester && !late && got < want && !HistoryExhausted(c, rates[0].time))
      {
       RequestOlderHistory(c);
-      c.note = StringFormat("履歴の読込中 %d/%d", got, InpHistoryBars);
+      c.note = StringFormat("履歴の読込中 %d/%d", got, want);
       if(LogDue(c.logMs))
-         PrintFormat("[FUSION] %s: H1 の履歴を読み込み中（%d/%d 本）。最大 %d 分待ちます", c.sym, got, InpHistoryBars,
+         PrintFormat("[FUSION] %s: H1 の履歴を読み込み中（%d/%d 本）。最大 %d 分待ちます", c.sym, got, want,
                      (int)(FUS_HIST_WAIT_MS / 60000));
       return false;
      }
@@ -3750,8 +4008,6 @@ bool InitSymbol(CSymbolCtx *c)
         }
      }
    DrainOutputs(c, false, 0);
-   datetime ft = iTime(c.sym, PERIOD_H1, 0);
-   double fo = iOpen(c.sym, PERIOD_H1, 0);
    if(ft > 0 && fo > 0)
      {
       c.eng.PreBarForming(ft, fo);
@@ -3770,7 +4026,21 @@ bool InitSymbol(CSymbolCtx *c)
          else
             if(!has && c.nfHas)
                Notify(StringFormat("%s %s %s 待機注文は読み直しの結果なくなった（逆指値%s）", ModeTag(), c.sym, DirName(c.nfDir), Px(c, c.nfPrice)));
+         //--- 仮想建玉も、読み直しの前と違えば知らせる（データの修正で、通知した建玉が再生では無かった・別の値で閉じた等）
+         if(c.rlHas)
+           {
+            bool act = c.eng.m_pos.active;
+            bool same = (c.rlPosActive == act);
+            if(same && act)
+               same = (c.rlPosDir == c.eng.m_pos.dir && c.rlPosTime == c.eng.m_pos.entry_time &&
+                       MathAbs(c.rlPosEntry - c.eng.m_pos.entry) < 0.5 * c.point && MathAbs(c.rlPosSl - c.eng.m_pos.sl) < 0.5 * c.point);
+            if(!same)
+               Notify(StringFormat("%s %s 読み直しの結果、仮想建玉が変わった: %s → %s", ModeTag(), c.sym,
+                                   VPosText(c, c.rlPosActive, c.rlPosDir, c.rlPosEntry, c.rlPosSl),
+                                   VPosText(c, act, c.eng.m_pos.dir, c.eng.m_pos.entry, c.eng.m_pos.sl)), 1);
+           }
         }
+      c.rlHas = false;
       c.nfHas = has;
       c.nfDir = c.eng.m_pend.dir;
       c.nfKeyTime = c.eng.m_pend.key_time;
@@ -3963,10 +4233,12 @@ string ResolveBase(const string sym)
       if((ch >= 'A' && ch <= 'Z') || (ch >= '0' && ch <= '9'))
          u += ShortToString(ch);
      }
-   string names[9] = {"EURUSD", "GBPUSD", "USDJPY", "EURJPY", "GBPJPY", "AUDUSD", "USDCAD", "AUDJPY", "XAUUSD"};
+   string names[];
+   double vals[];
+   int nn = FE_SpreadTable(names, vals);               // 表の名前は FE_SpreadTable の1か所だけ
    string hit = "";
    int nh = 0;
-   for(int q = 0; q < 9; q++)
+   for(int q = 0; q < nn; q++)
       if(StringFind(u, names[q]) >= 0)
         {
          hit = names[q];
@@ -3999,15 +4271,40 @@ string FileTag(const string sym)
 //|  端末のグローバル変数（一時。端末を閉じると消える）に持ち主を書く。 |
 //|  持ち主は 10 秒ごとに生存記録を書き、60 秒途切れたら引き取れる。    |
 //+------------------------------------------------------------------+
+//--- 口座番号（起動直後はまだ 0 のことがあるので、使うたびに読む）
+long AccountLogin(void)
+  {
+   return AccountInfoInteger(ACCOUNT_LOGIN);
+  }
+
+//--- 口座・マジック・銘柄ごとのグローバル変数の名前の頭（名前は 63 文字まで）
 string GvBase(CSymbolCtx *c)
   {
-   string b = "FUS" + IntegerToString(g_login) + "_" + IntegerToString(InpMagicNumber) + "_" + c.tag;
+   string b = "FUS" + IntegerToString(AccountLogin()) + "_" + IntegerToString(InpMagicNumber) + "_" + c.tag;
    if(StringLen(b) > 40)
-      b = StringSubstr(b, 0, 40);                       // 名前は 63 文字まで
+      b = StringSubstr(b, 0, 40);
    return b;
   }
 
-bool AcquireLock(CSymbolCtx *c)
+//--- 監視の権利の名前（グローバル変数は端末ごとなので、マジックと銘柄で足りる）
+string LockNameOf(const long magic, const string sym)
+  {
+   string b = "FUSL_" + IntegerToString(magic) + "_" + FileTag(sym);
+   if(StringLen(b) > 60)
+      b = StringSubstr(b, 0, 60);
+   return b;
+  }
+
+string LockName(CSymbolCtx *c)
+  {
+   return LockNameOf(InpMagicNumber, c.sym);
+  }
+
+//--- 監視の権利を取る。持ち主がいれば、止まっていると確かめられたときだけ引き取る:
+//    起動時（fromInit）は、生存記録があってそれが FUS_STALE_LOCK_SEC より古いとき（異常終了の後に別のチャートに付け直した）。
+//    巡回中は、生存記録の値が自分の時計で FUS_STALE_LOCK_SEC 以上・2回続けて変わらないとき（PC のスリープ明けに
+//    持ち主より先に確かめた・同時に起動して持ち主がまだ生存記録を書いていない、では引き取らない）
+bool AcquireLock(CSymbolCtx *c, const bool fromInit)
   {
    if(g_tester)
      {
@@ -4026,14 +4323,38 @@ bool AcquireLock(CSymbolCtx *c)
          own = true;
       else
         {
-         double last = GlobalVariableCheck(hb) ? GlobalVariableGet(hb) : 0.0;
-         if((double)TimeLocal() - last > FUS_STALE_LOCK_SEC)      // 持ち主が止まっている（異常終了など）
+         bool hasHb = GlobalVariableCheck(hb);
+         double last = hasHb ? GlobalVariableGet(hb) : 0.0;
+         bool stale = false;
+         if(fromInit)
+            stale = (hasHb && (double)TimeLocal() - last > FUS_STALE_LOCK_SEC);
+         else
+           {
+            uint now = NowMs();
+            if(c.lockSeenMs == 0 || last != c.lockSeenHb || now - c.lockCheckMs > 3 * FUS_RELOCK_MS)
+              {
+               c.lockSeenHb = last;                     // 新しい値（または久しぶりの確認）：ここから数え直す
+               c.lockSeenMs = now;
+               c.lockSame = 0;
+              }
+            else
+               c.lockSame++;
+            c.lockCheckMs = now;
+            stale = (c.lockSame >= 2 && now - c.lockSeenMs >= (uint)FUS_STALE_LOCK_SEC * 1000);
+           }
+         if(stale)                                      // 持ち主が止まっている（異常終了など）
+           {
             own = GlobalVariableSetOnCondition(nm, g_token, cur);
+            if(own)
+               PrintFormat("[FUSION] %s の監視の権利の持ち主が止まっているため引き取ります", c.sym);
+           }
         }
      }
    c.locked = own;
    if(own)
      {
+      c.lockSeenMs = 0;
+      c.lockSame = 0;
       if(!GlobalVariableCheck(hb))
          GlobalVariableTemp(hb);
       GlobalVariableSet(hb, (double)TimeLocal());
@@ -4058,30 +4379,72 @@ void ReleaseLock(CSymbolCtx *c)
 //--- 権利がなかった銘柄は、1分ごとに取り直しを試みる（別のチャートの EA が外されたら引き継ぐ）
 bool TryRelock(CSymbolCtx *c)
   {
-   uint now = GetTickCount();
+   uint now = NowMs();
    if(c.relockMs != 0 && now - c.relockMs < FUS_RELOCK_MS)
       return false;
    c.relockMs = now;
-   if(!AcquireLock(c))
+   if(!AcquireLock(c, false))
       return false;
    c.note = "";
    PrintFormat("[FUSION] %s の監視を引き継ぎます（別のチャートの EA が止まった）", c.sym);
    return true;
   }
 
+//--- 監視の権利を失った（別のチャートの EA が引き取った）：この銘柄の処理をすべて止める。
+//    注文・建玉は引き取った側が口座から引き継ぐので、ここでは何も送らない
+void LoseLock(CSymbolCtx *c)
+  {
+   CloseLogs(c);
+   c.locked = false;
+   c.ready = false;
+   c.initStartMs = 0;
+   c.lastForming = 0;
+   c.relockMs = NowMs();
+   c.lockSeenMs = 0;
+   c.lockSame = 0;
+   c.real.Reset();
+   c.nfHas = false;
+   c.note = "別のチャートが監視中";
+   c.alert = "";
+   g_panelDirty = true;
+   Notify(StringFormat("%s %s 注意: 監視の権利を別のチャートの FX_Fusion_EA が持っています。ここでの監視・注文・決済をやめました。同じ EA を複数のチャートに付けていないか確かめてください",
+                       ModeTag(), c.sym), 1);
+  }
+
+//--- 10秒ごとに、権利をまだ持っているかを確かめてから生存記録を書く
 void Heartbeats(void)
   {
    if(g_tester)
       return;
-   uint now = GetTickCount();
+   uint now = NowMs();
    if(g_hbMs != 0 && now - g_hbMs < FUS_HEARTBEAT_MS)
       return;
    g_hbMs = now;
    for(int i = 0; i < g_nctx; i++)
      {
       CSymbolCtx *c = g_ctx[i];
-      if(c.locked)
-         GlobalVariableSet(c.lockName + "H", (double)TimeLocal());
+      if(!c.locked)
+         continue;
+      double cur = GlobalVariableCheck(c.lockName) ? GlobalVariableGet(c.lockName) : 0.0;
+      if(cur != g_token)
+        {
+         bool again = false;
+         if(cur == 0.0)
+           {
+            //--- 権利の変数が消えていた（グローバル変数の一覧から消された等）：まだ誰も取っていなければ取り直す
+            if(!GlobalVariableCheck(c.lockName))
+               GlobalVariableTemp(c.lockName);
+            again = GlobalVariableSetOnCondition(c.lockName, g_token, 0.0);
+           }
+         if(!again)
+           {
+            LoseLock(c);
+            continue;
+           }
+        }
+      if(!GlobalVariableCheck(c.lockName + "H"))
+         GlobalVariableTemp(c.lockName + "H");
+      GlobalVariableSet(c.lockName + "H", (double)TimeLocal());
      }
   }
 
@@ -4144,7 +4507,7 @@ void OpenLogs(CSymbolCtx *c)
                                        p.n_big, p.n_small, p.zone_atr, p.slope_min, p.entry_buf_atr, p.sl_buf_atr, p.r_min_atr, p.r_max_atr,
                                        p.n_d1, p.tol_lv, p.tol_s, p.cf_min_touch, p.rr_cf, p.gap_hi, p.lvl_max_atr));
       FileWriteString(hi, "extra_closed," + InpExtraClosedDays + "\r\nextra_early," + InpExtraEarlyDays + "\r\n");
-      FileWriteString(hi, "login," + IntegerToString(g_login) + "\r\nmagic," + IntegerToString(InpMagicNumber) + "\r\n");
+      FileWriteString(hi, "login," + IntegerToString(AccountLogin()) + "\r\nmagic," + IntegerToString(InpMagicNumber) + "\r\n");
       FileWriteString(hi, "auto_trade," + (InpAutoTrade ? "1" : "0") + "\r\ntester," + (g_tester ? "1" : "0") + "\r\n");
       FileClose(hi);
      }
@@ -4249,6 +4612,13 @@ void CloseLogs(CSymbolCtx *c)
    c.hBars = INVALID_HANDLE;
   }
 
+//--- 実取引のログの名前。テスターでは別の名前（<銘柄>_real_tester.csv。テストごとに作り直す）にして、
+//    ライブの <銘柄>_real.csv（追記だけ）に模擬の取引が混ざらないようにする
+string RealLogName(CSymbolCtx *c)
+  {
+   return "FusionEA\\" + c.tag + (g_tester ? "_real_tester.csv" : "_real.csv");
+  }
+
 //--- 実取引の1行を <銘柄>_real.csv に追記する（起動・読み直しでも消さない。最適化中は書かない）
 void WriteRealTrade(CSymbolCtx *c, const datetime entryT, const int dir, const double entry, const double initSl,
                     const datetime exitT, const string why, const double r, const datetime keyT, const int score,
@@ -4259,7 +4629,7 @@ void WriteRealTrade(CSymbolCtx *c, const datetime entryT, const int dir, const d
       return;
    int common = LogCommonFlag();
    FolderCreate("FusionEA", common);
-   string name = "FusionEA\\" + c.tag + "_real.csv";
+   string name = RealLogName(c);
    int h = FileOpen(name, FILE_READ | FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_SHARE_READ | common);
    if(h == INVALID_HANDLE)
      {
@@ -4275,7 +4645,7 @@ void WriteRealTrade(CSymbolCtx *c, const datetime entryT, const int dir, const d
                  IntegerToString(score) + "," + IntegerToString((long)ticket) + "," + DoubleToString(exitPx, 8) + "," +
                  DoubleToString(volume, 2) + "," + ((planned > 0.0) ? DoubleToString(planned, 8) : "") + "," +
                  ((planned > 0.0) ? DoubleToString(slip, 1) : "") + "," + DoubleToString(profit, 2) + "," +
-                 DoubleToString(swap, 2) + "," + DoubleToString(comm, 2) + "," + IntegerToString(g_login) + "," +
+                 DoubleToString(swap, 2) + "," + DoubleToString(comm, 2) + "," + IntegerToString(AccountLogin()) + "," +
                  IntegerToString(InpMagicNumber);
    FileWriteString(h, line + "\r\n");
    FileClose(h);
@@ -4297,7 +4667,31 @@ void LogNotify(const string msg)
    string m = msg;
    StringReplace(m, "\"", "\"\"");
    FileWriteString(h, TimeToString(TimeTradeServer(), TIME_DATE | TIME_SECONDS) + "," + TimeToString(TimeLocal(), TIME_DATE | TIME_SECONDS) + "," +
-                   IntegerToString(g_login) + "," + IntegerToString(InpMagicNumber) + ",\"" + m + "\"\r\n");
+                   IntegerToString(AccountLogin()) + "," + IntegerToString(InpMagicNumber) + ",\"" + m + "\"\r\n");
+   FileClose(h);
+  }
+
+//--- 稼働中（LIVE）の評価行・仮想取引を、追記だけのファイルにも書く（<銘柄>_live.csv・<銘柄>_live_trades.csv）。
+//    _eval・_trades は起動・読み直しのたびに作り直して old/ に世代で残すだけなので、稼働中の判定の記録をここで失わずに残す。
+//    テスター・最適化では書かない（テストごとに _eval・_trades を見ればよい）
+void AppendLive(CSymbolCtx *c, const string suffix, const string header, const string lines)
+  {
+   if(!g_logs || g_tester || StringLen(lines) == 0)
+      return;
+   int common = LogCommonFlag();
+   FolderCreate("FusionEA", common);
+   string name = "FusionEA\\" + c.tag + suffix;
+   int h = FileOpen(name, FILE_READ | FILE_WRITE | FILE_TXT | FILE_ANSI | FILE_SHARE_READ | common);
+   if(h == INVALID_HANDLE)
+     {
+      if(LogDue(c.logMs))
+         PrintFormat("[FUSION] %s を開けません（%d）。稼働中の記録を書けませんでした", name, GetLastError());
+      return;
+     }
+   if(FileSize(h) == 0)
+      FileWriteString(h, header + "\r\n");
+   FileSeek(h, 0, SEEK_END);
+   FileWriteString(h, lines);
    FileClose(h);
   }
 
@@ -4305,16 +4699,28 @@ void LogNotify(const string msg)
 //    cutoff>0 なら、その時刻より前の足のイベントは通知しない（追いつき処理）。戻り値は省いた通知の数
 int DrainOutputs(CSymbolCtx *c, const bool live, const datetime cutoff)
   {
-   if(c.hEval != INVALID_HANDLE)
-      for(int i = 0; i < c.eng.m_nrows; i++)
-         FileWriteString(c.hEval, FE_EvalCsv(c.eng.m_rows[i]) + "\r\n");
+   string liveRows = "";
+   string liveTrades = "";
+   for(int i = 0; i < c.eng.m_nrows; i++)
+     {
+      string row = FE_EvalCsv(c.eng.m_rows[i]) + "\r\n";
+      if(c.hEval != INVALID_HANDLE)
+         FileWriteString(c.hEval, row);
+      if(c.eng.m_rows[i].phase == 1)
+         liveRows += row;
+     }
    c.eng.m_nrows = 0;
    while(c.tradesLogged < c.eng.m_ntrades)
      {
+      string tr = FE_TradeCsv(c.eng.m_trades[c.tradesLogged]) + "\r\n";
       if(c.hTrades != INVALID_HANDLE)
-         FileWriteString(c.hTrades, FE_TradeCsv(c.eng.m_trades[c.tradesLogged]) + "\r\n");
+         FileWriteString(c.hTrades, tr);
+      if(c.eng.m_trades[c.tradesLogged].phase == 1 && c.eng.m_trades[c.tradesLogged].reason != XR_END)
+         liveTrades += tr;
       c.tradesLogged++;
      }
+   AppendLive(c, "_live.csv", FE_EvalHeader(), liveRows);
+   AppendLive(c, "_live_trades.csv", FE_TradeHeader(), liveTrades);
    int skipped = 0;
    for(int j = 0; j < c.eng.m_nev; j++)
      {
@@ -4444,6 +4850,14 @@ string Px(CSymbolCtx *c, const double v)
 string DirName(const int d)
   {
    return (d == 1) ? "買い" : "売り";
+  }
+
+//--- 仮想建玉の短い説明（読み直しの通知用）
+string VPosText(CSymbolCtx *c, const bool active, const int dir, const double entry, const double sl)
+  {
+   if(!active)
+      return "なし";
+   return DirName(dir) + " " + Px(c, entry) + " SL" + Px(c, sl);
   }
 
 string ModeTag(void)
@@ -4583,11 +4997,15 @@ void HandleEvent(CSymbolCtx *c, const SFusionEvent &e, const bool notify)
 //| 自動売買（InpAutoTrade=true。SPEC §16.5・§17.5）                    |
 //|  ・確定足ごとに「置きたい注文」を決め（RealOnBar）、実際の注文を   |
 //|    それに合わせる（RealApply。置けない・直せない・取消せないときは |
-//|    同じ足の中で 10 秒ごとに再試行）。                              |
+//|    同じ足の中で再試行。間隔は 10 秒、証拠金不足・取引停止などの    |
+//|    拒否は 1 分・5 分と広げ、市場が閉まっていたら次のティックまで）。|
 //|  ・週末・休場・休場明けの決済は、建玉が消えるまで再試行する。決済 |
-//|    足の終わりの 2 分前からは、市場が閉じる前に決済する。           |
+//|    足の終わりの 2 分前からは、市場が閉じる前に決済する。切断・停止 |
+//|    の間に決済足・休場明けを過ぎた建玉は、つながったらすぐ決済する。|
 //|  ・注文が消えたら、履歴で約定か取消かを確かめる。約定なら約定済み |
-//|    集合に入れる（約定してすぐ SL で閉じた場合も記録する）。        |
+//|    集合に入れ、その足では新しく置かない（約定してすぐ SL で閉じた |
+//|    場合も記録し、同じセットアップに入り直さない。R06）。           |
+//|  ・同じ建玉は _real.csv に1回だけ記録する（記録した建玉 ID を覚える）。|
 //|  ・口座の引き継ぎ・発注は、取引サーバーにつながって 10 秒たってから|
 //|    行う。つながり直したら口座の状態を読み直す。                    |
 //+------------------------------------------------------------------+
@@ -4639,6 +5057,51 @@ bool HasOwnPosition(const string sym)
    return FindPosition(sym, tk);
   }
 
+//--- 自分の建玉の数（1銘柄1建玉のはず）
+int CountOwnPositions(const string sym)
+  {
+   int n = 0;
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong tk = PositionGetTicket(i);
+      if(tk == 0)
+         continue;
+      if(PositionGetString(POSITION_SYMBOL) == sym && PositionGetInteger(POSITION_MAGIC) == InpMagicNumber)
+         n++;
+     }
+   return n;
+  }
+
+//--- 建玉 ID の建玉がいま開いているか
+bool PositionIdOpen(const long pid)
+  {
+   for(int i = PositionsTotal() - 1; i >= 0; i--)
+     {
+      ulong tk = PositionGetTicket(i);
+      if(tk != 0 && PositionGetInteger(POSITION_IDENTIFIER) == pid)
+         return true;
+     }
+   return false;
+  }
+
+//--- 建玉 ID の決済の約定が履歴にあるか（閉じたことを確かめる）
+bool PositionClosedInHistory(const long pid)
+  {
+   if(!HistorySelectByPosition(pid))
+      return false;
+   int nd = HistoryDealsTotal();
+   for(int i = 0; i < nd; i++)
+     {
+      ulong dt = HistoryDealGetTicket(i);
+      if(dt == 0)
+         continue;
+      long et = HistoryDealGetInteger(dt, DEAL_ENTRY);
+      if(et == DEAL_ENTRY_OUT || et == DEAL_ENTRY_OUT_BY || et == DEAL_ENTRY_INOUT)
+         return true;
+     }
+   return false;
+  }
+
 //--- 自分の待機注文の数（except は数えない）
 int CountOwnOrders(const string sym, const ulong except)
   {
@@ -4679,54 +5142,116 @@ double FreezeDist(CSymbolCtx *c)
    return (double)SymbolInfoInteger(c.sym, SYMBOL_TRADE_FREEZE_LEVEL) * c.point;
   }
 
+//--- 端末・EA・口座の理由で取引できないか（全銘柄に共通。空なら取引できる）
+string GlobalTradeBlock(void)
+  {
+   if(g_tester)
+      return "";
+   if(TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) == 0)
+      return "端末のアルゴ取引が OFF";
+   if(MQLInfoInteger(MQL_TRADE_ALLOWED) == 0)
+      return "EA のアルゴ取引が許可されていない（EA の設定の「アルゴ取引を許可」）";
+   if(AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) == 0)
+      return "口座で取引できない（投資家パスワード・口座の制限）";
+   if(AccountInfoInteger(ACCOUNT_TRADE_EXPERT) == 0)
+      return "口座で EA の取引が許可されていない";
+   return "";
+  }
+
+//--- 銘柄の取引モードで取引できないか（dir=0 は決済・取消だけ。dir=±1 はその向きの新規。空なら取引できる）
+string SymbolTradeBlock(CSymbolCtx *c, const int dir)
+  {
+   if(g_tester)
+      return "";
+   long mode = SymbolInfoInteger(c.sym, SYMBOL_TRADE_MODE);
+   if(mode == SYMBOL_TRADE_MODE_DISABLED)
+      return "銘柄が取引停止";
+   if(dir != 0 && mode == SYMBOL_TRADE_MODE_CLOSEONLY)
+      return "銘柄が決済のみ";
+   if(dir == 1 && mode == SYMBOL_TRADE_MODE_SHORTONLY)
+      return "銘柄が売りのみ";
+   if(dir == -1 && mode == SYMBOL_TRADE_MODE_LONGONLY)
+      return "銘柄が買いのみ";
+   return "";
+  }
+
 //--- 取引できるか（dir=0 は決済・取消だけ。dir=±1 はその向きの新規）
 bool CanTrade(CSymbolCtx *c, const int dir, string &why)
   {
-   why = "";
-   if(g_tester)
-      return true;
-   if(TerminalInfoInteger(TERMINAL_TRADE_ALLOWED) == 0)
-      why = "端末のアルゴ取引が OFF";
-   else
-      if(MQLInfoInteger(MQL_TRADE_ALLOWED) == 0)
-         why = "EA のアルゴ取引が許可されていない（EA の設定の「アルゴ取引を許可」）";
-      else
-         if(AccountInfoInteger(ACCOUNT_TRADE_ALLOWED) == 0)
-            why = "口座で取引できない（投資家パスワード・口座の制限）";
-         else
-            if(AccountInfoInteger(ACCOUNT_TRADE_EXPERT) == 0)
-               why = "口座で EA の取引が許可されていない";
-            else
-              {
-               long mode = SymbolInfoInteger(c.sym, SYMBOL_TRADE_MODE);
-               if(mode == SYMBOL_TRADE_MODE_DISABLED)
-                  why = "銘柄が取引停止";
-               else
-                  if(dir != 0 && mode == SYMBOL_TRADE_MODE_CLOSEONLY)
-                     why = "銘柄が決済のみ";
-                  else
-                     if(dir == 1 && mode == SYMBOL_TRADE_MODE_SHORTONLY)
-                        why = "銘柄が売りのみ";
-                     else
-                        if(dir == -1 && mode == SYMBOL_TRADE_MODE_LONGONLY)
-                           why = "銘柄が買いのみ";
-              }
+   why = GlobalTradeBlock();
+   if(StringLen(why) == 0)
+      why = SymbolTradeBlock(c, dir);
    return (StringLen(why) == 0);
   }
 
-//--- 取引の可否が変わったら、パネルに出して1回だけ知らせる
+//--- 端末・EA・口座の取引の可否が変わったら、パネルに出して1回だけ知らせる（全銘柄で1通）
+void CheckGlobalPermission(void)
+  {
+   string why = GlobalTradeBlock();
+   if(why == g_tradeNote)
+      return;
+   if(StringLen(why) > 0)
+      Notify(StringFormat("%s 注意: 自動売買ができません（%s）。全銘柄の注文・決済が止まっています", ModeTag(), why), 1);
+   else
+      Print("[FUSION] 自動売買ができる状態に戻りました");
+   g_tradeNote = why;
+   g_panelDirty = true;
+  }
+
+//--- 銘柄の取引モードの可否が変わったら、パネルに出して1回だけ知らせる（銘柄ごと）
 void CheckTradePermission(CSymbolCtx *c)
   {
-   string why = "";
-   CanTrade(c, 0, why);
+   string why = SymbolTradeBlock(c, 0);
    if(why == c.real.tradeNote)
       return;
    if(StringLen(why) > 0)
-      Notify(StringFormat("%s %s 注意: 自動売買ができません（%s）。注文・決済は止まっています", ModeTag(), c.sym, why), 1);
+      Notify(StringFormat("%s %s 注意: 自動売買ができません（%s）。この銘柄の注文・決済は止まっています", ModeTag(), c.sym, why), 1);
    else
       PrintFormat("[FUSION] %s 自動売買ができる状態に戻りました", c.sym);
    c.real.tradeNote = why;
    g_panelDirty = true;
+  }
+
+//--- 再試行の間隔（拒否の種類で決める）。価格の変化・接続・一時的な混雑は FUS_RETRY_MS のまま、
+//    証拠金不足・取引停止・要求が多すぎる・注文の上限などは 1分、5分…と広げる（サーバーに同じ要求を送り続けない）。
+//    rc=0 は要求を送らずに待った（STOPS_LEVEL の内側など）
+uint FailDelayMs(const uint rc, const int fails)
+  {
+   if(rc == 0 || rc == TRADE_RETCODE_REQUOTE || rc == TRADE_RETCODE_PRICE_CHANGED || rc == TRADE_RETCODE_PRICE_OFF ||
+      rc == TRADE_RETCODE_TIMEOUT || rc == TRADE_RETCODE_CONNECTION || rc == TRADE_RETCODE_INVALID_PRICE ||
+      rc == TRADE_RETCODE_LOCKED || rc == TRADE_RETCODE_FROZEN || rc == TRADE_RETCODE_ERROR)
+      return FUS_RETRY_MS;
+   return (fails <= 1) ? FUS_BACKOFF1_MS : FUS_BACKOFF2_MS;
+  }
+
+//--- 市場が閉まっていた（MARKET_CLOSED）：この銘柄の注文・決済を、新しいティックが来るまで（最長 FUS_MKT_HOLD_MS）止める
+void HoldMarket(CSymbolCtx *c)
+  {
+   MqlTick tk;
+   c.real.holdMsc = 0;
+   if(SymbolInfoTick(c.sym, tk))
+      c.real.holdMsc = tk.time_msc;
+   c.real.holdMs = NowMs();
+   if(c.real.holdMs == 0)
+      c.real.holdMs = 1;
+   if(LogDue(c.real.logMs))
+      PrintFormat("[FUSION] %s 市場が閉まっている（MARKET_CLOSED）。新しいティックが来るまで注文・決済を待ちます", c.sym);
+  }
+
+//--- 市場が閉まっていたため待っているか（新しいティックが来たか、FUS_MKT_HOLD_MS たったら待つのをやめる）
+bool MarketHeld(CSymbolCtx *c)
+  {
+   if(c.real.holdMs == 0)
+      return false;
+   MqlTick tk;
+   bool fresh = (SymbolInfoTick(c.sym, tk) && tk.time_msc > c.real.holdMsc);
+   if(fresh || NowMs() - c.real.holdMs >= FUS_MKT_HOLD_MS)
+     {
+      c.real.holdMs = 0;
+      c.real.holdMsc = 0;
+      return false;
+     }
+   return true;
   }
 
 //--- ロット＝floor(残高×risk%÷(R÷tick_size×tick_value)÷lot_step)×lot_step を [min, max] に丸める。
@@ -4780,11 +5305,13 @@ int OrderOutcome(const ulong ticket)
    return FUS_CXL_DONE;
   }
 
-//--- 待機注文を1つ取消す。戻り値 FUS_CXL_*（取消の前後に約定していたら FILLED。結果がまだ履歴になければ UNKNOWN）
+//--- 待機注文を1つ取消す。戻り値 FUS_CXL_*（取消の前後に約定・一部約定していたら FILLED。結果がまだ履歴になければ UNKNOWN）
 int CancelTicket(CSymbolCtx *c, const ulong ticket, const string why)
   {
    if(OrderSelect(ticket))
      {
+      //--- すでに一部約定している注文は、残りを取消しても「約定していた」として扱う（建玉がある。新しい注文は出さない）
+      bool partial = (OrderGetDouble(ORDER_VOLUME_INITIAL) - OrderGetDouble(ORDER_VOLUME_CURRENT) > 1e-10);
       double freeze = FreezeDist(c);
       MqlTick tk;
       if(freeze > 0.0 && SymbolInfoTick(c.sym, tk))
@@ -4797,18 +5324,31 @@ int CancelTicket(CSymbolCtx *c, const ulong ticket, const string why)
            {
             if(LogDue(c.real.logMs))
                PrintFormat("[FUSION] %s 注文 #%I64u は FREEZE_LEVEL の内側のため、取消を待ちます（%s）", c.sym, ticket, why);
+            c.real.lastRc = 0;
             return FUS_CXL_FAIL;
            }
         }
       if(g_trade.OrderDelete(ticket) && g_trade.ResultRetcode() == TRADE_RETCODE_DONE)
         {
          PrintFormat("[FUSION] %s 逆指値 #%I64u を取消（%s）", c.sym, ticket, why);
+         if(partial)
+            return FUS_CXL_FILLED;
+         //--- 取消の直前に一部約定していないかを、履歴に入っていれば確かめる
+         if(HistoryOrderSelect(ticket) &&
+            HistoryOrderGetDouble(ticket, ORDER_VOLUME_INITIAL) - HistoryOrderGetDouble(ticket, ORDER_VOLUME_CURRENT) > 1e-10)
+            return FUS_CXL_FILLED;
          return FUS_CXL_DONE;
         }
+      uint rc = g_trade.ResultRetcode();
       if(OrderSelect(ticket))
         {
-         PrintFormat("[FUSION] %s 逆指値 #%I64u の取消に失敗（%u %s）。再試行します（%s）", c.sym, ticket,
-                     g_trade.ResultRetcode(), g_trade.ResultRetcodeDescription(), why);
+         c.real.lastRc = rc;
+         if(rc == TRADE_RETCODE_MARKET_CLOSED)
+            HoldMarket(c);
+         else
+            if(LogDue(c.real.logMs))
+               PrintFormat("[FUSION] %s 逆指値 #%I64u の取消に失敗（%u %s）。再試行します（%s）", c.sym, ticket,
+                           rc, g_trade.ResultRetcodeDescription(), why);
          return FUS_CXL_FAIL;
         }
      }
@@ -4866,24 +5406,51 @@ bool ResolveChk(CSymbolCtx *c)
       return false;                              // まだ有効（成行の処理中など）
    if(r == FUS_CXL_UNKNOWN)
      {
-      if(GetTickCount() - c.real.chkSinceMs < FUS_CHK_WAIT_MS)
+      if(NowMs() - c.real.chkSinceMs < FUS_CHK_WAIT_MS)
          return false;
-      PrintFormat("[FUSION] %s 注文 #%I64u の結果を履歴で確かめられません。約定していれば建玉の引き継ぎ（コメント）で拾います", c.sym, t);
+      PrintFormat("[FUSION] %s 注文 #%I64u の結果を履歴で確かめられません。約定していれば建玉の引き継ぎ（コメント）で拾います。この足では置き直しません", c.sym, t);
+      c.real.want = false;                       // 約定していたかもしれない：同じセットアップに入り直さない（次の確定足で判定し直す）
+      c.real.cancelMsg = "";
       c.real.ClearChk();
       return true;
      }
    if(r == FUS_CXL_FILLED)
      {
+      //--- key の分からない注文（記録になく、コメントもまだ読んでいない）は、注文のコメントから読む
+      if(c.real.chkKeyTime <= 0)
+        {
+         int kd = 0;
+         datetime kt = 0;
+         if(ParseRealComment(HistoryOrderGetString(t, ORDER_COMMENT), kd, kt))
+           {
+            c.real.chkDir = kd;
+            c.real.chkKeyTime = kt;
+           }
+        }
       int ki = (c.real.chkKeyTime > 0) ? c.eng.IndexOfTime(c.real.chkKeyTime) : -1;
       if(c.real.chkDir != 0 && ki >= 0)
          c.real.cons.Add(c.real.chkDir, ki);    // 1セットアップにつき約定1回（R06）
+      //--- 約定で待機注文を使い切った。Python も足の途中では新しく置かない（次の確定足で、約定済み集合で判定し直す）
+      c.real.want = false;
+      c.real.cancelMsg = "";
+      c.real.cancelReq = true;                   // 部分約定の残りなど、残っている自分の待機注文はすべて取消す
       long pid = HistoryOrderGetInteger(t, ORDER_POSITION_ID);
-      c.real.fillPosId = (pid != 0) ? pid : (long)t;
-      c.real.fillDir = c.real.chkDir;
-      c.real.fillKeyTime = c.real.chkKeyTime;
-      c.real.fillPlanned = c.real.chkPlanned;
-      c.real.fillScore = c.real.chkScore;
-      c.real.fillSinceMs = GetTickCount();
+      if(pid == 0)
+         pid = (long)t;
+      if(c.real.posTicket != 0 && pid == c.real.posId)
+         PrintFormat("[FUSION] %s 注文 #%I64u の約定を確かめた（建玉 #%I64u として追跡中）", c.sym, t, c.real.posTicket);
+      else
+         if(c.real.Recorded(pid))
+            PrintFormat("[FUSION] %s 注文 #%I64u の約定を確かめた（建玉 ID %I64d は記録済み）", c.sym, t, pid);
+         else
+           {
+            c.real.fillPosId = pid;              // 建玉が見えるか、約定してすぐ閉じたことを履歴で確かめる
+            c.real.fillDir = c.real.chkDir;
+            c.real.fillKeyTime = c.real.chkKeyTime;
+            c.real.fillPlanned = c.real.chkPlanned;
+            c.real.fillScore = c.real.chkScore;
+            c.real.fillSinceMs = NowMs();
+           }
      }
    else
      {
@@ -4895,7 +5462,7 @@ bool ResolveChk(CSymbolCtx *c)
             PrintFormat("[FUSION] %s 注文 #%I64u は拒否された", c.sym, t);
          else
             if(st == ORDER_STATE_CANCELED)
-               PrintFormat("[FUSION] %s 逆指値 #%I64u は EA の外で取消された。条件が続いていれば置き直します", c.sym, t);
+               PrintFormat("[FUSION] %s 注文 #%I64u は約定せずに取消された。条件が続いていれば置き直します", c.sym, t);
       c.real.tryMs = 0;
      }
    c.real.ClearChk();
@@ -4988,7 +5555,8 @@ void TrackNewPosition(CSymbolCtx *c, const ulong tk)
       string plan = "";
       if(c.real.posPlanned > 0.0)
          plan = StringFormat("（計画%s 差%+.0fポイント）", Px(c, c.real.posPlanned), (c.real.posEntry - c.real.posPlanned) * dir / c.point);
-      Notify(StringFormat("%s %s %s 約定 %s%s SL%s R=%.1fpips key %s", ModeTag(), c.sym, DirName(dir), Px(c, c.real.posEntry), plan,
+      Notify(StringFormat("%s %s %s 約定%s %s%s SL%s R=%.1fpips key %s", ModeTag(), c.sym, DirName(dir),
+                          ((ulong)pid == c.real.mktTicket) ? "（成行）" : "", Px(c, c.real.posEntry), plan,
                           Px(c, c.real.posSl), MathAbs(c.real.posEntry - c.real.posInitSl) / c.pip, (kt > 0) ? FE_Time(kt) : "不明"), 1);
      }
    else
@@ -4996,6 +5564,7 @@ void TrackNewPosition(CSymbolCtx *c, const ulong tk)
       c.real.posInitSl = GlobalVariableCheck(gv) ? GlobalVariableGet(gv) : c.real.posSl;
       PrintFormat("[FUSION] %s 建玉 #%I64u を引き継ぎ（%s %s SL%s 初期SL%s key %s）", c.sym, tk, DirName(dir), Px(c, c.real.posEntry),
                   Px(c, c.real.posSl), Px(c, c.real.posInitSl), (kt > 0) ? FE_Time(kt) : "不明");
+      c.real.missCheck = true;                  // 停止・切断の間に決済足や休場明けを過ぎていれば決済する
      }
    //--- 1銘柄1建玉：残っている自分の待機注文（部分約定の残りを含む）はすべて取消す
    c.real.want = false;
@@ -5003,11 +5572,29 @@ void TrackNewPosition(CSymbolCtx *c, const ulong tk)
    g_panelDirty = true;
   }
 
+//--- 決済の理由の名前。EA が送った決済（DEAL_REASON_EXPERT）なら、決済を要求した理由（週末・休場明け・トレール先の越え）。
+//    決済を送る前後に SL・ストップアウトなどで閉じていれば、約定の理由（SL・TRAIL・STOPOUT など）
+string ExitReasonText(const long dreason, const int closeReq, const bool trailed)
+  {
+   if(dreason == DEAL_REASON_EXPERT && closeReq != 0)
+      return FE_ReasonName(closeReq);
+   return DealReasonText(dreason, trailed);
+  }
+
 //--- 追っていた建玉が消えた：決済の約定から価格・理由・損益を拾って記録する。記録したら true
 bool RecordExit(CSymbolCtx *c)
   {
+   if(c.real.Recorded(c.real.posId))
+     {
+      //--- 同じ建玉を別の経路（約定してすぐ閉じた記録）ですでに記録した
+      if(c.real.fillPosId == c.real.posId)
+         c.real.ClearFill();
+      c.real.ClearPosition();
+      g_panelDirty = true;
+      return true;
+     }
    if(c.real.goneSinceMs == 0)
-      c.real.goneSinceMs = GetTickCount();
+      c.real.goneSinceMs = NowMs();
    double exitPx = 0.0, profit = 0.0, swap = 0.0, comm = 0.0;
    datetime exitT = 0;
    long dreason = -1;
@@ -5033,39 +5620,46 @@ bool RecordExit(CSymbolCtx *c)
            }
         }
      }
-   if(!found && GetTickCount() - c.real.goneSinceMs < FUS_DEAL_WAIT_MS)
+   if(!found && NowMs() - c.real.goneSinceMs < FUS_DEAL_WAIT_MS)
       return false;                              // 決済の約定が履歴に入るのを待つ（次の巡回で探し直す）
    string why = "UNKNOWN";
-   if(c.real.closeReason != 0)
-      why = FE_ReasonName(c.real.closeReason);
+   if(found)
+      why = ExitReasonText(dreason, c.real.closeReason, MathAbs(c.real.posSl - c.real.posInitSl) >= 0.5 * c.point);
    else
-      if(found)
-         why = DealReasonText(dreason, MathAbs(c.real.posSl - c.real.posInitSl) >= 0.5 * c.point);
+      if(c.real.closeReason != 0)
+         why = FE_ReasonName(c.real.closeReason);
    double risk = MathAbs(c.real.posEntry - c.real.posInitSl);
    double r = (risk > 0.0 && exitPx > 0.0) ? (exitPx - c.real.posEntry) * c.real.posDir / risk : 0.0;
    AddRealStats(c, r);
    WriteRealTrade(c, c.real.posTime, c.real.posDir, c.real.posEntry, c.real.posInitSl, found ? exitT : NowServer(), why, r,
                   c.real.posKeyTime, c.real.posScore, c.real.posTicket, exitPx, c.real.posVolume, c.real.posPlanned, profit, swap, comm);
+   c.real.MarkRecorded(c.real.posId);
    if(found)
       Notify(StringFormat("%s %s %s 決済 %s %s %+.2fR", ModeTag(), c.sym, DirName(c.real.posDir), why, Px(c, exitPx), r), 1);
    else
       Notify(StringFormat("%s %s %s 建玉がなくなったが、決済の約定を履歴で確かめられない（口座の履歴を確認してください）", ModeTag(), c.sym,
                           DirName(c.real.posDir)), 1);
    GlobalVariableDel(GvIsl(c, c.real.posId));
+   if(c.real.fillPosId == c.real.posId)
+      c.real.ClearFill();                        // 同じ建玉を「約定してすぐ閉じた」としてもう一度記録しない
    c.real.ClearPosition();
    g_panelDirty = true;
    return true;
   }
 
-//--- 約定を確かめたのに建玉が見えない：約定してすぐ閉じたなら、約定と決済をまとめて記録する
-bool RecordFlash(CSymbolCtx *c)
+//--- 閉じた建玉（建玉 ID）を約定履歴から記録する（建玉を追わないまま閉じた場合）。
+//    約定してすぐ閉じた（flash=true）と、追っていない建玉をこの EA が決済した（closeReq=決済を要求した理由）に使う。
+//    記録した・記録済みだった・あきらめたら true（false は履歴に入るのを待つ）
+bool RecordClosed(CSymbolCtx *c, const long pid, const int dirHint, const datetime keyHint, const int score, const double planned,
+                  const uint sinceMs, const int closeReq, const bool flash)
   {
-   long pid = c.real.fillPosId;
+   if(c.real.Recorded(pid))
+      return true;
    double entryPx = 0.0, exitPx = 0.0, vol = 0.0, profit = 0.0, swap = 0.0, comm = 0.0;
    datetime entryT = 0, exitT = 0;
    long dreason = -1;
-   int d = c.real.fillDir;
-   bool in = false, out = false;
+   int d = dirHint;
+   bool gotIn = false, gotOut = false;
    if(HistorySelectByPosition(pid))
      {
       int nd = HistoryDealsTotal();
@@ -5078,44 +5672,114 @@ bool RecordFlash(CSymbolCtx *c)
          swap += HistoryDealGetDouble(dt, DEAL_SWAP);
          comm += HistoryDealGetDouble(dt, DEAL_COMMISSION);
          long et = HistoryDealGetInteger(dt, DEAL_ENTRY);
-         if(et == DEAL_ENTRY_IN && !in)
+         if(et == DEAL_ENTRY_IN && !gotIn)
            {
             entryPx = HistoryDealGetDouble(dt, DEAL_PRICE);
             entryT = (datetime)HistoryDealGetInteger(dt, DEAL_TIME);
             vol = HistoryDealGetDouble(dt, DEAL_VOLUME);
             d = (HistoryDealGetInteger(dt, DEAL_TYPE) == DEAL_TYPE_BUY) ? 1 : -1;
-            in = true;
+            gotIn = true;
            }
          if(et == DEAL_ENTRY_OUT || et == DEAL_ENTRY_OUT_BY || et == DEAL_ENTRY_INOUT)
            {
             exitPx = HistoryDealGetDouble(dt, DEAL_PRICE);
             exitT = (datetime)HistoryDealGetInteger(dt, DEAL_TIME);
             dreason = HistoryDealGetInteger(dt, DEAL_REASON);
-            out = true;
+            gotOut = true;
            }
         }
      }
-   if(!(in && out))
+   if(!(gotIn && gotOut))
      {
-      if(GetTickCount() - c.real.fillSinceMs < FUS_DEAL_WAIT_MS)
+      if(NowMs() - sinceMs < FUS_DEAL_WAIT_MS)
          return false;                           // 建玉が見えるか、決済の約定が入るのを待つ
-      PrintFormat("[FUSION] %s 約定した注文の建玉（ID %I64d）を%s", c.sym, pid, in ? "追えません（まだ開いていれば引き継ぎで拾います）" : "履歴で見つけられません");
-      c.real.ClearFill();
+      if(flash)
+         PrintFormat("[FUSION] %s 約定した注文の建玉（ID %I64d）を%s", c.sym, pid, gotIn ? "追えません（まだ開いていれば引き継ぎで拾います）" : "履歴で見つけられません");
+      else
+         Notify(StringFormat("%s %s 追っていなかった建玉（ID %I64d）を決済したが、約定を履歴で確かめられない（口座の履歴を確認してください）",
+                             ModeTag(), c.sym, pid), 1);
       return true;
      }
-   //--- 初期 SL は約定した注文の SL（建玉 ID＝約定した注文の番号）
-   double initSl = HistoryOrderSelect((ulong)pid) ? HistoryOrderGetDouble((ulong)pid, ORDER_SL) : 0.0;
+   //--- 初期 SL は約定した注文の SL（建玉 ID＝約定した注文の番号）。key が分からなければ注文のコメントから読む
+   double initSl = 0.0;
+   datetime kt = keyHint;
+   if(HistoryOrderSelect((ulong)pid))
+     {
+      initSl = HistoryOrderGetDouble((ulong)pid, ORDER_SL);
+      int kd = 0;
+      datetime kc = 0;
+      if(kt <= 0 && ParseRealComment(HistoryOrderGetString((ulong)pid, ORDER_COMMENT), kd, kc) && kd == d)
+         kt = kc;
+     }
+   int ki = (kt > 0) ? c.eng.IndexOfTime(kt) : -1;
+   if(ki >= 0)
+      c.real.cons.Add(d, ki);                    // 1セットアップにつき約定1回（R06）
    double risk = MathAbs(entryPx - initSl);
    double r = (risk > 0.0 && initSl > 0.0) ? (exitPx - entryPx) * d / risk : 0.0;
-   string why = DealReasonText(dreason, false);
+   string why = ExitReasonText(dreason, closeReq, false);
    AddRealStats(c, r);
-   WriteRealTrade(c, entryT, d, entryPx, initSl, exitT, why, r, c.real.fillKeyTime, c.real.fillScore, (ulong)pid, exitPx, vol,
-                  c.real.fillPlanned, profit, swap, comm);
-   Notify(StringFormat("%s %s %s 約定 %s→すぐ決済 %s %s %+.2fR key %s", ModeTag(), c.sym, DirName(d), Px(c, entryPx), why, Px(c, exitPx), r,
-                       (c.real.fillKeyTime > 0) ? FE_Time(c.real.fillKeyTime) : "不明"), 1);
+   WriteRealTrade(c, entryT, d, entryPx, initSl, exitT, why, r, kt, score, (ulong)pid, exitPx, vol, planned, profit, swap, comm);
+   c.real.MarkRecorded(pid);
+   GlobalVariableDel(GvIsl(c, pid));
+   if(flash)
+      Notify(StringFormat("%s %s %s 約定 %s→すぐ決済 %s %s %+.2fR key %s", ModeTag(), c.sym, DirName(d), Px(c, entryPx), why, Px(c, exitPx), r,
+                          (kt > 0) ? FE_Time(kt) : "不明"), 1);
+   else
+      Notify(StringFormat("%s %s %s 決済 %s %s %+.2fR（追っていなかった建玉 ID %I64d）", ModeTag(), c.sym, DirName(d), why, Px(c, exitPx), r, pid), 1);
+   g_panelDirty = true;
+   return true;
+  }
+
+//--- 約定を確かめたのに建玉が見えない：約定してすぐ閉じたなら、約定と決済をまとめて記録する
+bool RecordFlash(CSymbolCtx *c)
+  {
+   if(!RecordClosed(c, c.real.fillPosId, c.real.fillDir, c.real.fillKeyTime, c.real.fillScore, c.real.fillPlanned,
+                    c.real.fillSinceMs, 0, true))
+      return false;
    c.real.ClearFill();
    g_panelDirty = true;
    return true;
+  }
+
+//--- 追っていない建玉をこの EA が決済した：約定履歴から記録するまで覚える
+void AddOrphan(CSymbolCtx *c, const long pid, const int closeReq)
+  {
+   if(pid == 0 || c.real.Recorded(pid))
+      return;
+   int slot = -1;
+   for(int i = 0; i < FUS_ORPHANS; i++)
+     {
+      if(c.real.orphPid[i] == pid)
+         return;
+      if(slot < 0 && c.real.orphPid[i] == 0)
+         slot = i;
+     }
+   if(slot < 0)
+     {
+      PrintFormat("[FUSION] %s 決済した建玉（ID %I64d）の記録待ちが多すぎるため、記録しません", c.sym, pid);
+      return;
+     }
+   c.real.orphPid[slot] = pid;
+   c.real.orphReq[slot] = closeReq;
+   c.real.orphSinceMs[slot] = NowMs();
+  }
+
+//--- 記録待ちの決済（追っていなかった建玉）を約定履歴から記録する
+bool ServiceOrphans(CSymbolCtx *c)
+  {
+   bool changed = false;
+   for(int i = 0; i < FUS_ORPHANS; i++)
+     {
+      long pid = c.real.orphPid[i];
+      if(pid == 0)
+         continue;
+      if(RecordClosed(c, pid, 0, 0, 0, 0.0, c.real.orphSinceMs[i], c.real.orphReq[i], false))
+        {
+         c.real.orphPid[i] = 0;
+         changed = true;
+        }
+     }
+   return changed;
   }
 
 //--- 実際の注文・建玉の変化を拾う（約定・決済の検出）。変化があれば true
@@ -5132,9 +5796,24 @@ bool RealReconcile(CSymbolCtx *c)
    //--- 2) 結果待ちの注文
    if(c.real.chkTicket != 0 && ResolveChk(c))
       changed = true;
-   //--- 3) 建玉
+   //--- 3) 建玉（自分の建玉が2本以上あれば、追っている建玉がまだあればそれを追い続け、異常として知らせる）
    ulong tk = 0;
-   if(FindPosition(c.sym, tk) && PositionSelectByTicket(tk))
+   bool has = FindPosition(c.sym, tk);
+   if(has && c.real.posTicket != 0 && tk != c.real.posTicket && PositionSelectByTicket(c.real.posTicket))
+      tk = c.real.posTicket;
+   int npos = has ? CountOwnPositions(c.sym) : 0;
+   if(npos > 1)
+     {
+      if(!c.real.multiWarned)
+        {
+         c.real.multiWarned = true;
+         Notify(StringFormat("%s %s 【要対応】この EA の建玉が %d 本あります（1銘柄1建玉のはず）。追っている1本だけをトレールします。ほかは手動で整理してください（週末・休場明けの決済は全部に行う）",
+                             ModeTag(), c.sym, npos), 1);
+        }
+     }
+   else
+      c.real.multiWarned = false;
+   if(has && PositionSelectByTicket(tk))
      {
       if(c.real.posTicket == tk)
         {
@@ -5174,37 +5853,42 @@ void RequestClose(CSymbolCtx *c, const int reason, const string why)
    if(c.real.closeReq != 0)
       return;
    c.real.closeReq = reason;
-   c.real.closeSinceMs = GetTickCount();
+   c.real.closeSinceMs = NowMs();
    c.real.closeTryMs = 0;
+   c.real.closeWaitMs = FUS_RETRY_MS;
    c.real.closeFails = 0;
    c.real.closeWarned = false;
    c.real.closeWarned2 = false;
+   c.real.holdNoted = false;
    c.real.want = false;
    c.real.cancelReq = true;
    c.real.trailSl = 0.0;
    PrintFormat("[FUSION] %s 建玉を決済します（%s）", c.sym, why);
   }
 
-//--- 建玉を1つ成行で決済する（再クオート・価格変更なら取り直して最大3回）
-bool ClosePositionTicket(CSymbolCtx *c, const ulong tk, string &err)
+//--- 建玉を1つ成行で決済する（再クオート・価格変更なら取り直して最大3回）。戻り値 FUS_CLOSE_*。rc は最後の戻りコード
+int ClosePositionTicket(CSymbolCtx *c, const ulong tk, string &err, uint &rc)
   {
    err = "";
+   rc = 0;
    for(int attempt = 0; attempt < 3; attempt++)
      {
+      if(!PositionSelectByTicket(tk))
+         return FUS_CLOSE_GONE;                  // もう建玉がない（SL などで閉じた）
       g_trade.SetTypeFillingBySymbol(c.sym);
       bool ok = g_trade.PositionClose(tk);
-      uint rc = g_trade.ResultRetcode();
+      rc = g_trade.ResultRetcode();
       if(ok && rc == TRADE_RETCODE_DONE)
-         return true;
+         return FUS_CLOSE_DONE;
       err = StringFormat("%u %s", rc, g_trade.ResultRetcodeDescription());
       if(!PositionSelectByTicket(tk))
-         return true;                            // もう建玉がない（SL などで閉じた）
+         return (ok && rc == TRADE_RETCODE_DONE_PARTIAL) ? FUS_CLOSE_DONE : FUS_CLOSE_GONE;
       if(ok && rc == TRADE_RETCODE_DONE_PARTIAL)
          continue;                               // 一部だけ決済：残りを続けて決済
       if(!(rc == TRADE_RETCODE_REQUOTE || rc == TRADE_RETCODE_PRICE_CHANGED || rc == TRADE_RETCODE_PRICE_OFF))
          break;
      }
-   return false;
+   return FUS_CLOSE_FAIL;
   }
 
 //--- 決済の要求の処理（読み直し中でも行う。足のデータを使わない）
@@ -5217,11 +5901,14 @@ bool ServiceClose(CSymbolCtx *c)
       c.real.closeReq = 0;
       return true;
      }
-   uint now = GetTickCount();
-   if(c.real.closeTryMs != 0 && now - c.real.closeTryMs < FUS_RETRY_MS)
+   uint now = NowMs();
+   if(c.real.closeTryMs != 0 && now - c.real.closeTryMs < c.real.closeWaitMs)
       return false;
+   if(MarketHeld(c))
+      return false;                              // 市場が閉まっていた：新しいティックが来るまで送らない
    c.real.closeTryMs = now;
    string why = "";
+   uint lastRc = 0;
    if(!CanTrade(c, 0, why))
      {
       c.real.closeFails++;
@@ -5236,24 +5923,50 @@ bool ServiceClose(CSymbolCtx *c)
             continue;
          if(PositionGetString(POSITION_SYMBOL) != c.sym || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
             continue;
+         long pid = PositionGetInteger(POSITION_IDENTIFIER);
          string err = "";
-         if(ClosePositionTicket(c, tk, err))
+         uint rc = 0;
+         int res = ClosePositionTicket(c, tk, err, rc);
+         if(res == FUS_CLOSE_DONE)
            {
             if(tk == c.real.posTicket)
-               c.real.closeReason = c.real.closeReq;   // 決済を送って成功したときだけ理由を残す
+               c.real.closeReason = c.real.closeReq;   // この EA が決済したときだけ理由を残す
+            else
+               AddOrphan(c, pid, c.real.closeReq);     // 追っていなかった建玉：約定履歴から記録する
             PrintFormat("[FUSION] %s 建玉 #%I64u を決済（%s）", c.sym, tk, FE_ReasonName(c.real.closeReq));
            }
          else
-           {
-            left++;
-            why = err;
-           }
+            if(res == FUS_CLOSE_FAIL)
+              {
+               left++;
+               why = err;
+               lastRc = rc;
+              }
         }
       if(left == 0)
+        {
+         c.real.closeWaitMs = FUS_RETRY_MS;
          return true;                            // 次の巡回で建玉が消えたことを確かめる
+        }
       c.real.closeFails++;
      }
-   PrintFormat("[FUSION] %s 建玉の決済に失敗（%s）。%d 秒ごとに再試行します", c.sym, why, (int)(FUS_RETRY_MS / 1000));
+   if(lastRc == TRADE_RETCODE_MARKET_CLOSED)
+     {
+      //--- 市場が閉まっている（週末・休場）：手動でも決済できないので【要対応】は送らず、再開直後に決済する
+      HoldMarket(c);
+      c.real.closeWaitMs = FUS_RETRY_MS;
+      c.real.closeSinceMs = now;                 // 「5分たっても決済できない」は、市場が開いてから数える
+      if(!c.real.holdNoted)
+        {
+         c.real.holdNoted = true;
+         Notify(StringFormat("%s %s %s の決済: 市場が閉まっているため、取引が再開したらすぐ決済します", ModeTag(), c.sym,
+                             FE_ReasonName(c.real.closeReq)), 1);
+        }
+      return true;
+     }
+   c.real.closeWaitMs = FailDelayMs(lastRc, c.real.closeFails);
+   if(LogDue(c.real.logMs))
+      PrintFormat("[FUSION] %s 建玉の決済に失敗（%s）。%d 秒後に再試行します（失敗 %d 回）", c.sym, why, (int)(c.real.closeWaitMs / 1000), c.real.closeFails);
    if(!c.real.closeWarned)
      {
       c.real.closeWarned = true;
@@ -5272,17 +5985,26 @@ bool ServiceClose(CSymbolCtx *c)
 //--- 自分の待機注文をすべて取消す要求の処理（読み直し中でも行う）
 bool ServiceCancel(CSymbolCtx *c)
   {
-   uint now = GetTickCount();
-   if(c.real.cxlTryMs != 0 && now - c.real.cxlTryMs < FUS_RETRY_MS)
+   uint now = NowMs();
+   if(c.real.cxlTryMs != 0 && now - c.real.cxlTryMs < c.real.cxlWaitMs)
       return false;
+   if(MarketHeld(c))
+      return false;
+   c.real.lastRc = 0;
    int left = CancelOwnOrders(c, 0, "建玉あり・決済・休場明け");
    if(left == 0)
      {
       c.real.cancelReq = false;
       c.real.cxlTryMs = 0;
+      c.real.cxlFails = 0;
+      c.real.cxlWaitMs = FUS_RETRY_MS;
      }
    else
+     {
       c.real.cxlTryMs = now;
+      c.real.cxlFails++;
+      c.real.cxlWaitMs = FailDelayMs(c.real.lastRc, c.real.cxlFails);
+     }
    return true;
   }
 
@@ -5306,6 +6028,51 @@ bool PreCloseDue(CSymbolCtx *c)
    if(!fl)
       return false;
    return ((long)now >= (long)cur + 3600 - FUS_PRECLOSE_SEC);
+  }
+
+//--- 切断・停止の間（追いつき処理・起動・再接続での引き継ぎ）に、追っている建玉の約定より後で決済足が確定していた、
+//    または休場明けを過ぎていたら、すぐ決済する（仮想側の Python はその足で WEEKEND・GAP_FALLBACK として閉じている）。
+//    決済を要求したら true
+bool CheckMissedClose(CSymbolCtx *c)
+  {
+   if(c.real.closeReq != 0 || c.real.posTicket == 0)
+      return false;
+   int n = c.eng.m_n;
+   if(n <= 0 || c.eng.m_first < 0)
+      return false;
+   datetime pt = c.real.posTime;
+   int e = c.eng.IndexOfBarContaining(pt);
+   if(e >= n)
+      return false;                              // 形成中の足で約定した（確定した決済足はまだない）
+   if(e < 0)
+      e = 0;                                     // 読み込んだ足より前からの建玉
+   int reason = 0;
+   datetime at = 0;
+   for(int k = e; k < n; k++)
+     {
+      if(k > e && c.eng.GapBefore(c.eng.m_T[k - 1], c.eng.m_T[k]))
+        {
+         reason = XR_GAP;                         // 休場明けの足の始値で決済のはずだった
+         at = c.eng.m_T[k];
+         break;
+        }
+      bool nn = false, fl = false, rl = false;
+      int kd = 0;
+      c.eng.TimeRules(k, nn, fl, rl, kd);
+      if(fl && (long)c.eng.m_T[k] + 3600 > (long)pt)
+        {
+         reason = XR_WEEKEND;                     // 決済足の終値で決済のはずだった
+         at = (datetime)((long)c.eng.m_T[k] + 3600);
+         break;
+        }
+     }
+   if(reason == 0)
+      return false;
+   string what = (reason == XR_GAP) ? "休場明け" : "決済足の確定";
+   Notify(StringFormat("%s %s %s 切断・停止の間に%s（%s）を過ぎた建玉を、いま成行で決済します", ModeTag(), c.sym,
+                       DirName(c.real.posDir), what, FE_Time(at)), 1);
+   RequestClose(c, reason, "切断・停止の間に" + what + "を過ぎた");
+   return true;
   }
 
 //--- 休場明け：建玉は成行で決済し、待機注文は取消す（形成中の足の最初のティック。SPEC §17.9）
@@ -5343,6 +6110,12 @@ bool RealService(CSymbolCtx *c)
         }
       if(RealReconcile(c))
          changed = true;
+      if(c.real.missCheck)
+        {
+         c.real.missCheck = false;
+         if(CheckMissedClose(c))
+            changed = true;
+        }
      }
    //--- 休場明け・決済足の終わり・決済・取消（足のデータを使わないので、読み直し中でも行う）
    if(c.real.gapBar != 0)
@@ -5354,6 +6127,8 @@ bool RealService(CSymbolCtx *c)
    if(c.real.closeReq == 0 && PreCloseDue(c))
       RequestClose(c, XR_WEEKEND, "決済足の終わり");
    if(c.real.closeReq != 0 && ServiceClose(c))
+      changed = true;
+   if(ServiceOrphans(c))
       changed = true;
    if(c.real.cancelReq && ServiceCancel(c))
       changed = true;
@@ -5386,8 +6161,13 @@ void RealOnBar(CSymbolCtx *c)
    c.real.want = false;
    c.real.cancelMsg = "";
    c.real.tryMs = 0;
+   c.real.tryWaitMs = FUS_RETRY_MS;
+   c.real.tryFails = 0;
+   c.real.mktTries = 0;
    c.real.trailSl = 0.0;
    c.real.trailTryMs = 0;
+   c.real.trailWaitMs = FUS_RETRY_MS;
+   c.real.trailFails = 0;
    //--- 4) 確定時の管理：決済足なら決済、そうでなければ構造トレール
    if(pos)
      {
@@ -5442,11 +6222,15 @@ void RealOnBar(CSymbolCtx *c)
         }
       return;
      }
-   //--- スプレッド防御：3×s_nom を超える間は武装・修正しない（取消して次の足で評価し直す）
+   //--- スプレッド防御：3×s_nom を超える間は武装・修正しない（置いていた逆指値は取消して、次の足で評価し直す）
    double spread = SymbolInfoDouble(c.sym, SYMBOL_ASK) - SymbolInfoDouble(c.sym, SYMBOL_BID);
    if(spread > 3.0 * c.eng.m_p.s_nom)
      {
-      PrintFormat("[FUSION] %s スプレッド %s が 3×s_nom を超えるため、この足は武装しない", c.sym, DoubleToString(spread, c.digits));
+      PrintFormat("[FUSION] %s スプレッド %s が 3×s_nom を超えるため、この足は武装しない%s", c.sym, DoubleToString(spread, c.digits),
+                  (c.real.ordTicket != 0) ? "（置いていた逆指値は取消す）" : "");
+      if(c.real.ordTicket != 0)
+         c.real.cancelMsg = StringFormat("%s %s %s 待機注文を取消（スプレッド %s が 3×s_nom を超えた。次の足で評価し直す） 逆指値%s",
+                                         ModeTag(), c.sym, DirName(c.real.ordDir), DoubleToString(spread, c.digits), Px(c, c.real.ordPrice));
       return;
      }
    c.real.want = true;
@@ -5457,6 +6241,7 @@ void RealOnBar(CSymbolCtx *c)
 bool ApplyTrail(CSymbolCtx *c)
   {
    int d = c.real.posDir;
+   c.real.lastRc = 0;
    if(!PositionSelectByTicket(c.real.posTicket))
       return true;                                      // 建玉がない（決済済み）
    double cur = PositionGetDouble(POSITION_SL);
@@ -5491,7 +6276,12 @@ bool ApplyTrail(CSymbolCtx *c)
    uint rc = g_trade.ResultRetcode();
    if(!ok || (rc != TRADE_RETCODE_DONE && rc != TRADE_RETCODE_NO_CHANGES))
      {
-      PrintFormat("[FUSION] %s SL の引上げに失敗（%u %s）。%d 秒後に再試行", c.sym, rc, g_trade.ResultRetcodeDescription(), (int)(FUS_RETRY_MS / 1000));
+      c.real.lastRc = rc;
+      if(rc == TRADE_RETCODE_MARKET_CLOSED)
+         HoldMarket(c);
+      else
+         if(LogDue(c.real.logMs))
+            PrintFormat("[FUSION] %s SL の引上げに失敗（%u %s）。あとで再試行", c.sym, rc, g_trade.ResultRetcodeDescription());
       return false;
      }
    double old = c.real.posSl;
@@ -5501,11 +6291,54 @@ bool ApplyTrail(CSymbolCtx *c)
    return true;
   }
 
-//--- 新しい逆指値（Ask がすでに price 以上なら成行。§7.5）。戻り値 1=置いた 2=成行を出した 0=あとで再試行 -1=この足は見送り
+//--- 見送りの通知：同じ方向・key・理由の2回目からはログだけにする（同じセットアップが続く間、毎時同じ通知を送らない）
+void NotifySkip(CSymbolCtx *c, const SSetup &s, const int code, const string msg)
+  {
+   if(c.real.skipDir == s.dir && c.real.skipKeyTime == s.key_time && c.real.skipCode == code)
+     {
+      Print(msg + "（同じセットアップ・同じ理由の2回目以降のため通知は省く）");
+      return;
+     }
+   c.real.skipDir = s.dir;
+   c.real.skipKeyTime = s.key_time;
+   c.real.skipCode = code;
+   Notify(msg);
+  }
+
+//--- 発注・修正・取消がまだできない：次の再試行までの間隔を、拒否の種類（c.real.lastRc）で決める
+void RetryLater(CSymbolCtx *c, const uint now)
+  {
+   c.real.tryMs = now;
+   c.real.tryFails++;
+   c.real.tryWaitMs = FailDelayMs(c.real.lastRc, c.real.tryFails);
+  }
+
+void RetryReset(CSymbolCtx *c)
+  {
+   c.real.tryMs = 0;
+   c.real.tryFails = 0;
+   c.real.tryWaitMs = FUS_RETRY_MS;
+  }
+
+//--- 新しい逆指値（Ask がすでに price 以上なら成行。§7.5）。戻り値 1=置いた 2=成行を出した 0=あとで再試行 -1=この足は見送り。
+//    拒否されたときは c.real.lastRc に戻りコードを残す（再試行の間隔を決める）
 int RealPlaceOrder(CSymbolCtx *c, const SSetup &s)
   {
    string sym = c.sym;
    string why = "";
+   c.real.lastRc = 0;
+   //--- 最後の確認：約定済みのセットアップ（R06）には置かない。自分の建玉・待機注文が残っていれば置かない（二重の建玉を防ぐ）
+   if(s.key_idx >= 0 && c.real.cons.Has(s.dir, s.key_idx))
+     {
+      PrintFormat("[FUSION] %s %s key %s は約定済み（R06）のため置きません", sym, DirName(s.dir), FE_Time(s.key_time));
+      return -1;
+     }
+   if(HasOwnPosition(sym) || CountOwnOrders(sym, 0) > 0)
+     {
+      if(LogDue(c.real.logMs))
+         PrintFormat("[FUSION] %s 自分の建玉か待機注文が残っているため、新しい注文は出しません（あとで確かめ直す）", sym);
+      return 0;
+     }
    if(!CanTrade(c, s.dir, why))
      {
       if(LogDue(c.real.logMs))
@@ -5533,8 +6366,15 @@ int RealPlaceOrder(CSymbolCtx *c, const SSetup &s)
       double tol = MathMax(InpDeviationPoints * c.point, 0.1 * s.atr);
       if(since > FUS_LATE_SEC && over > tol)
         {
-         Notify(StringFormat("%s %s %s 見送り: 価格%sが逆指値%sを越えていた（足の始まりから%d分。成行は Python の始値約定と離れる）",
-                             ModeTag(), sym, DirName(s.dir), Px(c, px), Px(c, price), (int)(since / 60)));
+         NotifySkip(c, s, FUS_SKIP_LATE, StringFormat("%s %s %s 見送り: 価格%sが逆指値%sを越えていた（足の始まりから%d分。成行は Python の始値約定と離れる）",
+                                                       ModeTag(), sym, DirName(s.dir), Px(c, px), Px(c, price), (int)(since / 60)));
+         return -1;
+        }
+      //--- 成行を受け付けた後に拒否される（約定しない）ことが続くときは、この足では見送る
+      if(c.real.mktTries >= FUS_MKT_TRIES)
+        {
+         NotifySkip(c, s, FUS_SKIP_MARKET, StringFormat("%s %s %s 見送り: 成行を %d 回出したが約定しなかった（次の確定足で評価し直す）",
+                                                         ModeTag(), sym, DirName(s.dir), c.real.mktTries));
          return -1;
         }
       if((s.dir == 1 && tk.bid - sl <= minDist) || (s.dir == -1 && sl - tk.ask <= minDist))
@@ -5562,21 +6402,22 @@ int RealPlaceOrder(CSymbolCtx *c, const SSetup &s)
      }
    if(ratio > 1.5)
      {
-      Notify(StringFormat("%s %s %s 見送り: 最小ロットでもリスクが目標の %.1f 倍になる（損切り幅 %.1fpips）", ModeTag(), sym, DirName(s.dir),
-                          ratio, MathAbs(px - sl) / c.pip));
+      NotifySkip(c, s, FUS_SKIP_RATIO, StringFormat("%s %s %s 見送り: 最小ロットでもリスクが目標の %.1f 倍になる（損切り幅 %.1fpips）",
+                                                     ModeTag(), sym, DirName(s.dir), ratio, MathAbs(px - sl) / c.pip));
       return -1;
      }
    double margin = 0.0;
    ENUM_ORDER_TYPE mt = (s.dir == 1) ? ORDER_TYPE_BUY : ORDER_TYPE_SELL;
    if(OrderCalcMargin(mt, sym, lots, px, margin) && margin > AccountInfoDouble(ACCOUNT_MARGIN_FREE))
      {
-      Notify(StringFormat("%s %s %s 見送り: 証拠金が足りない（必要 %.2f）", ModeTag(), sym, DirName(s.dir), margin));
+      NotifySkip(c, s, FUS_SKIP_MARGIN, StringFormat("%s %s %s 見送り: 証拠金が足りない（必要 %.2f）", ModeTag(), sym, DirName(s.dir), margin));
       return -1;
      }
    bool ok = false;
    uint rc = 0;
    if(market)
      {
+      c.real.mktTries++;
       for(int a = 0; a < 3; a++)
         {
          g_trade.SetTypeFillingBySymbol(sym);
@@ -5610,15 +6451,22 @@ int RealPlaceOrder(CSymbolCtx *c, const SSetup &s)
      }
    if(!ok)
      {
-      PrintFormat("[FUSION] %s 発注失敗（%u %s）。%d 秒後に再試行", sym, rc, g_trade.ResultRetcodeDescription(), (int)(FUS_RETRY_MS / 1000));
+      c.real.lastRc = rc;
+      if(rc == TRADE_RETCODE_MARKET_CLOSED)
+         HoldMarket(c);
+      else
+         if(LogDue(c.real.logMs))
+            PrintFormat("[FUSION] %s 発注失敗（%u %s）。あとで再試行", sym, rc, g_trade.ResultRetcodeDescription());
       return 0;
      }
    ulong ot = g_trade.ResultOrder();
    c.real.Remember(ot, s.dir, s.key_time, price, s.score);
    if(market)
      {
+      //--- 成行は、約定を確かめてから「約定（成行）」として通知する（受け付けた後に拒否されたら通知しない）
+      c.real.mktTicket = ot;
       c.real.SetChk(ot, s.dir, s.key_time, price, s.score);   // 約定を履歴で確かめ、約定済み集合に入れる
-      Notify(MsgArmed(c, s, "成行 "), 1);
+      Print(MsgArmed(c, s, "成行 ") + "（約定を確かめてから通知する）");
       return 2;
      }
    c.real.ordTicket = ot;
@@ -5649,6 +6497,7 @@ int RealModifyOrder(CSymbolCtx *c, const SSetup &s)
    double price = NormalizeDouble(s.price, c.digits);
    double sl = NormalizeDouble(s.sl, c.digits);
    c.real.ordSetup = s;
+   c.real.lastRc = 0;
    if(price == c.real.ordPrice && sl == c.real.ordSl)
       return 1;
    MqlTick tk;
@@ -5663,7 +6512,7 @@ int RealModifyOrder(CSymbolCtx *c, const SSetup &s)
          return 0;
       if(r != FUS_CXL_DONE)
         {
-         NoteVanished(c, old);                    // 取消の前に約定していた：二重に入らない
+         NoteVanished(c, old);                    // 取消の前に約定（一部約定）していた：二重に入らない
          c.real.ClearOrder();
          return 1;
         }
@@ -5684,8 +6533,12 @@ int RealModifyOrder(CSymbolCtx *c, const SSetup &s)
    uint rc = g_trade.ResultRetcode();
    if(!ok || (rc != TRADE_RETCODE_DONE && rc != TRADE_RETCODE_NO_CHANGES))
      {
-      PrintFormat("[FUSION] %s 逆指値の修正に失敗（%u %s）。前の注文を残して %d 秒後に再試行", sym, rc, g_trade.ResultRetcodeDescription(),
-                  (int)(FUS_RETRY_MS / 1000));
+      c.real.lastRc = rc;
+      if(rc == TRADE_RETCODE_MARKET_CLOSED)
+         HoldMarket(c);
+      else
+         if(LogDue(c.real.logMs))
+            PrintFormat("[FUSION] %s 逆指値の修正に失敗（%u %s）。前の注文を残して、あとで再試行", sym, rc, g_trade.ResultRetcodeDescription());
       return 0;
      }
    double oldP = c.real.ordPrice;
@@ -5702,33 +6555,43 @@ int RealModifyOrder(CSymbolCtx *c, const SSetup &s)
    return 1;
   }
 
-//--- 置きたい注文・トレールに実際を合わせる（失敗したら FUS_RETRY_MS ごとに再試行）。変化があれば true
+//--- 置きたい注文・トレールに実際を合わせる（できなければ、拒否の種類で決めた間隔で再試行）。変化があれば true
 bool RealApply(CSymbolCtx *c)
   {
    bool changed = false;
-   uint now = GetTickCount();
+   uint now = NowMs();
    //--- トレール
    if(c.real.trailSl != 0.0)
      {
       if(c.real.posTicket == 0 || c.real.closeReq != 0)
          c.real.trailSl = 0.0;
       else
-         if(c.real.trailTryMs == 0 || now - c.real.trailTryMs >= FUS_RETRY_MS)
+         if((c.real.trailTryMs == 0 || now - c.real.trailTryMs >= c.real.trailWaitMs) && !MarketHeld(c))
            {
             c.real.trailTryMs = now;
             if(ApplyTrail(c))
               {
                c.real.trailSl = 0.0;
                c.real.trailTryMs = 0;
+               c.real.trailFails = 0;
+               c.real.trailWaitMs = FUS_RETRY_MS;
                changed = true;
+              }
+            else
+              {
+               c.real.trailFails++;
+               c.real.trailWaitMs = FailDelayMs(c.real.lastRc, c.real.trailFails);
               }
            }
      }
-   //--- 注文（前の注文の結果待ち・決済中・全取消中は動かさない）
+   //--- 注文（前の注文の結果待ち・決済中・全取消中・市場が閉まっていた間は動かさない）
    if(c.real.chkTicket != 0 || c.real.fillPosId != 0 || c.real.cancelReq || c.real.closeReq != 0)
       return changed;
-   if(c.real.tryMs != 0 && now - c.real.tryMs < FUS_RETRY_MS)
+   if(c.real.tryMs != 0 && now - c.real.tryMs < c.real.tryWaitMs)
       return changed;
+   if(MarketHeld(c))
+      return changed;
+   c.real.lastRc = 0;
    bool posNow = (c.real.posTicket != 0 || HasOwnPosition(c.sym));
    if(posNow || !c.real.want)
      {
@@ -5736,10 +6599,10 @@ bool RealApply(CSymbolCtx *c)
          return changed;
       int left = CancelOwnOrders(c, 0, posNow ? "建玉あり" : "取消");
       if(left > 0 || c.real.ordTicket != 0)
-         c.real.tryMs = now;
+         RetryLater(c, now);
       else
         {
-         c.real.tryMs = 0;
+         RetryReset(c);
          if(StringLen(c.real.cancelMsg) > 0 && c.real.chkTicket == 0)
            {
             c.nfHas = false;
@@ -5752,12 +6615,18 @@ bool RealApply(CSymbolCtx *c)
    //--- 置きたい注文がある：追っていない自分の注文は先に取消す（二重の約定を防ぐ）
    if(CountOwnOrders(c.sym, c.real.ordTicket) > 0)
      {
-      c.real.tryMs = now;
       CancelOwnOrders(c, c.real.ordTicket, "引き継げない注文");
+      RetryLater(c, now);
       return true;
      }
    SSetup w;
    w = c.real.wantSetup;
+   if(c.real.ordTicket != 0 && c.real.ordDir == w.dir && c.real.ordKeyTime == w.key_time &&
+      NormalizeDouble(w.price, c.digits) == c.real.ordPrice && NormalizeDouble(w.sl, c.digits) == c.real.ordSl)
+     {
+      c.real.ordSetup = w;
+      return changed;                              // すでに置きたい注文どおり
+     }
    int r = 0;
    if(c.real.ordTicket != 0)
      {
@@ -5772,7 +6641,7 @@ bool RealApply(CSymbolCtx *c)
          else
             if(cr != FUS_CXL_DONE)
               {
-               NoteVanished(c, old);              // 取消の前に約定していた：新しい注文は出さない
+               NoteVanished(c, old);              // 取消の前に約定（一部約定）していた：新しい注文は出さない
                c.real.ClearOrder();
                r = 1;
               }
@@ -5786,9 +6655,9 @@ bool RealApply(CSymbolCtx *c)
    else
       r = RealPlaceOrder(c, w);
    if(r == 0)
-      c.real.tryMs = now;
+      RetryLater(c, now);
    else
-      c.real.tryMs = 0;
+      RetryReset(c);
    if(r < 0)
       c.real.want = false;                         // この足は見送り（次の確定足で評価し直す）
    return true;
@@ -5851,7 +6720,13 @@ void RealAdopt(CSymbolCtx *c)
       if(k2 >= 0)
          c.real.cons.Add(c.real.fillDir, k2);
      }
-   //--- 待機注文：コメント（または記録）から key を読める最初の逆指値を引き継ぐ。ほかは RealApply が取消す
+   //--- 待機注文：コメント（または記録）から key を読める最初の逆指値を引き継ぐ。ほかは RealApply が取消す。
+   //    追っていた注文が切断中に消えていたら、約定（してすぐ閉じた場合も）かどうかを履歴で確かめる
+   if(c.real.ordTicket != 0 && c.real.chkTicket == 0 && !OrderSelect(c.real.ordTicket))
+      NoteVanished(c, c.real.ordTicket);
+   SSetup keep;
+   keep = c.real.ordSetup;                         // 自分が置いた注文を引き継ぎ直すときは、判定の値（ATR・スコア・TP1 など）を残す
+   ulong keepT = c.real.ordTicket;
    c.real.ClearOrder();
    for(int j = OrdersTotal() - 1; j >= 0; j--)
      {
@@ -5883,8 +6758,10 @@ void RealAdopt(CSymbolCtx *c)
       c.real.ordKeyTime = kt2;
       c.real.ordPrice = OrderGetDouble(ORDER_PRICE_OPEN);
       c.real.ordSl = OrderGetDouble(ORDER_SL);
+      if(ot2 == keepT && keep.dir == d2 && keep.key_time == kt2)
+         c.real.ordSetup = keep;
       c.real.ordSetup.dir = d2;
-      c.real.ordSetup.key_idx = ki2;
+      c.real.ordSetup.key_idx = ki2;                // 足番号は読み直しで変わりうる
       c.real.ordSetup.key_time = kt2;
       c.real.ordSetup.price = c.real.ordPrice;
       c.real.ordSetup.sl = c.real.ordSl;
@@ -5893,7 +6770,10 @@ void RealAdopt(CSymbolCtx *c)
      }
    //--- 建玉：追っていた建玉なら足番号だけ計算し直す。追っていなければ引き継ぐ（記録にない建玉は通知しない）
    ulong tk = 0;
-   if(FindPosition(c.sym, tk) && PositionSelectByTicket(tk))
+   bool has = FindPosition(c.sym, tk);
+   if(has && c.real.posTicket != 0 && tk != c.real.posTicket && PositionSelectByTicket(c.real.posTicket))
+      tk = c.real.posTicket;                       // 2本あるときは、追っている建玉を追い続ける
+   if(has && PositionSelectByTicket(tk))
      {
       if(c.real.posTicket == tk)
         {
@@ -5904,6 +6784,8 @@ void RealAdopt(CSymbolCtx *c)
          if(c.real.posTicket == 0)
             TrackNewPosition(c, tk);
      }
+   //--- 停止・切断の間に、建玉の決済足や休場明けを過ぎていないか（RealService がこの後すぐ確かめる）
+   c.real.missCheck = true;
    CleanIslGvs(c);
    //--- 口座に残っていた逆指値は「通知済み」とする（新しく置く注文は通知する）
    c.nfHas = (c.real.ordTicket != 0);
@@ -5914,55 +6796,100 @@ void RealAdopt(CSymbolCtx *c)
    g_panelDirty = true;
   }
 
-//--- 使われなくなった初期 SL のグローバル変数を消す（この銘柄の、いま追っている建玉以外）
+//--- 使われなくなった初期 SL のグローバル変数を消す（この銘柄の、閉じたことを約定履歴で確かめた建玉のもの。
+//    口座の同期が終わっていないと建玉が見えないことがあるので、見えないだけでは消さない。履歴でも確かめられないものは
+//    FUS_ISL_KEEP_DAYS 日より古くなってから消す）
 void CleanIslGvs(CSymbolCtx *c)
   {
    string prefix = GvBase(c) + "_I";
-   string keep = (c.real.posId != 0) ? GvIsl(c, c.real.posId) : "";
+   int plen = StringLen(prefix);
    for(int i = GlobalVariablesTotal() - 1; i >= 0; i--)
      {
       string nm = GlobalVariableName(i);
-      if(StringFind(nm, prefix) == 0 && nm != keep)
+      if(StringFind(nm, prefix) != 0)
+         continue;
+      long pid = StringToInteger(StringSubstr(nm, plen));
+      if(pid <= 0 || pid == c.real.posId || PositionIdOpen(pid))
+         continue;
+      bool old = ((long)TimeLocal() - (long)GlobalVariableTime(nm) > (long)FUS_ISL_KEEP_DAYS * 86400);
+      if(old || PositionClosedInHistory(pid))
          GlobalVariableDel(nm);
      }
   }
 
-//--- 起動時：マジックが違う FUSION の注文・建玉（マジックを変えて起動した等）は管理しないので知らせる
+//--- 接続して口座の同期を待った後に1回：この EA（この回の設定）が管理していない FUSION の注文・建玉（コメントが FC で
+//    始まる）を数えて知らせる。監視銘柄・マジックを変えた、自動売買を OFF にした、などでトレール・週末決済・休場明けの
+//    決済から外れたもの。別のチャートの FX_Fusion_EA（そのマジック）が監視の権利を持つ銘柄のものは、そちらが管理するとみなす
 void WarnForeignOrders(void)
   {
-   int n = 0;
-   int d = 0;
-   datetime kt = 0;
+   int nOrd = 0, nPos = 0;
+   string syms = "";
    for(int i = OrdersTotal() - 1; i >= 0; i--)
      {
       ulong t = OrderGetTicket(i);
       if(t == 0)
          continue;
-      if(OrderGetInteger(ORDER_MAGIC) != InpMagicNumber && ParseRealComment(OrderGetString(ORDER_COMMENT), d, kt) && IsMonitored(OrderGetString(ORDER_SYMBOL)))
-         n++;
+      string so = OrderGetString(ORDER_SYMBOL);
+      if(UnmanagedFusion(so, OrderGetInteger(ORDER_MAGIC), OrderGetString(ORDER_COMMENT)))
+        {
+         nOrd++;
+         AddSymbolName(syms, so);
+        }
      }
    for(int j = PositionsTotal() - 1; j >= 0; j--)
      {
       ulong p = PositionGetTicket(j);
       if(p == 0)
          continue;
-      if(PositionGetInteger(POSITION_MAGIC) != InpMagicNumber && ParseRealComment(PositionGetString(POSITION_COMMENT), d, kt) && IsMonitored(PositionGetString(POSITION_SYMBOL)))
-         n++;
+      string sp = PositionGetString(POSITION_SYMBOL);
+      if(UnmanagedFusion(sp, PositionGetInteger(POSITION_MAGIC), PositionGetString(POSITION_COMMENT)))
+        {
+         nPos++;
+         AddSymbolName(syms, sp);
+        }
      }
-   if(n > 0)
-      Notify(StringFormat("%s 注意: マジックナンバーが違う FUSION の注文・建玉が %d 件あります（マジックを変えて起動した？）。この EA は管理しないので、手動で整理してください",
-                          ModeTag(), n), 1);
+   if(nOrd + nPos > 0)
+      Notify(StringFormat("%s 注意: この EA が管理していない FUSION の注文 %d 件・建玉 %d 件があります（%s）。銘柄・マジック・自動売買の設定を変えた？ トレール・週末決済の対象外なので、手動で整理してください",
+                          ModeTag(), nOrd, nPos, syms), 1);
   }
 
-bool IsMonitored(const string sym)
+//--- FUSION の注文・建玉を、この EA も、別のチャートの FX_Fusion_EA も管理していないか
+bool UnmanagedFusion(const string sym, const long magic, const string cmt)
+  {
+   int d = 0;
+   datetime kt = 0;
+   if(!ParseRealComment(cmt, d, kt))
+      return false;                                 // FUSION の注文・建玉ではない
+   if(InpAutoTrade && magic == InpMagicNumber && IsLockedHere(sym))
+      return false;                                 // この EA が管理している
+   string ln = LockNameOf(magic, sym);
+   if(GlobalVariableCheck(ln))
+     {
+      double owner = GlobalVariableGet(ln);
+      if(owner != 0.0 && owner != g_token)
+         return false;                              // 別のチャートの EA が監視中
+     }
+   return true;
+  }
+
+//--- この EA が監視の権利を持っている銘柄か
+bool IsLockedHere(const string sym)
   {
    for(int i = 0; i < g_nctx; i++)
      {
       CSymbolCtx *c = g_ctx[i];
-      if(c.sym == sym)
+      if(c.sym == sym && c.locked)
          return true;
      }
    return false;
+  }
+
+//--- カンマ区切りの銘柄名の一覧に足す（重複は足さない）
+void AddSymbolName(string &list, const string sym)
+  {
+   if(StringFind("," + list + ",", "," + sym + ",") >= 0)
+      return;
+   list += (StringLen(list) > 0 ? "," : "") + sym;
   }
 
 //--- 停止時：自分の注文・建玉が残っていれば、管理されなくなることを知らせる
@@ -6012,11 +6939,17 @@ bool UsDst(const datetime gmt)
 
 void CheckServerOffset(void)
   {
-   if(g_tester)
+   if(g_tester || !g_conn)
       return;
    datetime srv = TimeTradeServer();
    datetime gmt = TimeGMT();
-   if(srv <= 0 || gmt <= 0)
+   datetime tc = TimeCurrent();
+   if(srv <= 0 || gmt <= 0 || tc <= 0)
+      return;
+   //--- 新しい気配が届いているとき（最後の気配の時刻がいまのサーバー時間に近い）だけ点検する。接続の前や週末は
+   //    TimeTradeServer が古い時差で計算されていることがあり、誤って知らせないため（つながり直すたびに点検し直す）
+   long lag = (long)srv - (long)tc;
+   if(lag > 600 || lag < -600)
       return;
    int day = (int)((long)srv / 86400);
    if(day == g_offsetDay)
@@ -6150,7 +7083,7 @@ void PanelRender(void)
    int lines = show + (cut ? 1 : 0);
    //--- 幅は一番長い行に合わせる（全角の幅はフォントで違う）
    int width = FUS_PANEL_MINW;
-   if(TextSetFont(InpPanelFont, -10 * InpPanelFontSize))
+   if(TextSetFont(InpPanelFont, -10 * InpPanelFontSize, 0))
       for(int i = 0; i < show; i++)
         {
          uint tw = 0, th = 0;
@@ -6279,13 +7212,16 @@ string AreaText(CSymbolCtx *c)
    return s;
   }
 
-//--- 自動売買の注意（取引できない・決済に失敗し続けている）
+//--- 自動売買の注意（取引できない・決済に失敗し続けている・市場が閉まっていて決済を待っている）
 void RealPanelLines(CSymbolCtx *c)
   {
    if(StringLen(c.real.tradeNote) > 0)
       PanelText("  自動売買できない: " + c.real.tradeNote, clrRed);
-   if(c.real.closeReq != 0 && c.real.closeFails > 0)
-      PanelText(StringFormat("  決済を再試行中（%s。失敗 %d 回）", FE_ReasonName(c.real.closeReq), c.real.closeFails), clrRed);
+   if(c.real.closeReq != 0 && c.real.holdMs != 0)
+      PanelText(StringFormat("  市場が閉まっているため、取引が再開したら決済する（%s）", FE_ReasonName(c.real.closeReq)), clrOrange);
+   else
+      if(c.real.closeReq != 0 && c.real.closeFails > 0)
+         PanelText(StringFormat("  決済を再試行中（%s。失敗 %d 回）", FE_ReasonName(c.real.closeReq), c.real.closeFails), clrRed);
   }
 
 void UpdatePanel(void)
@@ -6294,6 +7230,8 @@ void UpdatePanel(void)
    PanelText("FUSION-CORE v1.0（H1 単一時間足） " + (InpAutoTrade ? "自動売買ON" : "シグナル通知のみ") + " " + ConfigName(), clrGold);
    if(!g_tester && !g_conn)
       PanelText("取引サーバーに未接続（つながると足の処理と自動売買を再開する）", clrTomato);
+   if(InpAutoTrade && StringLen(g_tradeNote) > 0)
+      PanelText("自動売買できない（全銘柄）: " + g_tradeNote, clrRed);
    if(StringLen(g_offsetNote) > 0)
       PanelText(g_offsetNote, clrTomato);
    for(int i = 0; i < g_nctx; i++)
@@ -6400,9 +7338,9 @@ void UpdatePanel(void)
          stat += " 次の全決済 " + TimeToString(nf, TIME_DATE | TIME_MINUTES);
       PanelText(stat, clrSilver);
      }
-   //--- 固定文言（SPEC §16.3）
+   //--- 固定文言（SPEC §16.3。最終検証の後の文言は付録E の E-20）
    PanelAdd("勝率は25〜30%前後、損益の中央値は−1R、利益は週末まで持った少数の取引に集中、", clrTomato);
-   PanelAdd("10〜20連敗は想定内。優位性は検証中。", clrTomato);
+   PanelAdd("10〜20連敗は想定内。優位性は未確認（最終検証は不合格）。", clrTomato);
    PanelAdd("裁量で分割・建値・早利確を加えると別の戦略になる", clrTomato);
    PanelRender();
    g_panelDirty = false;
@@ -6458,7 +7396,7 @@ void DrawChart(CSymbolCtx *c)
    string pf = g_prefix + "D_";
    ObjectsDeleteAll(0, pf);
    //--- SMA20/80/480（直近240本。1H 20MA＝青、4H 20MA 相当＝赤、日足 20MA 相当＝黄）
-   int from = MathMax(1, n - 240);
+   int from = (int)MathMax(1, n - 240);
    for(int k = from; k < n; k++)
      {
       string id = IntegerToString(k);
@@ -6510,7 +7448,7 @@ void DrawChart(CSymbolCtx *c)
          used[bi] = true;
          int tch = c.eng.m_lv[bi].touch;
          DrawHLine(pf + "LV_" + IntegerToString(pick), c.eng.m_lv[bi].price, (c.eng.m_lv[bi].price > px) ? clrIndianRed : clrSteelBlue,
-                   MathMin(5, MathMax(1, tch)), (tch <= 1) ? STYLE_DOT : STYLE_SOLID,
+                   (int)MathMin(5, MathMax(1, tch)), (tch <= 1) ? STYLE_DOT : STYLE_SOLID,
                    StringFormat("節目 touch=%d 高%d安%d%s", tch, c.eng.m_lv[bi].nh, c.eng.m_lv[bi].nl, c.eng.m_lv[bi].d1 ? " 日足級" : ""));
         }
      }

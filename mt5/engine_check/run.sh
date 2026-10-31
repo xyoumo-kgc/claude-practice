@@ -9,6 +9,9 @@
 #   ・EA と同じ流れで動かす: 先頭 W 本を読み込んで仮想で再生 → 以後は1本ずつ Sync（毎時の取り直しと照合）
 #   ・期間は FROM〜TO（既定 2013-01-01〜2018-01-01＝開発期間。未接触データには向けないこと）
 #   ・必要: g++（C++17）、python3（numpy・pandas）。作業ディレクトリは WORK（既定は一時ディレクトリ）
+#   ・あわせて EA 全体（MT5 接続部を含む）を C++ に写して構文と型を確かめる（conncheck.py。MQL5 API は conn_shim.h の代用の宣言）
+#   ・その写しを、注文・建玉・約定履歴を持つ API の模擬（conn_mock.h）で動かし、自動売買のシナリオを確かめる（conntest.cpp。
+#     約定してすぐ SL・二重の記録・建玉2本・市場の休み・週末をまたいだ停止・一部約定・監視の権利など。模擬なので MT5 の本当の振る舞いの確認ではない）
 set -u
 HERE=$(cd "$(dirname "$0")" && pwd)
 REPO=$(cd "$HERE/../.." && pwd)
@@ -18,12 +21,25 @@ TO=${TO:-2018-01-01}
 WORK=${WORK:-$(mktemp -d)}
 MODE=${1:-full}
 cd "$WORK" || exit 1
-cp "$HERE"/mql5shim.h "$HERE"/harness.cpp "$HERE"/synctest.cpp "$HERE"/caltest.cpp .
+cp "$HERE"/mql5shim.h "$HERE"/conn_shim.h "$HERE"/conn_mock.h "$HERE"/conntest.cpp "$HERE"/harness.cpp "$HERE"/synctest.cpp "$HERE"/caltest.cpp .
 python3 "$HERE/transpile.py" "$REPO/mt5/FX_Fusion_EA.mq5" engine_gen.h || exit 1
 for p in harness synctest caltest; do
   g++ -O2 -std=c++17 -Wall -Wno-unused-parameter -Wno-misleading-indentation -o $p $p.cpp || exit 1
 done
 FAIL=0
+python3 "$HERE/conncheck.py" "$REPO/mt5/FX_Fusion_EA.mq5" conn_check.cpp > /dev/null || exit 1
+if g++ -std=c++17 -fsyntax-only -Wall -Wextra -Wshadow -Wno-unused-parameter -Wno-misleading-indentation conn_check.cpp > conncheck.out 2>&1 \
+   && ! grep -q "conn_check.cpp:.*warning" conncheck.out; then
+  echo "CONN CHECK OK（EA 全体の構文・型。MQL5 API は代用の宣言）"
+else
+  echo "CONN CHECK NG（$WORK/conncheck.out を見る）"; FAIL=1
+fi
+if g++ -std=c++17 -O0 -Wall -Wno-unused-parameter -Wno-misleading-indentation -Wno-unused-function -o conntest conntest.cpp > conntest_build.out 2>&1 \
+   && ./conntest > conntest.out 2>&1; then
+  tail -1 conntest.out
+else
+  echo "CONN TEST NG（$WORK/conntest.out・conntest_build.out を見る）"; FAIL=1
+fi
 ./caltest > caltest.out || FAIL=1; tail -1 caltest.out
 check() {  # tag pyprefix mtprefix [offset]
   r=$(python3 "$HERE/compare.py" "$2" "$3" ${4:-} | grep -E "trades py|RESULT" | tr '\n' ' ')
