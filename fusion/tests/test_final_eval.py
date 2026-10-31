@@ -67,9 +67,12 @@ class TestPools(unittest.TestCase):
 
     def test_reference_windows(self):
         self.assertEqual(self.where('EURUSD', '2015-06-01 10:00'), ('', '', '既知IS'))
-        self.assertEqual(self.where('XAUUSD', '2011-06-01 10:00'), ('', '', '既知HO'))
-        self.assertEqual(self.where('AUDUSD', '2014-06-02 10:00'), ('', '', '既知HO'))
-        self.assertEqual(self.where('EURUSD', '2012-12-31 23:00'), ('', '', '既知HO'))
+        self.assertEqual(self.where('XAUUSD', '2011-06-01 10:00'), ('', '', '既知HO|既知HO-1'))
+        self.assertEqual(self.where('AUDUSD', '2014-06-02 10:00'), ('', '', '既知HO|既知HO-2'))
+        self.assertEqual(self.where('EURUSD', '2012-12-31 23:00'), ('', '', '既知HO|既知HO-1'))
+        self.assertEqual(self.where('USDCAD', '2013-01-01 00:00'), ('', '', '既知HO|既知HO-2'))
+        self.assertEqual(self.where('XAUUSD', '2010-01-01 00:00')[2], '既知HO|既知HO-1')
+        self.assertEqual(self.where('XAUUSD', '2009-12-31 23:00')[2], '')
         self.assertEqual(self.where('EURUSD', '2013-01-01 00:00'), ('', '', '既知IS'))
         self.assertEqual(self.where('AUDUSD', '2011-06-01 10:00'), ('', '', ''))     # どこにも入らない（集計しない）
         self.assertEqual(self.where('EURUSD', '2009-06-01 10:00'), ('', '', ''))

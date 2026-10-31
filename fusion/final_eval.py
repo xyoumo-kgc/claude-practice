@@ -24,8 +24,8 @@ import math
 import multiprocessing as mp
 import os
 import platform
+import resource
 import subprocess
-import sys
 import time
 from collections import OrderedDict
 from statistics import NormalDist
@@ -33,7 +33,6 @@ from statistics import NormalDist
 import numpy as np
 import pandas as pd
 
-from fusion import broker as bk
 from fusion import data as fd
 from fusion import evaluate as ev
 from fusion import stats as st
@@ -129,7 +128,9 @@ def make_spec(dry_run=False):
             midpoints={'U-A': '2007-02-15 12:00', 'U-B': '2019-03-09 12:00', 'U-C': '2013-07-02 12:00'},
             refs=[('既知IS', list(FOUR), '2013-01-01', '2017-12-31'),
                   ('既知HO', list(FOUR), '2010-01-01', '2012-12-31'),
-                  ('既知HO', ['AUDUSD', 'USDCAD'], '2013-01-01', '2017-12-31')],
+                  ('既知HO', ['AUDUSD', 'USDCAD'], '2013-01-01', '2017-12-31'),
+                  ('既知HO-1', list(FOUR), '2010-01-01', '2012-12-31'),                 # SPEC §20 の内訳ごとの併記用
+                  ('既知HO-2', ['AUDUSD', 'USDCAD'], '2013-01-01', '2017-12-31')],
             dsr_months=('2005-04', '2020-05'),
             dev=(list(FOUR), '2013-01-01', '2017-12-31'),
             cuts=['2009-01-01', '2018-01-01'],
@@ -317,10 +318,14 @@ def execute(jobs, data_dir, clip, workers, log):
             tag = f'{job[1]}' + (f'（{job[2]} で切断）' if job[2] else '')
             log(f'[{k:>4}/{len(jobs)}] {job[0]} {tag:<24} {len(df):>6}件 {sec:6.1f}秒（CPU {csec:5.1f}秒）'
                 f'  経過 {time.perf_counter() - t0:7.0f}秒')
-    finally:
+    except BaseException:
         if pool is not None:
-            pool.close()
+            pool.terminate()                                   # 残りの仕事を待たずに止める
             pool.join()
+        raise
+    if pool is not None:
+        pool.close()
+        pool.join()
     return out, cpu
 
 
@@ -952,6 +957,8 @@ def run_all(data_dir, out_dir, workers=4, dry_run=False, log=print, spec=None, c
     log(f'[final_eval] 出力: {out_dir}/results.json, trades.csv.gz, report.md')
     log(f'[final_eval] 所要時間: 実行 {t_run:.0f}秒（仕事の CPU 時間の合計 {cpu:.0f}秒）、'
         f'合計 {time.perf_counter() - t_start:.0f}秒')
+    log(f'[final_eval] ピークメモリ: 本体 {resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024:.0f}MB、'
+        f'子プロセスの最大 {resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss / 1024:.0f}MB')
     return res
 
 
@@ -1177,7 +1184,8 @@ def _rest_of_report(r, m, v, w, cf, f, pools, cmp_):
 
     # 9. 参考ウィンドウ
     L += ['## 9. 参考（既知データ。合否に使わない）', '',
-          '既知の開発期間（既知IS）と既知のホールドアウト（既知HO）を、同じ実行から切り出したもの。', '']
+          '既知の開発期間（既知IS）と既知のホールドアウト（既知HO。本番では内訳の既知HO-1＝4銘柄 2010〜2012、'
+          '既知HO-2＝AUDUSD・USDCAD 2013〜2017 も）を、同じ実行から切り出したもの。', '']
     rows = []
     for c in [MAIN, 'mincore_final', 'oku_only', 'kenjin_only'] + BASELINES:
         if c in cf:
