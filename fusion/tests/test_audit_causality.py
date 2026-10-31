@@ -25,7 +25,7 @@ test_strategy.TestCausality（合成データを2点で切り、決済済みの�
   - 逆指値は、約定足の直前の確定足で作った注文案（方向・価格・SL）で約定する。約定価格 = max(Ask 始値, price)
   - トレールの SL は、直前に処理した足の確定時点の帳簿・ATR・終値から決まり、次の足から効く
   - 約定足では SL だけを判定する。同じ足で SL と TP1 なら SL
-  - F-stop の成行が新規停止・ロールオーバーをすり抜ける（SPEC §14 の擬似コードどおりだが §2.6 の表と食い違う。expectedFailure）
+  - F-stop の成行も新規停止・ロールオーバーで取消される（監査所見を v1.0 の実装バグとして修正済み。SPEC 付録E）
 データ（fusion/data.py）:
   - UTC の1分足 → サーバー時間（NY+7）→ M15/H1/H4/D1。各足に、その区間より後の1分足が混ざらない（夏時間の切替・週末を含む）
 実データ（FUSION_DATA_DIR の IS データ、2013〜2017）があれば、休場日の前後などで切った検査も行う。
@@ -750,7 +750,7 @@ class TestExecutionModel(unittest.TestCase):
         return df, t, s
 
     def test_fstop_rollover_scenario_preconditions(self):
-        """下の expectedFailure の前提（シナリオが作れていること）。直しても通る"""
+        """下のテストの前提（シナリオが作れていること）"""
         df, t, s = self.fstop_rollover_scenario()
         sw = fs.config('F-stop')
         ev = {}
@@ -765,13 +765,10 @@ class TestExecutionModel(unittest.TestCase):
         self.assertTrue(roll[t + 1])                                      # 22 時足の確定（23 時）はロールオーバー
         self.assertGreaterEqual((df['Close'].iloc[t + 1] - s['price']) * s['dir'], 0)
 
-    @unittest.expectedFailure
     def test_fstop_market_order_respects_no_new_and_rollover(self):
-        """既知の食い違い（監査所見）: F-stop では、新規停止（金曜 hc>=20・早仕舞い hc>=17）やロールオーバー（hc>=23）の
-        足の終値で成行が決まり、次の足の始値で約定する。SPEC §2.6 の表（新規なし・23〜01時は注文が存在しない）に反する。
-        原因は SPEC §14 の擬似コードと同じ順序（`if 建玉あり or market: continue` が no_new/rollover の取消より前）。
-        IS 実データでは EURUSD 2015-07-03 19:00 足、EURJPY 2014-03-04 22:00 足など 7 件（F-stop 369 件中）。
-        直したら expectedFailure を外す"""
+        """監査所見の修正の確認: F-stop の成行は、新規停止（金曜 hc>=20・早仕舞い hc>=17）やロールオーバー（hc>=23）の
+        足の確定で取消され、次の足では約定しない（SPEC §2.6・付録E）。修正前は IS で 7 件がすり抜けていた
+        （EURUSD 2015-07-03 19:00 足、EURJPY 2014-03-04 22:00 足など。F-stop は 369 件 → 363 件）"""
         df, t, s = self.fstop_rollover_scenario()
         sw = fs.config('F-stop')
         trades, _ = fs.run_h1(df, 'EURUSD', sw)

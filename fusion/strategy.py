@@ -409,7 +409,7 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None, trace=None):
         tp1 = price + d * (t1[0] if t1 else P['TP_DEFAULT_R'] * R)
         # スコア（SPEC §9。情報用）
         s1 = 20 if slope >= 0.10 else (10 if slope >= 0 else 0)
-        s2 = 15 if depth <= 0 else 8
+        s2 = 15 if depth <= 0 else (8 if depth <= P['ZONE_ATR'] else 0)      # G2 を外した変種でだけ 0 点が起きる
         s3 = 15 if len(types) >= 2 else (8 if len(types) == 1 else 0)
         s4 = 20 if rel == 1 else (10 if rel == 0 else 0)
         s5 = 15 if rr_cf >= 3 else (10 if rr_cf >= 2 else (5 if rr_cf >= 1 else 0))
@@ -491,10 +491,10 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None, trace=None):
         if flat[t]:
             pend = None; market = None
             continue
-        if br.open or market is not None:
-            continue
         if no_new[t] or rollover[t]:
-            pend = None
+            pend = None; market = None                         # 新規停止・ロールオーバー: 成行の予定も取消す（SPEC §2.6）
+            continue
+        if br.open or market is not None:
             continue
         # 5) 新規の判定
         if S['entry'] == 'naive':                              # 素朴ベースライン（PREREGISTRATION §5）
@@ -570,7 +570,17 @@ def run_p2(m15, h1, sym, sw=None):
     return run_h1(m15, sym, sw, tf='M15', align=align)
 
 
-STATE_BY_CODE = {'R00': 'IDLE', 'R01': 'IDLE', 'R02': 'WATCH', 'R08': 'WATCH', 'OK': 'ARMED'}   # それ以外は ZONE（SPEC §15）
+def state_of(code, diag, slope_min=CORE['SLOPE_MIN']):
+    """最初の理由コードから表示用の状態を決める（SPEC §15・付録E。MT5 EA の IsZone と同じ分け方）"""
+    if code in ('R00', 'R01'):
+        return 'IDLE'
+    if code == 'OK':
+        return 'ARMED'
+    if code in ('R09', 'R10'):
+        return 'ZONE'
+    if code in ('R03', 'R04', 'R05') and diag.get('slope', -np.inf) >= slope_min:
+        return 'ZONE'
+    return 'WATCH'
 
 
 def snapshot(h1, sym, sw=None):
@@ -591,7 +601,7 @@ def snapshot(h1, sym, sw=None):
     trades, _ = run_h1(h1, sym, sw, trace=trace)
     idx = h1.index
     for e in evals.values():
-        e['state'] = STATE_BY_CODE.get(e['code'], 'ZONE')
+        e['state'] = state_of(e['code'], e['diag'], (sw or {}).get('SLOPE_MIN', CORE['SLOPE_MIN']))
         if 'j_peak' in e['diag']:
             e['diag']['j_peak_time'] = idx[e['diag']['j_peak']]
     position = None
