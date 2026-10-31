@@ -16,7 +16,7 @@ Claude Codeの練習用リポジトリです。
 
 | ツール | 中身 | 入口 |
 |---|---|---|
-| **FUSION-CORE** | 賢人のデイトレード × 100億円トレーダーの共通点を機械化した融合システム。仕様・Python 参照実装・事前登録した実データ検証 | [fusion/README.md](fusion/README.md) |
+| **FUSION-CORE** | 賢人のデイトレード × 100億円トレーダーの共通点を機械化した融合システム。仕様・Python 参照実装・事前登録した実データ検証（**最終検証は不合格**：優位性を確認できず、裁量の補助ツールとして提供） | [fusion/README.md](fusion/README.md)、[結果](fusion/RESULTS.md) |
 | FUSION-CORE の MT5 EA | シグナル通知・パネル・任意の自動売買 | [mt5/README_FUSION.md](mt5/README_FUSION.md) |
 | FUSION-CORE ダッシュボード | MT5 の H1 足 CSV を読み込み、いまの判定・チャート・過去の成績を表示 | `streamlit run dashboard/fusion_app.py` |
 | チャート分析スキル | `/fx-fusion`（融合システム）、`/fx-analyze`（100億円トレーダーの4パターン） | [.claude/commands/](.claude/commands/) |
