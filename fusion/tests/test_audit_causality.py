@@ -4,14 +4,23 @@ test_strategy.TestCausality（合成データを2点で切り、決済済みの�
   - 休場日（CAL_CLOSED）・早仕舞い（CAL_EARLY）・休場前日・休場明けフォールバック（GAP_FALLBACK）
     建玉がある時点を一度回して見つけ、その時点に暦（calendar_sets をテスト中だけ差し替え）や
     データの空白を順に足していく。足した時点より前は変わらない（因果的）ので、経路を必ず通せる
-  - F+p3・F+be・F+partial・oku_only（部分決済）・F-stop・kenjin_only・mincore_raw・素朴ベースライン
-  - M15 のパターン②（H1 版 G1 の対応づけ closed_index_map を含む。足の区切りでない時刻でも切る）
-  - 比べる対象は取引だけでなく、各足の判定記録（trace の eval: 理由コード・途中の値・注文案）
-  - 切断に加えて「未来の足の鏡像化」も使う。足 t の判定が足 t+1 以降の値を1つでも読めば必ず変わる
+  - F+p3・F+be・F+partial・oku_only（部分決済）・F-stop・kenjin_only・mincore_raw・素朴ベースライン・感度
+  - M15 のパターン②（fs.run_p2 をそのまま通す。H1 足の区切りでない時刻でも切る）
+比べるもの（足 c-1 まで）:
+  - 各足の判定記録（trace の eval: 理由コード・途中の値・注文案）
+  - 約定・決済（取引の全項目）と、各足の処理後の建玉の状態・SL の変更（Broker を記録用に差し替えて取る）
+    足 c-1 の確定時のトレールのように、足 c 以降にしか効かない決定も比べられる
+未来の作り方:
+  - 切断（足 c 以降を捨てる）
+  - 差し替え: 足 c 以降を足 c-1 の終値を軸に反転して値幅を 1.5 倍にし、足 c に大きなひげを付ける。
+    反転だけだと TR（ATR）が変わらず、ひげがないと境界付近のスイングが崩れないことがあるため
+  - 切る位置は、約定の1〜2本前・建玉中に BIG スイングが確定する足・直近の SMALL/BIG スイングが確定する足を含める
+  （どれも、先読みを入れた変異体でテストが落ちることを確かめてある）
 約定モデル（SPEC §7.4・§10.2）:
   - 逆指値は、約定足の直前の確定足で作った注文案（方向・価格・SL）で約定する。約定価格 = max(Ask 始値, price)
-  - トレールの SL は確定時に変わり、次の足から効く。約定足では SL だけを判定する。同じ足で SL と TP1 なら SL
-  - F-stop の成行が新規停止・ロールオーバーをすり抜ける（SPEC §14 の擬似コードどおりだが §2.6 の表と食い違う）
+  - トレールの SL は、直前に処理した足の確定時点の帳簿・ATR・終値から決まり、次の足から効く
+  - 約定足では SL だけを判定する。同じ足で SL と TP1 なら SL
+  - F-stop の成行が新規停止・ロールオーバーをすり抜ける（SPEC §14 の擬似コードどおりだが §2.6 の表と食い違う。expectedFailure）
 データ（fusion/data.py）:
   - UTC の1分足 → サーバー時間（NY+7）→ M15/H1/H4/D1。各足に、その区間より後の1分足が混ざらない（夏時間の切替・週末を含む）
 実データ（FUSION_DATA_DIR の IS データ、2013〜2017）があれば、休場日の前後などで切った検査も行う。
@@ -19,7 +28,6 @@ test_strategy.TestCausality（合成データを2点で切り、決済済みの�
 import os
 import tempfile
 import unittest
-from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -35,7 +43,7 @@ LAST_AT_CLOSE = ('WEEKEND', 'END')            # 決済時刻が「足の確定�
 
 
 # ---------------------------------------------------------------- 道具
-def synth(start, n, seed, freq='1h', vol=0.0009, regime=300, scale=1.0):
+def synth(start, n, seed, freq='1h', vol=0.0009, regime=300):
     """トレンドと押し・戻りを繰り返す合成足（平日のみ。test_strategy.trending_h1 と同じ作り方）"""
     rng = np.random.default_rng(seed)
     idx = pd.date_range(start, periods=int(n * 1.6), freq=freq)
@@ -46,52 +54,73 @@ def synth(start, n, seed, freq='1h', vol=0.0009, regime=300, scale=1.0):
     o = np.r_[c[0], c[:-1]]
     h = np.maximum(o, c) + rng.uniform(0, vol * 0.8, n)
     l = np.minimum(o, c) - rng.uniform(0, vol * 0.8, n)
-    df = pd.DataFrame({'Open': o, 'High': h, 'Low': l, 'Close': c, 'Volume': 1.0}, index=idx)
-    df[['Open', 'High', 'Low', 'Close']] *= scale
-    return df
+    return pd.DataFrame({'Open': o, 'High': h, 'Low': l, 'Close': c, 'Volume': 1.0}, index=idx)
 
 
-def traced(df, sym, sw=None, tf='H1', align=None):
-    """(取引, {足番号: [判定記録の repr, ...]})。repr は float を往復可能な桁で出すので、完全一致で比べられる"""
-    ev = {}
+class RecBroker(bk.Broker):
+    """各足の処理後の建玉の状態と、SL の変更（直前に処理した足の確定時）を記録する。判定には影響しない"""
+    rec = []
+    last_time = None
+
+    def process_bar(self, pos, time, o, h, l, c, entry_bar=False):
+        super().process_bar(pos, time, o, h, l, c, entry_bar)
+        RecBroker.last_time = time
+        RecBroker.rec.append((time, 'bar', pos.id, entry_bar, repr(pos.sl), repr(pos.remaining), repr(pos.exits)))
+
+    def modify_sl(self, pos, new_sl):
+        ok = super().modify_sl(pos, new_sl)
+        RecBroker.rec.append((RecBroker.last_time, 'modify', pos.id, repr(new_sl), ok))
+        return ok
+
+
+class Run:
+    """run_h1 / run_p2 を、判定記録（trace）と Broker の記録つきで回す"""
+
+    def __init__(self, trades, ev, rec, align=None):
+        self.trades, self.ev, self.rec, self.align = trades, ev, rec, align
+
+
+def _traced_call(fn, *a, **k):
+    ev, holder = {}, {}
 
     def tr(event, t, p):
         if event == 'eval':
             ev.setdefault(t, []).append(repr(p))
-    trades, _ = fs.run_h1(df, sym, sw, tf=tf, align=align, trace=tr)
-    return trades, ev
+    orig_h1, orig_broker = fs.run_h1, fs.bk.Broker
+
+    def run_h1_traced(*aa, **kk):
+        kk['trace'] = tr
+        holder['align'] = kk.get('align')
+        return orig_h1(*aa, **kk)
+    RecBroker.rec, RecBroker.last_time = [], None
+    fs.run_h1, fs.bk.Broker = run_h1_traced, RecBroker
+    try:
+        trades = fn(*a, **k)[0]
+    finally:
+        fs.run_h1, fs.bk.Broker = orig_h1, orig_broker
+    return Run(trades, ev, list(RecBroker.rec), holder.get('align'))
+
+
+def traced(df, sym, sw=None):
+    return _traced_call(lambda: fs.run_h1(df, sym, sw))
 
 
 def traced_p2(m15, h1, sym):
-    """fs.run_p2 をそのまま通す（H1 版 G1 の対応づけも本物を使う）。run_p2 が呼ぶ run_h1 にだけ trace を差し込む"""
-    ev = {}
-
-    def tr(event, t, p):
-        if event == 'eval':
-            ev.setdefault(t, []).append(repr(p))
-    orig = fs.run_h1
-
-    def run_h1_traced(*a, **k):
-        k['trace'] = tr
-        return orig(*a, **k)
-    fs.run_h1 = run_h1_traced
-    try:
-        trades, _ = fs.run_p2(m15, h1, sym)
-    finally:
-        fs.run_h1 = orig
-    return trades, ev
+    """fs.run_p2 をそのまま通す（H1 版 G1 の対応づけも本物）。run_p2 が run_h1 に渡す align も取り出す"""
+    return _traced_call(lambda: fs.run_p2(m15, h1, sym))
 
 
-def mirror_after(df, c, k=1.5):
-    """足 c 以降を、足 c-1 の終値 p を軸に上下反転し、p からの距離を k 倍にする（時刻はそのまま）。
-    反転だけだと TR（ATR）が変わらないので、値幅も変える。足 t の判定が足 t+1 以降の値を読めば必ず変わる"""
+def perturb_after(df, c, k=1.5):
+    """足 c 以降を、足 c-1 の終値 p を軸に反転して p からの距離を k 倍にし、足 c に大きなひげ（高値 1.5p・安値 0.5p）を付ける"""
     p = float(df['Close'].iloc[c - 1])
     out = df.copy()
     o, h, l, cl = (df[x].to_numpy(dtype=float) for x in ('Open', 'High', 'Low', 'Close'))
-    for name, a, b in (('Open', o, p - k * (o - p)), ('High', h, p - k * (l - p)), ('Low', l, p - k * (h - p)),
-                       ('Close', cl, p - k * (cl - p))):
+    new = {'Open': p - k * (o - p), 'High': p - k * (l - p), 'Low': p - k * (h - p), 'Close': p - k * (cl - p)}
+    new['High'][c] = max(new['High'][c], 1.5 * p)
+    new['Low'][c] = min(new['Low'][c], 0.5 * p)
+    for name, a in (('Open', o), ('High', h), ('Low', l), ('Close', cl)):
         v = a.copy()
-        v[c:] = b[c:]
+        v[c:] = new[name][c:]
         out[name] = v
     return out
 
@@ -106,16 +135,48 @@ def entry_fields(tr):
     return tuple(tr[k] for k in keys) + tuple(sorted((k, repr(v)) for k, v in tr.items() if k.startswith('m_')))
 
 
+def boundary_cuts(df, run, rng, delta=H1, n_trades=2, n_big=12, n_small=3):
+    """先読みが境界に現れやすい切断点: 約定の1〜2本前（待機注文あり）、建玉中に BIG スイングが確定する足、
+    判定した足の次に SMALL/BIG のスイングが確定する足、それとランダムに1点"""
+    H, L = df['High'].to_numpy(), df['Low'].to_numpy()
+    ihb, ilb = ind.pivots(H, L, n_big)
+    ihs, ils = ind.pivots(H, L, n_small)
+    pos = {t: i for i, t in enumerate(df.index)}
+    cuts = set()
+    trades = run.trades
+    for i in rng.permutation(len(trades))[:n_trades]:
+        t = trades[int(i)]
+        e, x = pos[t['entry_time']], exit_bar(t, pos, delta)
+        cuts |= {e - 1, e - 2}
+        piv = ilb if t['direction'] == 1 else ihb
+        for b in range(e + 1, x + 1):
+            if piv[b - n_big]:
+                cuts.add(b)
+                break
+    evaluated = np.array(sorted(run.ev), dtype=int)
+    for piv, depth in ((ihs, n_small), (ils, n_small), (ihb, n_big), (ilb, n_big)):
+        cand = [int(t) + 1 for t in evaluated if t + 1 < len(df) and piv[t + 1 - depth]]
+        if cand:
+            cuts.add(int(rng.choice(cand)))
+    cuts.add(int(rng.integers(len(df) // 3, len(df) - 2)))
+    return sorted(c for c in cuts if 300 < c < len(df) - 1)
+
+
 class CausalityMixin:
     def assert_same_past(self, full, part, idx, c, delta, label):
-        """足 c-1 までの判定記録、足 c-1 までに約定した取引の約定内容、足 c-1 までに終わった取引の全項目が同じ"""
-        (tf_, ef), (tp_, ep) = full, part
+        """足 c-1 までの判定記録・建玉の記録・約定、足 c-1 までに終わった取引の全項目が同じ"""
         for t in range(c):
-            if ef.get(t) != ep.get(t):
-                self.fail(f'{label}: 足 {t}（{idx[t]}）の判定が変わった\n full={ef.get(t)}\n part={ep.get(t)}')
+            if full.ev.get(t) != part.ev.get(t):
+                self.fail(f'{label}: 足 {t}（{idx[t]}）の判定が変わった\n full={full.ev.get(t)}\n part={part.ev.get(t)}')
+        last = idx[c - 1]
+        ra = [r for r in full.rec if r[0] <= last]
+        rb = [r for r in part.rec if r[0] <= last]
+        if ra != rb:
+            k = next((i for i, (a, b) in enumerate(zip(ra, rb)) if a != b), min(len(ra), len(rb)))
+            self.fail(f'{label}: 建玉の記録が変わった（{k} 件目）\n full={ra[k:k + 2]}\n part={rb[k:k + 2]}')
         pos = {t: i for i, t in enumerate(idx)}
-        fa = [t for t in tf_ if pos[t['entry_time']] < c]
-        pa = [t for t in tp_ if pos[t['entry_time']] < c]
+        fa = [t for t in full.trades if pos[t['entry_time']] < c]
+        pa = [t for t in part.trades if pos[t['entry_time']] < c]
         self.assertEqual([entry_fields(t) for t in fa], [entry_fields(t) for t in pa], label)
         for a, b in zip(fa, pa):
             closed_a = exit_bar(a, pos, delta) < c and not a['exit_reason'].endswith('END')
@@ -124,15 +185,14 @@ class CausalityMixin:
             if closed_a:
                 self.assertEqual(repr(sorted(a.items())), repr(sorted(b.items())), f'{label}: {a["entry_time"]}')
             elif b['exit_reason'].endswith('END'):
-                # 切断の終端で閉じた建玉: それまでの部分決済の履歴が全期間の実行の先頭と一致する
-                hist = b['exit_reason'].split('+')[:-1]
+                hist = b['exit_reason'].split('+')[:-1]           # 切断の終端までの部分決済の履歴
                 self.assertEqual(a['exit_reason'].split('+')[:len(hist)], hist, f'{label}: {a["entry_time"]}')
 
-    def check_cuts(self, df, sym, sw, cuts, label, modes=('mirror', 'cut')):
+    def check_cuts(self, df, sym, sw, cuts, label, modes=('perturb', 'cut')):
         full = traced(df, sym, sw)
         for c in cuts:
             for mode in modes:
-                part = traced(df.iloc[:c], sym, sw) if mode == 'cut' else traced(mirror_after(df, c), sym, sw)
+                part = traced(df.iloc[:c], sym, sw) if mode == 'cut' else traced(perturb_after(df, c), sym, sw)
                 self.assert_same_past(full, part, df.index, c, H1, f'{label} {mode} c={c}（{df.index[c - 1]}）')
         return full
 
@@ -168,7 +228,8 @@ def _open_span(trades, a, b):
 
 def build_calendar_scenario():
     """建玉中の足に、早仕舞い日・休場前日（翌平日を休場日にしてその日の足を1本だけ残す）・平日の12時間超の空白・
-    待機注文がある足の後の空白・金曜の早い終了（決済足がない）を順に入れる。戻り値: (H1, 追加の休場日, 追加の早仕舞い日, 出来事の時刻の辞書)"""
+    待機注文がある足の後の空白・金曜の早い終了（決済足がない）を順に入れる。
+    戻り値: (H1, 追加の休場日, 追加の早仕舞い日, 出来事の時刻の辞書)"""
     df = synth('2015-03-02', 4800, seed=11)
     closed, early, ev = set(), set(), {}
     real_closed, real_early = fs.calendar_sets('EURUSD', range(2015, 2017))
@@ -208,16 +269,15 @@ def build_calendar_scenario():
             df = df.drop(df.index[k + 1:k + 15])
             ev['gap_with_position'] = df.index[k + 1]; cursor = df.index[k + 1].date() + pd.Timedelta(days=3)
             break
-    trades = run()
     # 4) 待機注文がある平日の足の後に13時間の空白を入れ、空白明けの足で価格に届かせる（約定せず取消されるべき）
-    with PatchedCalendar(closed, early):
-        ev_trace = {}
+    setups = {}
 
-        def tr(event, t, p):
-            if event == 'eval' and p['setup'] is not None:
-                ev_trace.setdefault(t, p['setup'])
+    def tr(event, t, p):
+        if event == 'eval' and p['setup'] is not None:
+            setups.setdefault(t, p['setup'])
+    with PatchedCalendar(closed, early):
         fs.run_h1(df, 'EURUSD', trace=tr)
-    for t, s in sorted(ev_trace.items()):
+    for t, s in sorted(setups.items()):
         ts = df.index[t]
         if ts.date() > cursor and ts.dayofweek <= 3 and 3 <= ts.hour <= 16 and t + 20 < len(df):
             df = df.drop(df.index[t + 1:t + 14])
@@ -238,13 +298,13 @@ def build_calendar_scenario():
                 and t['entry_time'] < ft.normalize() + pd.Timedelta(hours=18):
             fri = ft.normalize()
             df = df[~((df.index >= fri + pd.Timedelta(hours=19)) & (df.index < fri + pd.Timedelta(days=1)))]
-            ev['friday_cut'] = fri; cursor = fri.date() + pd.Timedelta(days=3)
+            ev['friday_cut'] = fri
             break
     return df, closed, early, ev
 
 
 class TestCalendarPathsCausality(CausalityMixin, unittest.TestCase):
-    """休場日・早仕舞い・休場前日・休場明けフォールバックを通る合成データで、切断・鏡像化しても過去が変わらない"""
+    """休場日・早仕舞い・休場前日・休場明けフォールバックを通る合成データで、切断・差し替えしても過去が変わらない"""
 
     @classmethod
     def setUpClass(cls):
@@ -269,19 +329,17 @@ class TestCalendarPathsCausality(CausalityMixin, unittest.TestCase):
         self.assertFalse(any(t['entry_time'] == ev['gap_with_pending'] for t in trades))  # 空白明けは約定判定の前に取消
         c = df.index.get_loc(pd.Timestamp(ev['closed']))
         self.assertTrue(flat[c] and no_new[c])                                     # 休場日の足: 新規なし・全決済
-        gf = [t for t in trades if t['exit_reason'] == 'GAP_FALLBACK']
-        for t in gf:                                                               # 決済は空白明けの足の始値（Bid/Ask）
+        for t in [t for t in trades if t['exit_reason'] == 'GAP_FALLBACK']:        # 決済は空白明けの足の始値（Bid/Ask）
             o = df.loc[t['exit_time'], 'Open'] - t['direction'] * fs.S_NOM['EURUSD'] / 2
             self.assertAlmostEqual(t['entry'] + t['pnl_r'] * t['risk'] * t['direction'], o, places=9)
 
-    def test_truncate_and_mirror_around_events(self):
+    def test_truncate_and_perturb_around_events(self):
         df, ev = self.df, self.ev
         idx = df.index
         pts = set()
-        for key in ('early', 'preholiday'):
-            base = pd.Timestamp(ev[key])
-            for hh in (16, 17, 18, 19, 21, 22):
-                ts = base + pd.Timedelta(hours=hh)
+        for key, hours in (('early', (16, 18, 19)), ('preholiday', (19, 21, 22))):
+            for hh in hours:
+                ts = pd.Timestamp(ev[key]) + pd.Timedelta(hours=hh)
                 if ts in idx:
                     pts.add(idx.get_loc(ts))
         for key in ('gap_with_position', 'gap_with_pending'):
@@ -291,39 +349,55 @@ class TestCalendarPathsCausality(CausalityMixin, unittest.TestCase):
         pts |= {k - 1, k, k + 1}
         pts.add(idx.get_loc(pd.Timestamp(ev['closed'])) + 1)
         pts = sorted(p for p in pts if 200 < p < len(idx) - 1)
-        variants = ('fusion', 'F+be', 'oku_only', 'F+p3', 'F-stop', 'kenjin_only', 'mincore_raw', 'F-calendar',
-                    'naive:p=0.05:seed=1')
         with PatchedCalendar(self.closed, self.early):
-            for v in variants:
-                sub = pts if v in ('fusion', 'F+be', 'oku_only') else pts[::3]
-                self.check_cuts(df, 'EURUSD', fs.config(v), sub, v,
-                                modes=('mirror', 'cut') if v in ('fusion', 'F+be') else ('mirror',))
+            self.check_cuts(df, 'EURUSD', fs.config('fusion'), pts, 'fusion')
+            for v in ('F+be', 'oku_only', 'F+p3'):
+                self.check_cuts(df, 'EURUSD', fs.config(v), pts[::3], v, modes=('perturb',))
+            for v in ('F-stop', 'kenjin_only', 'mincore_raw', 'F-calendar', 'naive:p=0.05:seed=1'):
+                self.check_cuts(df, 'EURUSD', fs.config(v), pts[1::5], v, modes=('perturb',))
 
 
-# ---------------------------------------------------------------- 合成データ: 変種と任意の時点
+# ---------------------------------------------------------------- 合成データ: 変種と境界の切断点
 class TestVariantsCausalitySynthetic(CausalityMixin, unittest.TestCase):
-    """部分決済・建値移動・パターン③・感度・F-stop を含む変種で、判定記録まで一致する"""
+    """部分決済・建値移動・パターン③・感度・F-stop を含む変種で、判定記録と建玉の記録まで一致する"""
 
-    def test_mirror_future_keeps_past(self):
+    def test_perturb_future_keeps_past(self):
         df = synth('2015-01-05', 4000, seed=5)
         rng = np.random.default_rng(7)
         for v in ('fusion', 'F+partial', 'F+be', 'oku_only', 'F+p3', 'F~dowP', 'F-stop', 'F+slnode', 'F+trail1h',
                   'S:N_BIG=16', 'mincore_raw'):
-            cuts = sorted(int(x) for x in rng.integers(600, len(df) - 2, size=2))
-            self.check_cuts(df, 'EURUSD', fs.config(v), cuts, v, modes=('mirror',))
+            sw = fs.config(v)
+            full = traced(df, 'EURUSD', sw)
+            n_big = sw.get('N_BIG', 12)
+            for c in boundary_cuts(df, full, rng, n_big=n_big):
+                part = traced(perturb_after(df, c), 'EURUSD', sw)
+                self.assert_same_past(full, part, df.index, c, H1, f'{v} perturb c={c}（{df.index[c - 1]}）')
 
     def test_every_bar_cut_short_window(self):
         """短い区間では、全ての足で切って比べる（境界の取りこぼしがないこと）"""
         df = synth('2015-01-05', 1400, seed=21)
         full = traced(df, 'EURUSD', fs.config('F+be'))
-        n_trades = len(full[0])
-        self.assertGreater(n_trades, 3)
+        self.assertGreater(len(full.trades), 3)
         for c in range(1100, len(df) - 1, 7):
             part = traced(df.iloc[:c], 'EURUSD', fs.config('F+be'))
             self.assert_same_past(full, part, df.index, c, H1, f'F+be cut c={c}')
 
 
 # ---------------------------------------------------------------- M15 のパターン②
+def expected_align(m15, h1):
+    """各 M15 足の確定時刻までに確定した最後の H1 足（確定時刻 = 開始 + 1h <= M15 の開始 + 15分）の G1 の向き。
+    closed_index_map を使わずに数える"""
+    g = fs.h1_g1_direction(h1)
+    out = np.zeros(len(m15), dtype=int)
+    h_close = list(h1.index + H1)
+    j = -1
+    for i, s in enumerate(m15.index):
+        while j + 1 < len(h_close) and h_close[j + 1] <= s + M15:
+            j += 1
+        out[i] = g[j] if j >= 0 else 0
+    return out
+
+
 class TestPattern2Causality(CausalityMixin, unittest.TestCase):
     """パターン②（M15）: M15 と、それを再集計した H1 の両方の未来を差し替えても、過去の M15 判定は変わらない。
     切る時刻は H1 の区切り（xx:00）と区切りでない時刻（xx:30）の両方。xx:30 では、確定前の H1 足が変わる"""
@@ -331,16 +405,15 @@ class TestPattern2Causality(CausalityMixin, unittest.TestCase):
     def check_p2(self, m15, sym, times):
         h1 = fd.resample(m15, 'H1')
         full = traced_p2(m15, h1, sym)
-        self.assertGreater(len(full[0]), 2)
+        self.assertGreater(len(full.trades), 2)
+        np.testing.assert_array_equal(full.align, expected_align(m15, h1))     # 確定済みの H1 足だけを見る
         for T in times:
             c = int(m15.index.searchsorted(T))                 # 足 c-1 の確定時刻 = T
             self.assertEqual(m15.index[c - 1] + M15, T)
-            mm = mirror_after(m15, c)
-            part = traced_p2(mm, fd.resample(mm, 'H1'), sym)
-            self.assert_same_past(full, part, m15.index, c, M15, f'p2 mirror T={T}')
-            mt = m15.iloc[:c]
-            part = traced_p2(mt, fd.resample(mt, 'H1'), sym)
-            self.assert_same_past(full, part, m15.index, c, M15, f'p2 cut T={T}')
+            for mode in ('perturb', 'cut'):
+                mm = perturb_after(m15, c) if mode == 'perturb' else m15.iloc[:c]
+                part = traced_p2(mm, fd.resample(mm, 'H1'), sym)
+                self.assert_same_past(full, part, m15.index, c, M15, f'p2 {mode} T={T}')
 
     def test_synthetic_m15(self):
         m15 = synth('2015-02-02', 9000, seed=8, freq='15min', vol=0.00045, regime=1200)
@@ -369,21 +442,36 @@ class TestPattern2Causality(CausalityMixin, unittest.TestCase):
 
 # ---------------------------------------------------------------- 指標・帳簿・状態機械・時刻ルールの単体
 class TestIndicatorCausality(unittest.TestCase):
+    def test_swing_recognition_time(self):
+        """足 t で帳簿が返すスイングは、足 t までのデータだけで判定できるもの（j <= t-N）に限る（SPEC §2.3）。
+        足 t+1 の値が要るスイング（j = t-N+1）が直後にある足を選んで、足 t までで作った帳簿と比べる"""
+        df = synth('2015-01-05', 2500, seed=4)
+        H, L = df['High'].to_numpy(), df['Low'].to_numpy()
+        for depth, lb in ((3, 400), (12, 3000), (72, 8000)):
+            book = ind.SwingBook(H, L, depth, lb)
+            ih, il = ind.pivots(H, L, depth)
+            ts = [j + depth - 1 for j in np.flatnonzero(ih | il) if 2 * depth + 10 < j + depth - 1 < len(H) - 1][:40]
+            self.assertTrue(ts)
+            for t in ts:
+                part = ind.SwingBook(H[:t + 1], L[:t + 1], depth, lb)
+                self.assertEqual(book.highs(t, 8), part.highs(t, 8), (depth, t))
+                self.assertEqual(book.lows(t, 8), part.lows(t, 8), (depth, t))
+                self.assertTrue(all(j <= t - depth for _, j in book.highs(t, 8) + book.lows(t, 8)))
+
     def test_indicators_books_and_state_machines(self):
         df = synth('2015-01-05', 3000, seed=4)
         H, L, C = (df[k].to_numpy() for k in ('High', 'Low', 'Close'))
+        ih3, _ = ind.pivots(H, L, 3)
         rng = np.random.default_rng(3)
-        for c in sorted(int(x) for x in rng.integers(200, 2990, size=6)):
-            mm = mirror_after(df, c)
+        cuts = sorted({int(x) for x in rng.integers(200, 2990, size=4)} |
+                      {int(j) + 3 for j in rng.choice(np.flatnonzero(ih3[200:2900]) + 200, size=3)})
+        for c in cuts:
+            mm = perturb_after(df, c)
             H2, L2, C2 = (mm[k].to_numpy() for k in ('High', 'Low', 'Close'))
             np.testing.assert_array_equal(ind.atr(H, L, C, 14)[:c], ind.atr(H2, L2, C2, 14)[:c])
             for n in (20, 80, 480):
                 np.testing.assert_array_equal(ind.sma(C, n)[:c], ind.sma(C2, n)[:c])
             for depth in (3, 12, 72):
-                ih, il = ind.pivots(H, L, depth)
-                ih2, il2 = ind.pivots(H2, L2, depth)
-                np.testing.assert_array_equal(ih[:max(c - depth, 0)], ih2[:max(c - depth, 0)])
-                np.testing.assert_array_equal(il[:max(c - depth, 0)], il2[:max(c - depth, 0)])
                 a, b = ind.SwingBook(H, L, depth, 400), ind.SwingBook(H2, L2, depth, 400)
                 for t in range(max(c - 30, 0), c):
                     self.assertEqual(a.highs(t, 6), b.highs(t, 6))
@@ -402,6 +490,7 @@ class TestIndicatorCausality(unittest.TestCase):
         idx = idx[idx.dayofweek < 5]
         for sym in ('EURUSD', 'XAUUSD'):
             full = fs.time_rules(idx, sym, dict(fs.DEFAULT_SW), H1, 12)
+            # 金曜 23時で終わる切断（次の足は月曜＝空白の直前）も含める
             for cut in ('2014-12-31 12:00', '2015-01-05 00:00', '2015-04-02 20:00', '2015-12-31 23:00'):
                 k = idx.searchsorted(pd.Timestamp(cut))
                 part = fs.time_rules(idx[:k], sym, dict(fs.DEFAULT_SW), H1, 12)
@@ -475,6 +564,7 @@ class TestExecutionModel(unittest.TestCase):
             self.assertTrue((Hh[e] + s / 2 >= best['price']) if d == 1 else (Ll[e] - s / 2 <= best['price']))
         # 呼び出し順: 足 t の process_bar → 足 t の確定時の modify。足 t+1 は足 t で置いた SL で判定する
         next_sl = {}
+        cur = None
         for rec in log:
             if rec[0] == 'bar':
                 _, time, pid, d, entry_bar, sl, tp1, tp1_done, ohlc, nex = rec
@@ -482,8 +572,7 @@ class TestExecutionModel(unittest.TestCase):
                     self.assertEqual(sl, next_sl.pop(pid))
                 cur = rec
             elif rec[0] == 'after':
-                _, time, pid, exits = rec
-                new = exits[cur[9]:]
+                new = rec[3][cur[9]:]
                 if cur[4]:                                                    # 約定足: SL 以外の決済はない
                     self.assertTrue(all(x[3] in ('SL', 'TRAIL') for x in new), new)
                 o, h, l, c = cur[8]
@@ -511,13 +600,14 @@ class TestExecutionModel(unittest.TestCase):
             self.check_fills(df, 'EURUSD', v)
 
     def test_broker_entry_bar_and_same_bar_rules(self):
-        # 約定足: 高値が TP1 を越えても TP1 はとらない。安値が SL に届けば SL（始値が SL の下でも SL の価格）
+        # 約定足: 始値が SL の外でも、SL の価格で損切り（約定より前の値動きかもしれないので保守的に損切り扱い）
         b = bk.Broker(0.0)
         p = b.open_position('t0', 1.1000, 1, sl=1.0950, tp1=1.1050, tp1_frac=0.5)
         b.process_bar(p, 't0', 1.0940, 1.1080, 1.0930, 1.1060, entry_bar=True)
         self.assertEqual([x[3] for x in p.exits], ['SL'])
         self.assertAlmostEqual(p.exits[-1][1], 1.0950)
         self.assertAlmostEqual(p.realized_r, -1.0)
+        # 約定足: 高値が TP1 を越えても TP1 はとらない
         b = bk.Broker(0.0)
         p = b.open_position('t0', 1.1000, 1, sl=1.0950, tp1=1.1050, tp1_frac=0.5)
         b.process_bar(p, 't0', 1.0990, 1.1080, 1.0960, 1.1060, entry_bar=True)
@@ -526,11 +616,10 @@ class TestExecutionModel(unittest.TestCase):
         for d in (1, -1):
             b = bk.Broker(0.0002)
             p = b.open_position('t0', 1.1000, d, sl=1.1000 - d * 0.005, tp1=1.1000 + d * 0.005, tp1_frac=0.5)
-            hi, lo = (1.1060, 1.0940)
-            b.process_bar(p, 't1', 1.1000, hi, lo, 1.1000)
+            b.process_bar(p, 't1', 1.1000, 1.1060, 1.0940, 1.1000)
             self.assertEqual([x[3] for x in p.exits], ['SL'])
             self.assertAlmostEqual(p.realized_r, -1.0)
-        # 始値が TP1 を越えた窓開け（建値移動あり）: TP1 は始値、残りはその足で建値に戻れば建値
+        # 始値が TP1 を越えた窓開け（建値移動あり）: TP1 は始値、残りはその足で建値に戻れば建値（理由は TRAIL と記録される）
         b = bk.Broker(0.0)
         p = b.open_position('t0', 1.1000, 1, sl=1.0950, tp1=1.1050, tp1_frac=0.5, be_after_tp1=True)
         b.process_bar(p, 't1', 1.1070, 1.1080, 1.0990, 1.1000)
@@ -542,8 +631,9 @@ class TestExecutionModel(unittest.TestCase):
         """既知の食い違い（監査所見）: F-stop では、新規停止（金曜 hc>=20・早仕舞い hc>=17）やロールオーバー（hc>=23）の
         足の終値で成行が決まり、次の足の始値で約定する。SPEC §2.6 の表（新規なし・23〜01時は注文が存在しない）に反する。
         原因は SPEC §14 の擬似コードと同じ順序（`if 建玉あり or market: continue` が no_new/rollover の取消より前）。
-        IS 実データでは EURUSD 2015-07-03 19:00 足、EURJPY 2014-03-04 22:00 足など 7 件。
-        合成データで再現する: 21 時足の確定で置かれた待機注文に対して、22 時足（23 時確定＝ロールオーバー）の終値を越えさせる"""
+        IS 実データでは EURUSD 2015-07-03 19:00 足、EURJPY 2014-03-04 22:00 足など 7 件（F-stop 369 件中）。
+        合成データで再現する: 21 時足の確定で置かれた待機注文に対して、22 時足（23 時確定＝ロールオーバー）の終値を越えさせる。
+        直したら expectedFailure を外す"""
         df = synth('2015-01-05', 5000, seed=3)
         sw = fs.config('F-stop')
         ev = {}
@@ -561,7 +651,8 @@ class TestExecutionModel(unittest.TestCase):
         trades, _ = fs.run_h1(df, 'EURUSD', sw)
         no_new, flat, roll, _ = fs.time_rules(df.index, 'EURUSD', dict(fs.DEFAULT_SW, **sw), H1, 12)
         pos = {x: i for i, x in enumerate(df.index)}
-        bad = [tr_['entry_time'] for tr_ in trades if no_new[pos[tr_['entry_time']] - 1] or roll[pos[tr_['entry_time']] - 1]]
+        self.assertTrue(any(x['entry_time'] == df.index[t + 2] for x in trades))   # 再現できていること
+        bad = [x['entry_time'] for x in trades if no_new[pos[x['entry_time']] - 1] or roll[pos[x['entry_time']] - 1]]
         self.assertEqual(bad, [])
 
 
@@ -579,22 +670,20 @@ class TestResampleNoFuture(unittest.TestCase):
         v = np.arange(len(utc), dtype=float)
         raw = pd.DataFrame({'time': utc, 'open': v, 'high': v + 0.25, 'low': v - 0.25, 'close': v + 0.1, 'volume': 1})
         with tempfile.TemporaryDirectory() as d:
-            for y in (2016,):
-                os.makedirs(os.path.join(d, 'EUR_USD', str(y)))
+            os.makedirs(os.path.join(d, 'EUR_USD', '2016'))
             raw.to_csv(os.path.join(d, 'EUR_USD', '2016', 'm1.csv'), index=False)
             m1 = fd.load_oanda_m1('EUR_USD', d)
         self.assertTrue((m1.index.dayofweek < 5).all())
+        self.assertEqual(len(m1), int((~market_closed).sum()))
         # サーバー時間 = NY + 7h（冬 UTC+2、夏 UTC+3）
         srv = fd.utc_to_server(pd.DatetimeIndex(['2016-03-11 21:59', '2016-03-14 00:00', '2016-11-04 20:59', '2016-11-07 00:00']))
         self.assertEqual(list(srv), [pd.Timestamp('2016-03-11 23:59'), pd.Timestamp('2016-03-14 03:00'),
                                      pd.Timestamp('2016-11-04 23:59'), pd.Timestamp('2016-11-07 02:00')])
-        self.assertEqual(m1.index.min().dayofweek, 2)
         for tf in ('M15', 'H1', 'H4', 'D1'):
             r = fd.resample(m1, tf)
             self.assertTrue((r.index.dayofweek < 5).all(), tf)
-            ends = r.index + fd.TF_DELTA[tf]
             a = m1.index.searchsorted(r.index, side='left')
-            b = m1.index.searchsorted(ends, side='left')
+            b = m1.index.searchsorted(r.index + fd.TF_DELTA[tf], side='left')
             O, Hh, Ll, C = (m1[k].to_numpy() for k in ('Open', 'High', 'Low', 'Close'))
             for i in range(len(r)):
                 self.assertGreater(b[i], a[i])
@@ -602,10 +691,9 @@ class TestResampleNoFuture(unittest.TestCase):
                 self.assertEqual(r['Close'].iloc[i], C[b[i] - 1], (tf, r.index[i]))
                 self.assertEqual(r['High'].iloc[i], Hh[a[i]:b[i]].max(), (tf, r.index[i]))
                 self.assertEqual(r['Low'].iloc[i], Ll[a[i]:b[i]].min(), (tf, r.index[i]))
-            # 週末の境目: 金曜の最後の足は 23 時台（H1）、月曜の最初の足は 00 時台
-            if tf == 'H1':
-                fri = r[r.index.dayofweek == 4]
-                self.assertEqual(fri.index.max().hour, 23)
+            self.assertEqual(int(b[-1] - a[0]), len(m1))                     # すべての1分足がどれか1本の足に入る
+            if tf == 'H1':                                                     # 週末の境目: 金曜 23 時台まで、月曜 00 時台から
+                self.assertEqual(r[r.index.dayofweek == 4].index.max().hour, 23)
                 self.assertEqual(r[r.index.dayofweek == 0].index.min().hour, 0)
 
     def test_is_data_m15_resamples_to_h1(self):
@@ -623,44 +711,36 @@ class TestResampleNoFuture(unittest.TestCase):
 
 # ---------------------------------------------------------------- 実データ（IS 2013〜2017）
 class TestRealDataCausality(CausalityMixin, unittest.TestCase):
-    """IS データを休場日の前後・早仕舞い日・Good Friday の前日などで切り、鏡像化・切断しても過去が変わらない"""
+    """IS データを休場日の前後・早仕舞い日・Good Friday の前日などで切り、差し替え・切断しても過去が変わらない"""
 
-    @classmethod
-    def setUpClass(cls):
-        cls.dir = os.environ.get('FUSION_DATA_DIR')
-
-    def load(self, sym, tf='H1', a='2014-06-01', b='2016-06-01'):
-        if not self.dir or not os.path.exists(os.path.join(self.dir, f'{sym}_{tf}.csv')):
+    def load(self, sym, tf='H1', a='2015-03-01', b='2016-04-01'):
+        d = os.environ.get('FUSION_DATA_DIR')
+        if not d or not os.path.exists(os.path.join(d, f'{sym}_{tf}.csv')):
             self.skipTest(f'FUSION_DATA_DIR（{sym}_{tf}.csv）がない')
-        df = fd.load_prepared(sym, tf, self.dir)
+        df = fd.load_prepared(sym, tf, d)
         return df[(df.index >= a) & (df.index < b)]
 
     def cuts_at(self, df, stamps):
-        out = []
-        for s in stamps:
-            k = int(df.index.searchsorted(pd.Timestamp(s)))
-            if 300 < k < len(df) - 1:
-                out.append(k)
-        return out
+        return [k for k in (int(df.index.searchsorted(pd.Timestamp(s))) for s in stamps) if 300 < k < len(df) - 1]
 
-    def test_fx_year_end(self):
+    def test_fx_year_end_and_july3(self):
         df = self.load('EURUSD')
-        stamps = ['2014-12-24 17:00', '2014-12-24 19:00', '2014-12-26 00:00', '2014-12-31 18:00', '2015-01-02 01:00',
-                  '2015-07-03 20:00', '2015-12-24 18:00', '2015-12-28 00:00', '2016-01-04 00:00']
-        for v in ('fusion', 'F+be', 'oku_only', 'F+p3'):
-            self.check_cuts(df, 'EURUSD', fs.config(v), self.cuts_at(df, stamps if v == 'fusion' else stamps[::2]), v,
-                            modes=('mirror', 'cut') if v == 'fusion' else ('mirror',))
+        cuts = self.cuts_at(df, ['2015-07-03 20:00', '2015-12-24 17:00', '2015-12-24 19:00', '2015-12-28 00:00',
+                                 '2015-12-31 18:00', '2016-01-04 00:00'])
+        self.check_cuts(df, 'EURUSD', fs.config('fusion'), cuts, 'fusion')
+        for v in ('F+be', 'oku_only', 'F+p3'):
+            self.check_cuts(df, 'EURUSD', fs.config(v), cuts[1::2], v, modes=('perturb',))
 
-    def test_xau_good_friday_thanksgiving_july4(self):
+    def test_xau_good_friday_thanksgiving_july3(self):
         df = self.load('XAUUSD')
-        stamps = ['2014-07-03 19:00', '2014-11-28 18:00', '2015-04-02 21:00', '2015-04-03 00:00', '2015-04-06 01:00',
-                  '2015-11-27 17:00', '2016-03-24 21:00', '2016-03-28 01:00']
-        for v in ('fusion', 'F+be', 'kenjin_only'):
-            self.check_cuts(df, 'XAUUSD', fs.config(v), self.cuts_at(df, stamps if v == 'fusion' else stamps[::2]), v,
-                            modes=('mirror', 'cut') if v == 'fusion' else ('mirror',))
+        cuts = self.cuts_at(df, ['2015-04-02 21:00', '2015-04-03 00:00', '2015-04-06 01:00', '2015-07-03 18:00',
+                                 '2015-11-27 17:00', '2016-03-24 21:00', '2016-03-28 01:00'])
+        self.check_cuts(df, 'XAUUSD', fs.config('fusion'), cuts, 'fusion')
+        for v in ('F+be', 'kenjin_only'):
+            self.check_cuts(df, 'XAUUSD', fs.config(v), cuts[::3], v, modes=('perturb',))
 
     def test_pattern2_real_m15(self):
-        m15 = self.load('EURUSD', 'M15', '2015-06-01', '2016-03-01')
+        m15 = self.load('EURUSD', 'M15', '2015-09-01', '2016-02-15')
         times = [pd.Timestamp('2015-10-14 10:30'), pd.Timestamp('2015-12-24 18:00'), pd.Timestamp('2016-01-04 00:15'),
                  pd.Timestamp('2016-02-10 13:45')]
         TestPattern2Causality.check_p2(self, m15, 'EURUSD', [t for t in times if t in m15.index])
