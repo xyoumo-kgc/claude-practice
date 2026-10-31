@@ -671,6 +671,9 @@ def analyze(T, spec, syms, infos, cut_checks, bt, naive_p, naive_seeds, cfgs, me
     blocks = OrderedDict()
     for c in present:
         blocks[c] = config_block(T[c], syms, spec, strata=(c == MAIN))
+    if 'p2' in blocks:                                         # SPEC §21: ②は U-A・U-B で副次的に評価する
+        d = comb['p2']
+        blocks['p2']['U-A＋U-B'] = summary(d[d['pool'].isin(['U-A', 'U-B'])], boot=True)
     res['configs'] = blocks
     f = blocks[MAIN]
     f_comb = comb[MAIN]
@@ -760,7 +763,7 @@ def analyze(T, spec, syms, infos, cut_checks, bt, naive_p, naive_seeds, cfgs, me
 
     # 副次
     res['secondary'] = OrderedDict(
-        p2=OrderedDict(evaluated='p2' in blocks, note='SPEC §21 は U-A・U-B での副次評価。プール別の行を見る'),
+        p2=OrderedDict(evaluated='p2' in blocks, note='SPEC §21 は U-A・U-B での副次評価（configs.p2 の「U-A＋U-B」）'),
         m15_downgrade=OrderedDict(evaluated=False, note='①-M15 降格は参照実装（fusion/strategy.py）に未実装のため評価しない（SPEC §11.2 の7）'))
 
     # 回数の確認
@@ -1178,8 +1181,10 @@ def _rest_of_report(r, m, v, w, cf, f, pools, cmp_):
     if 'p2' in cf:
         p2 = cf['p2']
         L += ['### パターン②（M15）', '',
-              _table(_sheads(True), [_srow('合算（全プール）', p2['合算'], True)] + [_srow(p, p2['プール別'][p], True) for p in pools]),
-              '', '- SPEC §21 の副次評価は U-A・U-B（M15 データがあるプール）。', '']
+              _table(_sheads(True), [_srow('U-A＋U-B（SPEC §21 の副次評価）', p2['U-A＋U-B'], True)]
+                     + [_srow(p, p2['プール別'][p], True) for p in pools]
+                     + [_srow('合算（U-C を含む全プール。参考）', p2['合算'], True)]),
+              '', '- SPEC §21 は②を「M15 データがある U-A・U-B で副次的に評価する」としている。合否には使わない。', '']
     L += [f"- ①-M15 降格：{r['secondary']['m15_downgrade']['note']}", '']
 
     # 9. 参考ウィンドウ

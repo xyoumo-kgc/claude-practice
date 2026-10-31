@@ -517,6 +517,8 @@ class TestEndToEnd(unittest.TestCase):
             self.assertIn(k, js['verdict'])
         self.assertEqual(set(js['configs']), set(c for c in E2E_CONFIGS if not c.startswith('naive')))
         self.assertTrue(js['checks']['truncation']['all_match'])
+        p2 = js['configs']['p2']
+        self.assertEqual(p2['U-A＋U-B']['trades'], p2['プール別']['U-A']['trades'] + p2['プール別']['U-B']['trades'])
         self.assertEqual(js['ablations']['family_size'], 2)
         self.assertIn(js['naive']['selection']['p'], (0.02, 0.05))
         tr = pd.read_csv(os.path.join(out1, 'trades.csv.gz'), keep_default_na=False)
