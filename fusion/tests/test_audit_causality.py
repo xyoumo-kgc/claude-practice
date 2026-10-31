@@ -12,10 +12,13 @@ test_strategy.TestCausality（合成データを2点で切り、決済済みの�
     足 c-1 の確定時のトレールのように、足 c 以降にしか効かない決定も比べられる
 未来の作り方:
   - 切断（足 c 以降を捨てる）
-  - 差し替え: 足 c 以降を足 c-1 の終値を軸に反転して値幅を 1.5 倍にし、足 c に大きなひげを付ける。
-    反転だけだと TR（ATR）が変わらず、ひげがないと境界付近のスイングが崩れないことがあるため
+  - 差し替え: 足 c 以降を足 c-1 の終値を軸に反転して値幅を 1.5 倍にし、足 c に大きなひげと極端な終値を付ける。
+    反転だけだと TR（ATR）が変わらず、ひげがないと境界付近のスイングが崩れず、終値が近いと上抜け・下抜けの判定が変わらないため
   - 切る位置は、約定の1〜2本前・建玉中に BIG スイングが確定する足・直近の SMALL/BIG スイングが確定する足を含める
-  （どれも、先読みを入れた変異体でテストが落ちることを確かめてある）
+  （監査時に、本体の写しへ先読み・約定の楽観を1つずつ入れた変異体 19 種で、このファイルのテストが落ちることを確かめた:
+    ATR・runLow・G1・未消化判定・ダウ状態機械の1本先読み、スイングの1本早い認識、節目に未確定スイング、トレールの先読みと
+    同じ足での適用、約定判定で次の足を覗く、窓開けでも price で約定、仲値で約定・損切り判定、約定足で TP1、TP1 を SL より先、
+    空白を前の足で知る（2種）、パターン②で確定前の H1 足、再集計の右閉区間）
 約定モデル（SPEC §7.4・§10.2）:
   - 逆指値は、約定足の直前の確定足で作った注文案（方向・価格・SL）で約定する。約定価格 = max(Ask 始値, price)
   - トレールの SL は、直前に処理した足の確定時点の帳簿・ATR・終値から決まり、次の足から効く
@@ -76,16 +79,17 @@ class RecBroker(bk.Broker):
 class Run:
     """run_h1 / run_p2 を、判定記録（trace）と Broker の記録つきで回す"""
 
-    def __init__(self, trades, ev, rec, align=None):
-        self.trades, self.ev, self.rec, self.align = trades, ev, rec, align
+    def __init__(self, trades, ev, codes, rec, align=None):
+        self.trades, self.ev, self.codes, self.rec, self.align = trades, ev, codes, rec, align
 
 
 def _traced_call(fn, *a, **k):
-    ev, holder = {}, {}
+    ev, codes, holder = {}, {}, {}
 
     def tr(event, t, p):
         if event == 'eval':
             ev.setdefault(t, []).append(repr(p))
+            codes.setdefault(t, []).append(p['code'])
     orig_h1, orig_broker = fs.run_h1, fs.bk.Broker
 
     def run_h1_traced(*aa, **kk):
@@ -98,7 +102,7 @@ def _traced_call(fn, *a, **k):
         trades = fn(*a, **k)[0]
     finally:
         fs.run_h1, fs.bk.Broker = orig_h1, orig_broker
-    return Run(trades, ev, list(RecBroker.rec), holder.get('align'))
+    return Run(trades, ev, codes, list(RecBroker.rec), holder.get('align'))
 
 
 def traced(df, sym, sw=None):
@@ -110,14 +114,20 @@ def traced_p2(m15, h1, sym):
     return _traced_call(lambda: fs.run_p2(m15, h1, sym))
 
 
-def perturb_after(df, c, k=1.5):
-    """足 c 以降を、足 c-1 の終値 p を軸に反転して p からの距離を k 倍にし、足 c に大きなひげ（高値 1.5p・安値 0.5p）を付ける"""
+def perturb_after(df, c, k=1.5, close=None):
+    """足 c 以降を、足 c-1 の終値 p を軸に反転して p からの距離を k 倍にし、足 c に大きなひげ（高値 1.5p・安値 0.5p）を付ける。
+    close='up'/'down' なら足 c の終値も 1.45p／0.55p にする（終値の先読み＝上抜け・下抜けの判定を必ず変える）。
+    None なら切断点の偶奇で上下を交互に選ぶ"""
+    if close is None:
+        close = 'up' if c % 2 else 'down'
     p = float(df['Close'].iloc[c - 1])
     out = df.copy()
     o, h, l, cl = (df[x].to_numpy(dtype=float) for x in ('Open', 'High', 'Low', 'Close'))
     new = {'Open': p - k * (o - p), 'High': p - k * (l - p), 'Low': p - k * (h - p), 'Close': p - k * (cl - p)}
     new['High'][c] = max(new['High'][c], 1.5 * p)
     new['Low'][c] = min(new['Low'][c], 0.5 * p)
+    if close in ('up', 'down'):
+        new['Close'][c] = 1.45 * p if close == 'up' else 0.55 * p
     for name, a in (('Open', o), ('High', h), ('Low', l), ('Close', cl)):
         v = a.copy()
         v[c:] = new[name][c:]
@@ -137,7 +147,7 @@ def entry_fields(tr):
 
 def boundary_cuts(df, run, rng, delta=H1, n_trades=2, n_big=12, n_small=3):
     """先読みが境界に現れやすい切断点: 約定の1〜2本前（待機注文あり）、建玉中に BIG スイングが確定する足、
-    判定した足の次に SMALL/BIG のスイングが確定する足、それとランダムに1点"""
+    判定した足（SMALL はトリガー判定まで進んだ足）の次に SMALL/BIG のスイングが確定する足、それとランダムに1点"""
     H, L = df['High'].to_numpy(), df['Low'].to_numpy()
     ihb, ilb = ind.pivots(H, L, n_big)
     ihs, ils = ind.pivots(H, L, n_small)
@@ -153,9 +163,11 @@ def boundary_cuts(df, run, rng, delta=H1, n_trades=2, n_big=12, n_small=3):
             if piv[b - n_big]:
                 cuts.add(b)
                 break
-    evaluated = np.array(sorted(run.ev), dtype=int)
-    for piv, depth in ((ihs, n_small), (ils, n_small), (ihb, n_big), (ilb, n_big)):
-        cand = [int(t) + 1 for t in evaluated if t + 1 < len(df) and piv[t + 1 - depth]]
+    evaluated = sorted(run.ev)
+    triggered = [t for t in evaluated if any(c not in ('R00', 'R01', 'R02') for c in run.codes[t])]
+    for piv, depth, ts in ((ihs, n_small, triggered), (ils, n_small, triggered), (ihb, n_big, evaluated),
+                           (ilb, n_big, evaluated)):
+        cand = [t + 1 for t in ts if t + 1 < len(df) and piv[t + 1 - depth]]
         if cand:
             cuts.add(int(rng.choice(cand)))
     cuts.add(int(rng.integers(len(df) // 3, len(df) - 2)))
@@ -465,8 +477,8 @@ class TestIndicatorCausality(unittest.TestCase):
         rng = np.random.default_rng(3)
         cuts = sorted({int(x) for x in rng.integers(200, 2990, size=4)} |
                       {int(j) + 3 for j in rng.choice(np.flatnonzero(ih3[200:2900]) + 200, size=3)})
-        for c in cuts:
-            mm = perturb_after(df, c)
+        for c, close in [(c, x) for c in cuts for x in ('up', 'down')]:
+            mm = perturb_after(df, c, close=close)
             H2, L2, C2 = (mm[k].to_numpy() for k in ('High', 'Low', 'Close'))
             np.testing.assert_array_equal(ind.atr(H, L, C, 14)[:c], ind.atr(H2, L2, C2, 14)[:c])
             for n in (20, 80, 480):
@@ -619,21 +631,91 @@ class TestExecutionModel(unittest.TestCase):
             b.process_bar(p, 't1', 1.1000, 1.1060, 1.0940, 1.1000)
             self.assertEqual([x[3] for x in p.exits], ['SL'])
             self.assertAlmostEqual(p.realized_r, -1.0)
-        # 始値が TP1 を越えた窓開け（建値移動あり）: TP1 は始値、残りはその足で建値に戻れば建値（理由は TRAIL と記録される）
+        # 始値が TP1 を越えた窓開け（建値移動あり）: TP1 は始値、残りはその足で建値に戻れば建値
+        # （決済理由の名前は問わない。現状は 'TRAIL' と記録される＝監査所見 info）
         b = bk.Broker(0.0)
         p = b.open_position('t0', 1.1000, 1, sl=1.0950, tp1=1.1050, tp1_frac=0.5, be_after_tp1=True)
         b.process_bar(p, 't1', 1.1070, 1.1080, 1.0990, 1.1000)
-        self.assertEqual([x[3] for x in p.exits], ['TP1', 'TRAIL'])
+        self.assertEqual(len(p.exits), 2)
+        self.assertEqual((p.exits[0][3], p.exits[0][1]), ('TP1', 1.1070))
+        self.assertAlmostEqual(p.exits[1][1], 1.1000)
         self.assertAlmostEqual(p.realized_r, 0.5 * 0.0070 / 0.0050)
 
-    @unittest.expectedFailure
-    def test_fstop_market_order_respects_no_new_and_rollover(self):
-        """既知の食い違い（監査所見）: F-stop では、新規停止（金曜 hc>=20・早仕舞い hc>=17）やロールオーバー（hc>=23）の
-        足の終値で成行が決まり、次の足の始値で約定する。SPEC §2.6 の表（新規なし・23〜01時は注文が存在しない）に反する。
-        原因は SPEC §14 の擬似コードと同じ順序（`if 建玉あり or market: continue` が no_new/rollover の取消より前）。
-        IS 実データでは EURUSD 2015-07-03 19:00 足、EURJPY 2014-03-04 22:00 足など 7 件（F-stop 369 件中）。
-        合成データで再現する: 21 時足の確定で置かれた待機注文に対して、22 時足（23 時確定＝ロールオーバー）の終値を越えさせる。
-        直したら expectedFailure を外す"""
+    @staticmethod
+    def pending_scenario(seed=3):
+        """fusion の待機注文が置かれた平日の足 t（次の足と連続、時刻ルールで止まらない）と、その注文案"""
+        df = synth('2015-01-05', 3000, seed=seed)
+        ev = {}
+
+        def tr(event, t, p):
+            if event == 'eval' and p['setup'] is not None:
+                ev[t] = p['setup']
+        fs.run_h1(df, 'EURUSD', trace=tr)
+        for t in sorted(ev):
+            ts = df.index[t]
+            if t + 2 < len(df) and ts.dayofweek <= 3 and 3 <= ts.hour <= 17 and df.index[t + 1] - ts == H1:
+                return df, t, ev[t]
+        raise AssertionError('待機注文が見つからない')
+
+    def test_stop_trigger_and_gap_fill(self):
+        """逆指値は Ask 高値（売りは Bid 安値）が価格に届いたら約定。始値が価格を越えていれば始値（不利側）で約定（SPEC §7.4）"""
+        s_nom = fs.S_NOM['EURUSD']
+        for seed in (3, 4):
+            df0, t, sp = self.pending_scenario(seed)
+            d, P = sp['dir'], sp['price']
+            cases = {
+                'touch': dict(Open=P - d * (s_nom / 2 + 0.0008), High=P - s_nom / 2 + 1e-9 if d == 1 else None,
+                              Low=P + s_nom / 2 - 1e-9 if d == -1 else None, fill=P),
+                'miss': dict(Open=P - d * (s_nom / 2 + 0.0008), High=P - s_nom / 2 - 1e-7 if d == 1 else None,
+                             Low=P + s_nom / 2 + 1e-7 if d == -1 else None, fill=None),
+                'gap': dict(Open=P + d * 0.0010, High=None, Low=None, fill=P + d * 0.0010 + d * s_nom / 2),
+            }
+            for name, cs in cases.items():
+                df = df0.copy()
+                row = df.iloc[t + 1].copy()
+                row['Open'] = cs['Open']
+                if d == 1:
+                    row['High'] = cs['High'] if cs['High'] is not None else max(row['High'], row['Open'])
+                    row['Low'] = min(row['Low'], row['Open'], row['Close'])
+                    row['Close'] = min(row['Close'], row['High'])
+                else:
+                    row['Low'] = cs['Low'] if cs['Low'] is not None else min(row['Low'], row['Open'])
+                    row['High'] = max(row['High'], row['Open'], row['Close'])
+                    row['Close'] = max(row['Close'], row['Low'])
+                row['High'] = max(row['High'], row['Open'], row['Close'])
+                row['Low'] = min(row['Low'], row['Open'], row['Close'])
+                df.iloc[t + 1] = row
+                trades, _ = fs.run_h1(df, 'EURUSD')
+                hit = [x for x in trades if x['entry_time'] == df.index[t + 1]]
+                if cs['fill'] is None:
+                    self.assertEqual(hit, [], (seed, name))
+                else:
+                    self.assertEqual(len(hit), 1, (seed, name))
+                    self.assertAlmostEqual(hit[0]['entry'], cs['fill'], places=12, msg=(seed, name))
+                    self.assertEqual(hit[0]['initial_sl'], sp['sl'])
+                    self.assertAlmostEqual(hit[0]['risk'], abs(cs['fill'] - sp['sl']), places=12)   # R は約定価格から
+
+    def test_broker_sl_uses_bid_ask(self):
+        """決済の判定は決済側の価格（買い→Bid、売り→Ask）。仲値では届かなくても、スプレッドの半分で届けば損切り"""
+        s = 0.0002
+        for d in (1, -1):
+            b = bk.Broker(s)
+            p = b.open_position('t0', 1.1000, d, sl=1.1000 - d * 0.0050)
+            near = 1.1000 - d * 0.0050 + d * (s / 2 - 1e-6)          # 仲値の安値（売りは高値）は SL の内側
+            h, l = (1.1010, near) if d == 1 else (near, 1.0990)
+            b.process_bar(p, 't1', 1.1000, h, l, 1.1000)
+            self.assertEqual([x[3] for x in p.exits], ['SL'], d)
+            b = bk.Broker(s)
+            p = b.open_position('t0', 1.1000, d, sl=1.1000 - d * 0.0050)
+            far = 1.1000 - d * 0.0050 + d * (s / 2 + 1e-6)
+            h, l = (1.1010, far) if d == 1 else (far, 1.0990)
+            b.process_bar(p, 't1', 1.1000, h, l, 1.1000)
+            self.assertEqual(p.exits, [], d)
+
+    @staticmethod
+    def fstop_rollover_scenario():
+        """21 時足（22 時確定）の確定で置かれた F-stop の待機注文に対して、22 時足（23 時確定＝ロールオーバー）の終値で
+        水準を越えさせた合成データ。戻り値: (H1, 21 時足の番号, その注文案)"""
         df = synth('2015-01-05', 5000, seed=3)
         sw = fs.config('F-stop')
         ev = {}
@@ -648,10 +730,36 @@ class TestExecutionModel(unittest.TestCase):
         row['Close'] = s['price'] + s['dir'] * 0.0005
         row['High'], row['Low'] = max(row['High'], row['Close']), min(row['Low'], row['Close'])
         df.iloc[t + 1] = row
+        return df, t, s
+
+    def test_fstop_rollover_scenario_preconditions(self):
+        """下の expectedFailure の前提（シナリオが作れていること）。直しても通る"""
+        df, t, s = self.fstop_rollover_scenario()
+        sw = fs.config('F-stop')
+        ev = {}
+
+        def tr(event, tt, p):
+            if event == 'eval' and p['setup'] is not None:
+                ev[tt] = p['setup']
+        fs.run_h1(df, 'EURUSD', sw, trace=tr)
+        self.assertEqual(repr(ev.get(t)), repr(s))                       # 21 時足の注文案は変わらない
+        no_new, flat, roll, _ = fs.time_rules(df.index, 'EURUSD', dict(fs.DEFAULT_SW, **sw), H1, 12)
+        self.assertFalse(no_new[t] or roll[t] or flat[t])                 # 21 時足の確定では注文を置ける
+        self.assertTrue(roll[t + 1])                                      # 22 時足の確定（23 時）はロールオーバー
+        self.assertGreaterEqual((df['Close'].iloc[t + 1] - s['price']) * s['dir'], 0)
+
+    @unittest.expectedFailure
+    def test_fstop_market_order_respects_no_new_and_rollover(self):
+        """既知の食い違い（監査所見）: F-stop では、新規停止（金曜 hc>=20・早仕舞い hc>=17）やロールオーバー（hc>=23）の
+        足の終値で成行が決まり、次の足の始値で約定する。SPEC §2.6 の表（新規なし・23〜01時は注文が存在しない）に反する。
+        原因は SPEC §14 の擬似コードと同じ順序（`if 建玉あり or market: continue` が no_new/rollover の取消より前）。
+        IS 実データでは EURUSD 2015-07-03 19:00 足、EURJPY 2014-03-04 22:00 足など 7 件（F-stop 369 件中）。
+        直したら expectedFailure を外す"""
+        df, t, s = self.fstop_rollover_scenario()
+        sw = fs.config('F-stop')
         trades, _ = fs.run_h1(df, 'EURUSD', sw)
         no_new, flat, roll, _ = fs.time_rules(df.index, 'EURUSD', dict(fs.DEFAULT_SW, **sw), H1, 12)
         pos = {x: i for i, x in enumerate(df.index)}
-        self.assertTrue(any(x['entry_time'] == df.index[t + 2] for x in trades))   # 再現できていること
         bad = [x['entry_time'] for x in trades if no_new[pos[x['entry_time']] - 1] or roll[pos[x['entry_time']] - 1]]
         self.assertEqual(bad, [])
 
