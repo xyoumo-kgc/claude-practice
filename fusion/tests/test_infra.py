@@ -166,3 +166,29 @@ class TestData(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class TestFeatures(unittest.TestCase):
+    def test_cluster_and_next_level(self):
+        from fusion import features as ft
+        sw = [(1.1000, 10, 1), (1.1004, 30, -1), (1.0950, 20, -1), (1.1100, 40, 1), (1.1102, 50, 1)]
+        lv = ft.cluster_levels(sw, tol=0.0005)
+        self.assertEqual(len(lv), 3)
+        mid = next(l for l in lv if abs(l.price - 1.1002) < 1e-9)
+        self.assertTrue(mid.role_reversal)
+        self.assertEqual(mid.touches, 2)
+        up = ft.next_level(lv, 1.1010, +1)
+        self.assertAlmostEqual(up.price, 1.1101)
+        dn = ft.next_level(lv, 1.1010, -1)
+        self.assertAlmostEqual(dn.price, 1.1002)
+        self.assertIsNone(ft.next_level(lv, 1.1200, +1))
+        sup = ft.support_near(lv, 1.1006, +1, tol=0.0005)
+        self.assertAlmostEqual(sup.price, 1.1002)
+
+    def test_converge_then_diverge(self):
+        from fusion import features as ft
+        gap = np.array([2.0, 1.0, 0.2, 0.1, 0.4, 0.9, 1.3])
+        self.assertTrue(ft.converge_then_diverge(gap, 6, +1, conv_thr=0.3, div_thr=1.0, window=5))
+        self.assertFalse(ft.converge_then_diverge(gap, 6, -1, conv_thr=0.3, div_thr=1.0, window=5))
+        self.assertFalse(ft.converge_then_diverge(gap, 1, +1, conv_thr=0.3, div_thr=1.0, window=5))
+        self.assertAlmostEqual(ft.risk_reward(1.0, 0.99, 1.03, +1), 3.0)
