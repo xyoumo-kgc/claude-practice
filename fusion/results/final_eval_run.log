@@ -1,0 +1,1290 @@
+[final_eval] データ: <未接触データのフォルダ（fulldata）>  銘柄: EURUSD GBPUSD EURJPY AUDUSD USDCAD AUDJPY XAUUSD（M15: EURUSD GBPUSD EURJPY AUDUSD USDCAD AUDJPY XAUUSD）
+[final_eval] 実行: 7銘柄 × 181構成（M15 のない銘柄の p2 を除く）＋切断テスト = 1281件、4並列
+[   1/1281] EURJPY p2                          505件   33.3秒（CPU  32.8秒）  経過      34秒
+[   2/1281] GBPUSD p2                          454件   34.2秒（CPU  33.6秒）  経過      35秒
+[   3/1281] AUDUSD p2                          536件   34.2秒（CPU  33.8秒）  経過      35秒
+[   4/1281] EURUSD p2                          489件   34.7秒（CPU  34.0秒）  経過      36秒
+[   5/1281] EURUSD fusion                      452件    8.7秒（CPU   8.6秒）  経過      44秒
+[   6/1281] EURUSD oku_only                     60件    8.4秒（CPU   8.3秒）  経過      53秒
+[   7/1281] EURUSD kenjin_only                 118件   10.6秒（CPU  10.5秒）  経過      63秒
+[   8/1281] XAUUSD p2                          414件   30.8秒（CPU  30.5秒）  経過      66秒
+[   9/1281] EURUSD ma_slope                   1416件    0.9秒（CPU   0.9秒）  経過      67秒
+[  10/1281] EURUSD fourp_score                 155件    0.9秒（CPU   0.9秒）  経過      68秒
+[  11/1281] AUDJPY p2                          570件   33.1秒（CPU  32.8秒）  経過      68秒
+[  12/1281] USDCAD p2                          431件   34.7秒（CPU  34.2秒）  経過      69秒
+[  13/1281] EURUSD mincore_final               410件    7.7秒（CPU   7.6秒）  経過      71秒
+[  14/1281] EURUSD F-slope                     575件    9.2秒（CPU   9.1秒）  経過      77秒
+[  15/1281] EURUSD F-stop                      313件    9.0秒（CPU   9.0秒）  経過      80秒
+[  16/1281] EURUSD F-HH                        760件   11.2秒（CPU  11.0秒）  経過      80秒
+[  17/1281] EURUSD F-G2                        891件   12.3秒（CPU  12.2秒）  経過      81秒
+[  18/1281] EURUSD F-trail                     447件    8.6秒（CPU   8.5秒）  経過      86秒
+[  19/1281] EURUSD F-slfloor                   455件    8.6秒（CPU   8.4秒）  経過      89秒
+[  20/1281] EURUSD F-weekend                   419件    9.1秒（CPU   8.9秒）  経過      89秒
+[  21/1281] EURUSD F-onefill                   459件    9.2秒（CPU   9.0秒）  経過      90秒
+[  22/1281] EURUSD F-rollover                  463件    8.8秒（CPU   8.7秒）  経過      94秒
+[  23/1281] EURUSD F+G3                        288件    6.8秒（CPU   6.8秒）  経過      97秒
+[  24/1281] EURUSD F-calendar                  451件    8.1秒（CPU   8.0秒）  経過      97秒
+[  25/1281] EURUSD F-rcap                      481件    8.3秒（CPU   8.2秒）  経過      97秒
+[  26/1281] EURUSD F+d1                        320件    9.1秒（CPU   9.0秒）  経過     103秒
+[  27/1281] EURUSD F+d1soft                    364件    8.8秒（CPU   8.7秒）  経過     105秒
+[  28/1281] EURUSD F+gap                       397件    8.7秒（CPU   8.6秒）  経過     106秒
+[  29/1281] EURUSD F+clear                     302件    8.7秒（CPU   8.7秒）  経過     106秒
+[  30/1281] EURUSD F+clear_d1                  306件    9.6秒（CPU   9.5秒）  経過     113秒
+[  31/1281] EURUSD F+partial                   452件    8.6秒（CPU   8.5秒）  経過     115秒
+[  32/1281] EURUSD F+slnode                    425件    8.9秒（CPU   8.8秒）  経過     115秒
+[  33/1281] EURUSD F+support                   384件    9.2秒（CPU   9.1秒）  経過     115秒
+[  34/1281] EURUSD F+be                        471件    8.9秒（CPU   8.8秒）  経過     122秒
+[  35/1281] EURUSD F+trail1h                   477件    9.1秒（CPU   9.0秒）  経過     124秒
+[  36/1281] EURUSD F~dowP                      646件   10.1秒（CPU  10.0秒）  経過     125秒
+[  37/1281] EURUSD F+p3                        624件   11.5秒（CPU  11.2秒）  経過     126秒
+[  38/1281] EURUSD F+h1trans                   310件    7.8秒（CPU   7.7秒）  経過     130秒
+[  39/1281] EURUSD F~conv                      295件    7.4秒（CPU   7.3秒）  経過     131秒
+[  40/1281] EURUSD S:N_BIG=10                  388件    8.2秒（CPU   8.0秒）  経過     133秒
+[  41/1281] EURUSD S:N_BIG=16                  602件    9.4秒（CPU   9.2秒）  経過     135秒
+[  42/1281] EURUSD S:N_SMALL=2                 587件    9.3秒（CPU   9.2秒）  経過     139秒
+[  43/1281] EURUSD S:N_SMALL=4                 330件    8.6秒（CPU   8.4秒）  経過     140秒
+[  44/1281] EURUSD S:ZONE=0.25                 418件    8.6秒（CPU   8.5秒）  経過     142秒
+[  45/1281] EURUSD S:ZONE=1.0                  534件    9.9秒（CPU   9.7秒）  経過     145秒
+[  46/1281] EURUSD S:R_MAX=2.5                 412件    8.7秒（CPU   8.6秒）  経過     148秒
+[  47/1281] EURUSD S:R_MAX=4.0                 477件    8.7秒（CPU   8.6秒）  経過     148秒
+[  48/1281] GBPUSD fusion                      450件    8.2秒（CPU   8.1秒）  経過     150秒
+[  49/1281] GBPUSD ma_slope                   1326件    0.7秒（CPU   0.7秒）  経過     150秒
+[  50/1281] GBPUSD fourp_score                 159件    1.0秒（CPU   1.0秒）  経過     151秒
+[  51/1281] GBPUSD oku_only                     50件    8.0秒（CPU   7.8秒）  経過     153秒
+[  52/1281] GBPUSD mincore_final               428件    7.8秒（CPU   7.8秒）  経過     156秒
+[  53/1281] GBPUSD kenjin_only                 114件    9.4秒（CPU   9.3秒）  経過     157秒
+[  54/1281] GBPUSD F-slope                     575件    8.7秒（CPU   8.6秒）  経過     160秒
+[  55/1281] GBPUSD F-G2                        888件   11.7秒（CPU  11.5秒）  経過     165秒
+[  56/1281] GBPUSD F-stop                      327件    8.9秒（CPU   8.8秒）  経過     166秒
+[  57/1281] GBPUSD F-HH                        748件   11.0秒（CPU  11.0秒）  経過     167秒
+[  58/1281] GBPUSD F-trail                     448件    8.2秒（CPU   8.1秒）  経過     168秒
+[  59/1281] GBPUSD F-weekend                   424件    7.9秒（CPU   7.7秒）  経過     173秒
+[  60/1281] GBPUSD F-slfloor                   459件    8.3秒（CPU   8.2秒）  経過     174秒
+[  61/1281] GBPUSD F-onefill                   453件    7.8秒（CPU   7.7秒）  経過     175秒
+[  62/1281] GBPUSD F-rollover                  461件    8.9秒（CPU   8.7秒）  経過     177秒
+[  63/1281] GBPUSD F-calendar                  450件    8.4秒（CPU   8.3秒）  経過     181秒
+[  64/1281] GBPUSD F+G3                        303件    7.0秒（CPU   6.9秒）  経過     182秒
+[  65/1281] GBPUSD F-rcap                      494件    9.1秒（CPU   9.1秒）  経過     184秒
+[  66/1281] GBPUSD F+d1                        322件    8.9秒（CPU   8.9秒）  経過     186秒
+[  67/1281] GBPUSD F+d1soft                    357件    8.8秒（CPU   8.7秒）  経過     190秒
+[  68/1281] GBPUSD F+gap                       389件    9.6秒（CPU   9.5秒）  経過     192秒
+[  69/1281] GBPUSD F+clear                     287件    9.1秒（CPU   9.1秒）  経過     193秒
+[  70/1281] GBPUSD F+clear_d1                  291件    9.4秒（CPU   9.3秒）  経過     196秒
+[  71/1281] GBPUSD F+support                   390件    8.7秒（CPU   8.5秒）  経過     199秒
+[  72/1281] GBPUSD F+slnode                    414件    8.4秒（CPU   8.4秒）  経過     200秒
+[  73/1281] GBPUSD F+partial                   450件    9.1秒（CPU   9.0秒）  経過     202秒
+[  74/1281] GBPUSD F+be                        456件    8.9秒（CPU   8.8秒）  経過     204秒
+[  75/1281] GBPUSD F+trail1h                   471件    9.2秒（CPU   9.1秒）  経過     208秒
+[  76/1281] GBPUSD F+p3                        596件   12.0秒（CPU  11.8秒）  経過     212秒
+[  77/1281] GBPUSD F~dowP                      645件   10.9秒（CPU  10.8秒）  経過     213秒
+[  78/1281] GBPUSD F+h1trans                   307件    8.9秒（CPU   8.8秒）  経過     213秒
+[  79/1281] GBPUSD F~conv                      310件    7.8秒（CPU   7.7秒）  経過     216秒
+[  80/1281] GBPUSD S:N_BIG=10                  353件    8.3秒（CPU   8.2秒）  経過     220秒
+[  81/1281] GBPUSD S:N_BIG=16                  549件    9.4秒（CPU   9.3秒）  経過     222秒
+[  82/1281] GBPUSD S:N_SMALL=2                 617件    9.5秒（CPU   9.4秒）  経過     223秒
+[  83/1281] GBPUSD S:N_SMALL=4                 329件    7.8秒（CPU   7.7秒）  経過     224秒
+[  84/1281] GBPUSD S:ZONE=0.25                 419件    8.6秒（CPU   8.5秒）  経過     229秒
+[  85/1281] GBPUSD S:R_MAX=2.5                 392件    8.4秒（CPU   8.3秒）  経過     231秒
+[  86/1281] GBPUSD S:ZONE=1.0                  537件    9.5秒（CPU   9.4秒）  経過     232秒
+[  87/1281] GBPUSD S:R_MAX=4.0                 483件    9.0秒（CPU   8.9秒）  経過     233秒
+[  88/1281] EURJPY fusion                      500件    8.9秒（CPU   8.8秒）  経過     238秒
+[  89/1281] EURJPY ma_slope                   1325件    0.7秒（CPU   0.7秒）  経過     238秒
+[  90/1281] EURJPY fourp_score                 145件    0.8秒（CPU   0.8秒）  経過     239秒
+[  91/1281] EURJPY oku_only                     97件    8.1秒（CPU   7.9秒）  経過     239秒
+[  92/1281] EURJPY mincore_final               476件    7.3秒（CPU   7.2秒）  経過     240秒
+[  93/1281] EURJPY kenjin_only                 120件   10.1秒（CPU  10.0秒）  経過     242秒
+[  94/1281] EURJPY F-slope                     619件    8.8秒（CPU   8.8秒）  経過     248秒
+[  95/1281] EURJPY F-G2                        847件   10.4秒（CPU  10.4秒）  経過     250秒
+[  96/1281] EURJPY F-stop                      354件    9.1秒（CPU   9.0秒）  経過     251秒
+[  97/1281] EURJPY F-HH                        824件   11.1秒（CPU  11.0秒）  経過     251秒
+[  98/1281] EURJPY F-trail                     494件    8.2秒（CPU   8.1秒）  経過     256秒
+[  99/1281] EURJPY F-weekend                   447件    8.3秒（CPU   8.2秒）  経過     258秒
+[ 100/1281] EURJPY F-slfloor                   503件    8.2秒（CPU   8.1秒）  経過     259秒
+[ 101/1281] EURJPY F-onefill                   503件    8.5秒（CPU   8.4秒）  経過     259秒
+[ 102/1281] EURJPY F-rollover                  512件    9.9秒（CPU   9.8秒）  経過     266秒
+[ 103/1281] EURJPY F+G3                        348件    7.0秒（CPU   6.9秒）  経過     266秒
+[ 104/1281] EURJPY F-calendar                  500件    9.3秒（CPU   9.2秒）  経過     267秒
+[ 105/1281] EURJPY F-rcap                      527件    9.0秒（CPU   8.9秒）  経過     268秒
+[ 106/1281] EURJPY F+d1                        381件    8.9秒（CPU   8.8秒）  経過     275秒
+[ 107/1281] EURJPY F+d1soft                    406件    9.1秒（CPU   9.0秒）  経過     276秒
+[ 108/1281] EURJPY F+gap                       439件    8.7秒（CPU   8.7秒）  経過     276秒
+[ 109/1281] EURJPY F+clear                     329件    8.8秒（CPU   8.8秒）  経過     277秒
+[ 110/1281] EURJPY F+support                   434件    7.9秒（CPU   7.8秒）  経過     284秒
+[ 111/1281] EURJPY F+clear_d1                  322件    9.2秒（CPU   9.1秒）  経過     284秒
+[ 112/1281] EURJPY F+partial                   500件    8.5秒（CPU   8.4秒）  経過     285秒
+[ 113/1281] EURJPY F+slnode                    465件    9.4秒（CPU   9.3秒）  経過     285秒
+[ 114/1281] EURJPY F+be                        512件    8.9秒（CPU   8.8秒）  経過     292秒
+[ 115/1281] EURJPY F+trail1h                   529件    8.5秒（CPU   8.4秒）  経過     293秒
+[ 116/1281] EURJPY F~dowP                      754件    9.5秒（CPU   9.4秒）  経過     295秒
+[ 117/1281] EURJPY F+p3                        683件   10.9秒（CPU  10.9秒）  経過     296秒
+[ 118/1281] EURJPY F~conv                      327件    7.0秒（CPU   7.0秒）  経過     300秒
+[ 119/1281] EURJPY F+h1trans                   352件    8.7秒（CPU   8.6秒）  経過     301秒
+[ 120/1281] EURJPY S:N_BIG=10                  431件    8.3秒（CPU   8.2秒）  経過     303秒
+[ 121/1281] EURJPY S:N_BIG=16                  597件    8.9秒（CPU   8.8秒）  経過     305秒
+[ 122/1281] EURJPY S:N_SMALL=4                 381件    7.9秒（CPU   7.6秒）  経過     309秒
+[ 123/1281] EURJPY S:N_SMALL=2                 652件    9.5秒（CPU   9.4秒）  経過     309秒
+[ 124/1281] EURJPY S:ZONE=0.25                 457件    8.5秒（CPU   8.4秒）  経過     312秒
+[ 125/1281] EURJPY S:ZONE=1.0                  567件   10.2秒（CPU  10.0秒）  経過     315秒
+[ 126/1281] EURJPY S:R_MAX=4.0                 525件    9.1秒（CPU   8.9秒）  経過     318秒
+[ 127/1281] EURJPY S:R_MAX=2.5                 443件    9.3秒（CPU   9.0秒）  経過     318秒
+[ 128/1281] AUDUSD fusion                      522件    7.9秒（CPU   7.8秒）  経過     320秒
+[ 129/1281] AUDUSD ma_slope                   1370件    0.6秒（CPU   0.6秒）  経過     320秒
+[ 130/1281] AUDUSD fourp_score                 158件    1.6秒（CPU   1.1秒）  経過     322秒
+[ 131/1281] AUDUSD oku_only                     63件    8.4秒（CPU   7.8秒）  経過     324秒
+[ 132/1281] AUDUSD mincore_final               452件    9.7秒（CPU   8.2秒）  経過     328秒
+[ 133/1281] AUDUSD kenjin_only                 106件   12.6秒（CPU  10.3秒）  経過     331秒
+[ 134/1281] AUDUSD F-slope                     636件   12.1秒（CPU   9.1秒）  経過     334秒
+[ 135/1281] AUDUSD F-G2                        887件   12.3秒（CPU  10.3秒）  経過     336秒
+[ 136/1281] AUDUSD F-stop                      371件    8.7秒（CPU   7.7秒）  経過     340秒
+[ 137/1281] AUDUSD F-HH                        828件   12.1秒（CPU  10.7秒）  経過     340秒
+[ 138/1281] AUDUSD F-trail                     520件    6.4秒（CPU   6.4秒）  経過     340秒
+[ 139/1281] AUDUSD F-weekend                   477件    7.0秒（CPU   7.0秒）  経過     343秒
+[ 140/1281] AUDUSD F-slfloor                   531件    8.1秒（CPU   7.9秒）  経過     348秒
+[ 141/1281] AUDUSD F-onefill                   527件    8.1秒（CPU   8.0秒）  経過     348秒
+[ 142/1281] AUDUSD F-rollover                  542件    8.8秒（CPU   8.7秒）  経過     349秒
+[ 143/1281] AUDUSD F-calendar                  523件    8.4秒（CPU   8.3秒）  経過     352秒
+[ 144/1281] AUDUSD F+G3                        329件    7.3秒（CPU   7.2秒）  経過     356秒
+[ 145/1281] AUDUSD F-rcap                      550件    8.1秒（CPU   8.1秒）  経過     356秒
+[ 146/1281] AUDUSD F+d1                        392件    9.0秒（CPU   8.9秒）  経過     358秒
+[ 147/1281] AUDUSD F+d1soft                    415件    8.5秒（CPU   8.4秒）  経過     360秒
+[ 148/1281] AUDUSD F+gap                       453件    8.7秒（CPU   8.6秒）  経過     364秒
+[ 149/1281] AUDUSD F+clear                     309件    9.0秒（CPU   8.8秒）  経過     365秒
+[ 150/1281] AUDUSD F+clear_d1                  306件    9.9秒（CPU   9.9秒）  経過     368秒
+[ 151/1281] AUDUSD F+support                   451件    9.0秒（CPU   8.9秒）  経過     369秒
+[ 152/1281] AUDUSD F+slnode                    485件    8.4秒（CPU   8.3秒）  経過     373秒
+[ 153/1281] AUDUSD F+partial                   522件    8.6秒（CPU   8.5秒）  経過     373秒
+[ 154/1281] AUDUSD F+be                        533件    8.7秒（CPU   8.6秒）  経過     377秒
+[ 155/1281] AUDUSD F+trail1h                   536件    9.1秒（CPU   8.9秒）  経過     378秒
+[ 156/1281] AUDUSD F~dowP                      716件   10.5秒（CPU  10.2秒）  経過     384秒
+[ 157/1281] AUDUSD F+p3                        689件   12.2秒（CPU  12.1秒）  経過     385秒
+[ 158/1281] AUDUSD F~conv                      296件    7.4秒（CPU   7.3秒）  経過     385秒
+[ 159/1281] AUDUSD F+h1trans                   345件   10.0秒（CPU   9.7秒）  経過     387秒
+[ 160/1281] AUDUSD S:N_BIG=10                  442件    9.0秒（CPU   8.8秒）  経過     393秒
+[ 161/1281] AUDUSD S:N_BIG=16                  619件    9.1秒（CPU   8.9秒）  経過     394秒
+[ 162/1281] AUDUSD S:N_SMALL=2                 692件    9.2秒（CPU   9.1秒）  経過     395秒
+[ 163/1281] AUDUSD S:N_SMALL=4                 380件    8.6秒（CPU   8.4秒）  経過     395秒
+[ 164/1281] AUDUSD S:ZONE=0.25                 487件    8.1秒（CPU   7.9秒）  経過     401秒
+[ 165/1281] AUDUSD S:ZONE=1.0                  612件    8.4秒（CPU   8.3秒）  経過     402秒
+[ 166/1281] AUDUSD S:R_MAX=2.5                 459件    9.8秒（CPU   9.7秒）  経過     404秒
+[ 167/1281] AUDUSD S:R_MAX=4.0                 548件    9.5秒（CPU   9.4秒）  経過     405秒
+[ 168/1281] USDCAD fusion                      453件   10.2秒（CPU  10.1秒）  経過     411秒
+[ 169/1281] USDCAD oku_only                     52件    9.0秒（CPU   8.9秒）  経過     411秒
+[ 170/1281] USDCAD ma_slope                   1356件    0.7秒（CPU   0.7秒）  経過     412秒
+[ 171/1281] USDCAD fourp_score                 159件    1.1秒（CPU   1.0秒）  経過     413秒
+[ 172/1281] USDCAD mincore_final               446件    8.7秒（CPU   8.3秒）  経過     414秒
+[ 173/1281] USDCAD kenjin_only                  99件   11.3秒（CPU  11.1秒）  経過     416秒
+[ 174/1281] USDCAD F-slope                     579件   10.5秒（CPU  10.4秒）  経過     422秒
+[ 175/1281] USDCAD F-G2                        844件   12.1秒（CPU  12.0秒）  経過     425秒
+[ 176/1281] USDCAD F-stop                      322件    9.0秒（CPU   9.0秒）  経過     425秒
+[ 177/1281] USDCAD F-HH                        763件   12.7秒（CPU  12.6秒）  経過     426秒
+[ 178/1281] USDCAD F-trail                     453件    9.4秒（CPU   9.3秒）  経過     432秒
+[ 179/1281] USDCAD F-weekend                   422件    9.0秒（CPU   8.9秒）  経過     434秒
+[ 180/1281] USDCAD F-slfloor                   468件    9.2秒（CPU   9.1秒）  経過     434秒
+[ 181/1281] USDCAD F-onefill                   458件    9.5秒（CPU   9.2秒）  経過     436秒
+[ 182/1281] USDCAD F-rollover                  459件   11.3秒（CPU   9.3秒）  経過     443秒
+[ 183/1281] USDCAD F-rcap                      508件   10.7秒（CPU   8.1秒）  経過     445秒
+[ 184/1281] USDCAD F-calendar                  454件   11.8秒（CPU   8.9秒）  経過     446秒
+[ 185/1281] USDCAD F+G3                        308件   10.3秒（CPU   7.4秒）  経過     446秒
+[ 186/1281] USDCAD F+d1                        317件   10.7秒（CPU   9.0秒）  経過     454秒
+[ 187/1281] USDCAD F+d1soft                    351件   10.1秒（CPU   8.8秒）  経過     455秒
+[ 188/1281] USDCAD F+gap                       378件   10.6秒（CPU   9.4秒）  経過     456秒
+[ 189/1281] USDCAD F+clear                     291件   10.8秒（CPU   9.4秒）  経過     457秒
+[ 190/1281] USDCAD F+clear_d1                  292件    9.2秒（CPU   9.1秒）  経過     463秒
+[ 191/1281] USDCAD F+support                   403件    9.7秒（CPU   9.4秒）  経過     464秒
+[ 192/1281] USDCAD F+slnode                    434件    9.2秒（CPU   8.9秒）  経過     465秒
+[ 193/1281] USDCAD F+partial                   453件    9.2秒（CPU   9.1秒）  経過     466秒
+[ 194/1281] USDCAD F+be                        459件    8.9秒（CPU   8.7秒）  経過     472秒
+[ 195/1281] USDCAD F+trail1h                   464件    8.6秒（CPU   8.3秒）  経過     473秒
+[ 196/1281] USDCAD F~dowP                      670件   10.6秒（CPU  10.5秒）  経過     477秒
+[ 197/1281] USDCAD F+p3                        645件   12.2秒（CPU  12.0秒）  経過     478秒
+[ 198/1281] USDCAD F~conv                      295件    7.2秒（CPU   7.1秒）  経過     480秒
+[ 199/1281] USDCAD F+h1trans                   303件    9.4秒（CPU   9.3秒）  経過     481秒
+[ 200/1281] USDCAD S:N_BIG=10                  380件    8.4秒（CPU   8.3秒）  経過     485秒
+[ 201/1281] USDCAD S:N_BIG=16                  535件    9.1秒（CPU   8.9秒）  経過     487秒
+[ 202/1281] USDCAD S:N_SMALL=4                 323件    8.7秒（CPU   8.6秒）  経過     490秒
+[ 203/1281] USDCAD S:N_SMALL=2                 605件   10.4秒（CPU  10.1秒）  経過     491秒
+[ 204/1281] USDCAD S:ZONE=0.25                 412件    8.4秒（CPU   8.4秒）  経過     494秒
+[ 205/1281] USDCAD S:ZONE=1.0                  528件   11.2秒（CPU  11.0秒）  経過     498秒
+[ 206/1281] USDCAD S:R_MAX=2.5                 396件    9.3秒（CPU   9.2秒）  経過     499秒
+[ 207/1281] USDCAD S:R_MAX=4.0                 500件   10.2秒（CPU  10.0秒）  経過     501秒
+[ 208/1281] AUDJPY fusion                      525件    8.3秒（CPU   8.2秒）  経過     502秒
+[ 209/1281] AUDJPY ma_slope                   1286件    0.9秒（CPU   0.9秒）  経過     503秒
+[ 210/1281] AUDJPY fourp_score                 148件    1.1秒（CPU   1.1秒）  経過     504秒
+[ 211/1281] AUDJPY oku_only                     74件   10.2秒（CPU  10.0秒）  経過     508秒
+[ 212/1281] AUDJPY mincore_final               496件    8.8秒（CPU   8.7秒）  経過     510秒
+[ 213/1281] AUDJPY kenjin_only                 103件   11.2秒（CPU  10.9秒）  経過     510秒
+[ 214/1281] AUDJPY F-slope                     626件   11.3秒（CPU   9.9秒）  経過     515秒
+[ 215/1281] AUDJPY F-G2                        825件   13.1秒（CPU  10.8秒）  経過     521秒
+[ 216/1281] AUDJPY F-stop                      376件   12.7秒（CPU   9.7秒）  経過     523秒
+[ 217/1281] AUDJPY F-HH                        856件   14.3秒（CPU  10.7秒）  経過     524秒
+[ 218/1281] AUDJPY F-trail                     520件   11.8秒（CPU   8.9秒）  経過     527秒
+[ 219/1281] AUDJPY F-weekend                   450件    9.5秒（CPU   8.4秒）  経過     531秒
+[ 220/1281] AUDJPY F-slfloor                   538件    9.5秒（CPU   8.2秒）  経過     533秒
+[ 221/1281] AUDJPY F-onefill                   528件   10.5秒（CPU   9.7秒）  経過     534秒
+[ 222/1281] AUDJPY F-rollover                  537件    9.4秒（CPU   9.1秒）  経過     536秒
+[ 223/1281] AUDJPY F-calendar                  522件    9.7秒（CPU   9.0秒）  経過     540秒
+[ 224/1281] AUDJPY F-rcap                      551件    9.3秒（CPU   8.8秒）  経過     542秒
+[ 225/1281] AUDJPY F+G3                        382件    8.6秒（CPU   8.3秒）  経過     543秒
+[ 226/1281] AUDJPY F+d1                        419件    9.3秒（CPU   9.2秒）  経過     546秒
+[ 227/1281] AUDJPY F+d1soft                    438件   11.0秒（CPU   9.2秒）  経過     551秒
+[ 228/1281] AUDJPY F+gap                       465件   11.9秒（CPU   9.5秒）  経過     554秒
+[ 229/1281] AUDJPY F+clear                     314件   13.1秒（CPU  10.4秒）  経過     556秒
+[ 230/1281] AUDJPY F+clear_d1                  318件   13.7秒（CPU  10.2秒）  経過     559秒
+[ 231/1281] AUDJPY F+support                   465件   13.7秒（CPU  10.2秒）  経過     565秒
+[ 232/1281] AUDJPY F+slnode                    490件   12.6秒（CPU   9.5秒）  経過     566秒
+[ 233/1281] AUDJPY F+partial                   525件   14.1秒（CPU  10.1秒）  経過     570秒
+[ 234/1281] AUDJPY F+be                        543件   13.5秒（CPU  10.1秒）  経過     573秒
+[ 235/1281] AUDJPY F+trail1h                   571件   12.5秒（CPU   9.5秒）  経過     578秒
+[ 236/1281] AUDJPY F+p3                        688件   17.1秒（CPU  12.3秒）  経過     584秒
+[ 237/1281] AUDJPY F~dowP                      767件   13.4秒（CPU  11.0秒）  経過     584秒
+[ 238/1281] AUDJPY F+h1trans                   345件   11.8秒（CPU   8.9秒）  経過     585秒
+[ 239/1281] AUDJPY F~conv                      331件    9.1秒（CPU   7.8秒）  経過     587秒
+[ 240/1281] AUDJPY S:N_BIG=16                  611件    8.3秒（CPU   8.2秒）  経過     592秒
+[ 241/1281] AUDJPY S:N_BIG=10                  466件    8.7秒（CPU   8.6秒）  経過     592秒
+[ 242/1281] AUDJPY S:N_SMALL=2                 684件    9.7秒（CPU   9.5秒）  経過     594秒
+[ 243/1281] AUDJPY S:N_SMALL=4                 410件    9.9秒（CPU   9.8秒）  経過     597秒
+[ 244/1281] AUDJPY S:ZONE=0.25                 479件    8.0秒（CPU   7.9秒）  経過     600秒
+[ 245/1281] AUDJPY S:ZONE=1.0                  603件    9.7秒（CPU   9.5秒）  経過     602秒
+[ 246/1281] AUDJPY S:R_MAX=2.5                 468件   10.3秒（CPU  10.3秒）  経過     605秒
+[ 247/1281] AUDJPY S:R_MAX=4.0                 550件    8.4秒（CPU   8.3秒）  経過     605秒
+[ 248/1281] XAUUSD fusion                      373件    8.6秒（CPU   8.4秒）  経過     609秒
+[ 249/1281] XAUUSD ma_slope                   1265件    0.7秒（CPU   0.6秒）  経過     609秒
+[ 250/1281] XAUUSD oku_only                     57件    7.9秒（CPU   7.9秒）  経過     610秒
+[ 251/1281] XAUUSD fourp_score                 142件    0.9秒（CPU   0.9秒）  経過     610秒
+[ 252/1281] XAUUSD mincore_final               381件    7.6秒（CPU   7.6秒）  経過     613秒
+[ 253/1281] XAUUSD kenjin_only                  88件    9.5秒（CPU   9.4秒）  経過     614秒
+[ 254/1281] XAUUSD F-slope                     510件    9.7秒（CPU   9.7秒）  経過     620秒
+[ 255/1281] XAUUSD F-G2                        739件   11.1秒（CPU  11.0秒）  経過     621秒
+[ 256/1281] XAUUSD F-HH                        643件   11.1秒（CPU  11.0秒）  経過     624秒
+[ 257/1281] XAUUSD F-stop                      248件   10.0秒（CPU  10.0秒）  経過     624秒
+[ 258/1281] XAUUSD F-trail                     368件    8.8秒（CPU   8.8秒）  経過     628秒
+[ 259/1281] XAUUSD F-weekend                   337件    7.3秒（CPU   7.2秒）  経過     628秒
+[ 260/1281] XAUUSD F-onefill                   379件    7.1秒（CPU   7.1秒）  経過     631秒
+[ 261/1281] XAUUSD F-slfloor                   390件    9.1秒（CPU   9.0秒）  経過     633秒
+[ 262/1281] XAUUSD F-calendar                  372件    8.4秒（CPU   8.2秒）  経過     637秒
+[ 263/1281] XAUUSD F-rollover                  377件   10.0秒（CPU   9.9秒）  経過     638秒
+[ 264/1281] XAUUSD F-rcap                      416件    7.3秒（CPU   7.3秒）  経過     639秒
+[ 265/1281] XAUUSD F+G3                        234件    6.3秒（CPU   6.3秒）  経過     639秒
+[ 266/1281] XAUUSD F+d1                        270件    8.2秒（CPU   8.1秒）  経過     645秒
+[ 267/1281] XAUUSD F+d1soft                    294件    7.3秒（CPU   7.3秒）  経過     646秒
+[ 268/1281] XAUUSD F+gap                       330件    8.6秒（CPU   8.5秒）  経過     647秒
+[ 269/1281] XAUUSD F+clear                     247件    9.4秒（CPU   9.3秒）  経過     649秒
+[ 270/1281] XAUUSD F+clear_d1                  254件    8.3秒（CPU   8.3秒）  経過     653秒
+[ 271/1281] XAUUSD F+support                   309件    8.6秒（CPU   8.5秒）  経過     654秒
+[ 272/1281] XAUUSD F+slnode                    345件    8.5秒（CPU   8.4秒）  経過     656秒
+[ 273/1281] XAUUSD F+partial                   373件    7.7秒（CPU   7.6秒）  経過     656秒
+[ 274/1281] XAUUSD F+be                        389件    8.3秒（CPU   8.3秒）  経過     662秒
+[ 275/1281] XAUUSD F+trail1h                   393件    8.2秒（CPU   8.2秒）  経過     663秒
+[ 276/1281] XAUUSD F~dowP                      587件    9.3秒（CPU   9.2秒）  経過     666秒
+[ 277/1281] XAUUSD F+p3                        543件   10.4秒（CPU  10.1秒）  経過     666秒
+[ 278/1281] XAUUSD F+h1trans                   242件    7.6秒（CPU   7.6秒）  経過     669秒
+[ 279/1281] XAUUSD F~conv                      276件    7.1秒（CPU   7.0秒）  経過     670秒
+[ 280/1281] XAUUSD S:N_BIG=10                  302件    7.4秒（CPU   7.4秒）  経過     673秒
+[ 281/1281] XAUUSD S:N_BIG=16                  461件    7.8秒（CPU   7.6秒）  経過     674秒
+[ 282/1281] XAUUSD S:N_SMALL=4                 263件    6.9秒（CPU   6.9秒）  経過     677秒
+[ 283/1281] XAUUSD S:N_SMALL=2                 526件    7.7秒（CPU   7.6秒）  経過     677秒
+[ 284/1281] XAUUSD S:ZONE=0.25                 330件    7.6秒（CPU   7.5秒）  経過     681秒
+[ 285/1281] XAUUSD S:ZONE=1.0                  445件    8.1秒（CPU   8.0秒）  経過     682秒
+[ 286/1281] EURUSD fusion（2009-01-01 で切断）      125件    1.9秒（CPU   1.9秒）  経過     683秒
+[ 287/1281] XAUUSD S:R_MAX=4.0                 408件    7.4秒（CPU   7.3秒）  経過     684秒
+[ 288/1281] GBPUSD fusion（2009-01-01 で切断）      130件    2.2秒（CPU   2.2秒）  経過     685秒
+[ 289/1281] XAUUSD S:R_MAX=2.5                 314件    8.3秒（CPU   8.1秒）  経過     685秒
+[ 290/1281] EURJPY fusion（2009-01-01 で切断）      135件    2.0秒（CPU   2.0秒）  経過     687秒
+[ 291/1281] AUDUSD fusion（2009-01-01 で切断）      138件    1.9秒（CPU   1.8秒）  経過     689秒
+[ 292/1281] EURUSD fusion（2018-01-01 で切断）      396件    6.7秒（CPU   6.7秒）  経過     689秒
+[ 293/1281] USDCAD fusion（2009-01-01 で切断）      123件    2.4秒（CPU   2.4秒）  経過     691秒
+[ 294/1281] GBPUSD fusion（2018-01-01 で切断）      389件    7.1秒（CPU   7.1秒）  経過     692秒
+[ 295/1281] EURJPY fusion（2018-01-01 で切断）      420件    6.8秒（CPU   6.8秒）  経過     692秒
+[ 296/1281] AUDJPY fusion（2009-01-01 で切断）      139件    1.9秒（CPU   1.8秒）  経過     693秒
+[ 297/1281] XAUUSD fusion（2009-01-01 で切断）       65件    1.2秒（CPU   1.2秒）  経過     695秒
+[ 298/1281] AUDUSD fusion（2018-01-01 で切断）      446件    7.0秒（CPU   6.9秒）  経過     696秒
+[ 299/1281] AUDJPY fusion（2018-01-01 で切断）      440件    6.0秒（CPU   6.0秒）  経過     698秒
+[ 300/1281] USDCAD fusion（2018-01-01 で切断）      386件    6.9秒（CPU   6.9秒）  経過     698秒
+[ 301/1281] EURUSD naive:p=0.005:seed=0        220件    3.6秒（CPU   3.6秒）  経過     699秒
+[ 302/1281] XAUUSD fusion（2018-01-01 で切断）      294件    6.3秒（CPU   6.2秒）  経過     701秒
+[ 303/1281] EURUSD naive:p=0.005:seed=1        216件    4.0秒（CPU   4.0秒）  経過     702秒
+[ 304/1281] EURUSD naive:p=0.005:seed=2        221件    3.8秒（CPU   3.8秒）  経過     702秒
+[ 305/1281] EURUSD naive:p=0.005:seed=3        212件    4.1秒（CPU   4.1秒）  経過     703秒
+[ 306/1281] EURUSD naive:p=0.005:seed=4        244件    3.8秒（CPU   3.7秒）  経過     705秒
+[ 307/1281] EURUSD naive:p=0.005:seed=5        225件    3.6秒（CPU   3.6秒）  経過     705秒
+[ 308/1281] EURUSD naive:p=0.005:seed=6        218件    3.5秒（CPU   3.5秒）  経過     705秒
+[ 309/1281] EURUSD naive:p=0.005:seed=7        202件    3.5秒（CPU   3.5秒）  経過     707秒
+[ 310/1281] EURUSD naive:p=0.005:seed=8        219件    3.8秒（CPU   3.7秒）  経過     709秒
+[ 311/1281] EURUSD naive:p=0.005:seed=10       222件    3.5秒（CPU   3.5秒）  経過     709秒
+[ 312/1281] EURUSD naive:p=0.005:seed=9        221件    3.7秒（CPU   3.6秒）  経過     709秒
+[ 313/1281] EURUSD naive:p=0.005:seed=11       224件    3.5秒（CPU   3.5秒）  経過     710秒
+[ 314/1281] EURUSD naive:p=0.005:seed=14       199件    3.5秒（CPU   3.5秒）  経過     712秒
+[ 315/1281] EURUSD naive:p=0.005:seed=13       226件    3.7秒（CPU   3.7秒）  経過     713秒
+[ 316/1281] EURUSD naive:p=0.005:seed=12       211件    4.3秒（CPU   4.2秒）  経過     713秒
+[ 317/1281] EURUSD naive:p=0.005:seed=15       234件    3.7秒（CPU   3.7秒）  経過     714秒
+[ 318/1281] EURUSD naive:p=0.005:seed=16       215件    4.0秒（CPU   3.9秒）  経過     716秒
+[ 319/1281] EURUSD naive:p=0.005:seed=17       219件    3.9秒（CPU   3.8秒）  経過     716秒
+[ 320/1281] EURUSD naive:p=0.005:seed=18       234件    4.0秒（CPU   3.9秒）  経過     717秒
+[ 321/1281] EURUSD naive:p=0.005:seed=19       210件    3.5秒（CPU   3.5秒）  経過     718秒
+[ 322/1281] EURUSD naive:p=0.01:seed=1         412件    3.6秒（CPU   3.5秒）  経過     720秒
+[ 323/1281] EURUSD naive:p=0.01:seed=0         406件    3.8秒（CPU   3.7秒）  経過     720秒
+[ 324/1281] EURUSD naive:p=0.01:seed=2         410件    4.0秒（CPU   3.9秒）  経過     721秒
+[ 325/1281] EURUSD naive:p=0.01:seed=3         402件    4.1秒（CPU   4.0秒）  経過     722秒
+[ 326/1281] EURUSD naive:p=0.01:seed=4         449件    3.7秒（CPU   3.7秒）  経過     724秒
+[ 327/1281] EURUSD naive:p=0.01:seed=5         419件    4.2秒（CPU   4.1秒）  経過     724秒
+[ 328/1281] EURUSD naive:p=0.01:seed=6         417件    4.3秒（CPU   4.2秒）  経過     725秒
+[ 329/1281] EURUSD naive:p=0.01:seed=7         380件    3.9秒（CPU   3.8秒）  経過     725秒
+[ 330/1281] EURUSD naive:p=0.01:seed=8         394件    3.9秒（CPU   3.9秒）  経過     728秒
+[ 331/1281] EURUSD naive:p=0.01:seed=9         394件    4.0秒（CPU   4.0秒）  経過     728秒
+[ 332/1281] EURUSD naive:p=0.01:seed=10        401件    4.3秒（CPU   4.2秒）  経過     729秒
+[ 333/1281] EURUSD naive:p=0.01:seed=11        411件    3.9秒（CPU   3.9秒）  経過     729秒
+[ 334/1281] EURUSD naive:p=0.01:seed=12        403件    3.8秒（CPU   3.7秒）  経過     731秒
+[ 335/1281] EURUSD naive:p=0.01:seed=13        411件    4.3秒（CPU   4.2秒）  経過     733秒
+[ 336/1281] EURUSD naive:p=0.01:seed=15        418件    3.7秒（CPU   3.6秒）  経過     733秒
+[ 337/1281] EURUSD naive:p=0.01:seed=14        406件    4.5秒（CPU   4.4秒）  経過     734秒
+[ 338/1281] EURUSD naive:p=0.01:seed=16        404件    2.9秒（CPU   2.9秒）  経過     734秒
+[ 339/1281] EURUSD naive:p=0.01:seed=17        417件    3.8秒（CPU   3.7秒）  経過     737秒
+[ 340/1281] EURUSD naive:p=0.01:seed=18        442件    4.3秒（CPU   4.2秒）  経過     737秒
+[ 341/1281] EURUSD naive:p=0.01:seed=19        390件    4.1秒（CPU   4.1秒）  経過     738秒
+[ 342/1281] EURUSD naive:p=0.015:seed=0        586件    3.7秒（CPU   3.6秒）  経過     738秒
+[ 343/1281] EURUSD naive:p=0.015:seed=2        568件    3.1秒（CPU   3.1秒）  経過     740秒
+[ 344/1281] EURUSD naive:p=0.015:seed=1        582件    4.0秒（CPU   4.0秒）  経過     741秒
+[ 345/1281] EURUSD naive:p=0.015:seed=4        609件    3.7秒（CPU   3.7秒）  経過     742秒
+[ 346/1281] EURUSD naive:p=0.015:seed=3        567件    4.2秒（CPU   4.1秒）  経過     742秒
+[ 347/1281] EURUSD naive:p=0.015:seed=5        579件    3.3秒（CPU   3.3秒）  経過     744秒
+[ 348/1281] EURUSD naive:p=0.015:seed=7        552件    3.2秒（CPU   3.2秒）  経過     745秒
+[ 349/1281] EURUSD naive:p=0.015:seed=6        581件    4.4秒（CPU   4.3秒）  経過     745秒
+[ 350/1281] EURUSD naive:p=0.015:seed=8        590件    4.0秒（CPU   3.9秒）  経過     746秒
+[ 351/1281] EURUSD naive:p=0.015:seed=9        579件    3.8秒（CPU   3.8秒）  経過     748秒
+[ 352/1281] EURUSD naive:p=0.015:seed=11       584件    3.4秒（CPU   3.3秒）  経過     748秒
+[ 353/1281] EURUSD naive:p=0.015:seed=10       572件    3.5秒（CPU   3.5秒）  経過     748秒
+[ 354/1281] EURUSD naive:p=0.015:seed=12       556件    3.9秒（CPU   3.9秒）  経過     750秒
+[ 355/1281] EURUSD naive:p=0.015:seed=13       582件    4.4秒（CPU   4.3秒）  経過     752秒
+[ 356/1281] EURUSD naive:p=0.015:seed=14       559件    4.3秒（CPU   4.3秒）  経過     753秒
+[ 357/1281] EURUSD naive:p=0.015:seed=15       568件    4.5秒（CPU   4.5秒）  経過     753秒
+[ 358/1281] EURUSD naive:p=0.015:seed=16       579件    4.2秒（CPU   4.1秒）  経過     754秒
+[ 359/1281] EURUSD naive:p=0.015:seed=17       595件    3.5秒（CPU   3.5秒）  経過     755秒
+[ 360/1281] EURUSD naive:p=0.015:seed=18       604件    3.0秒（CPU   3.0秒）  経過     756秒
+[ 361/1281] EURUSD naive:p=0.015:seed=19       562件    3.5秒（CPU   3.5秒）  経過     756秒
+[ 362/1281] EURUSD naive:p=0.02:seed=0         724件    3.8秒（CPU   3.7秒）  経過     758秒
+[ 363/1281] EURUSD naive:p=0.02:seed=2         746件    3.3秒（CPU   3.3秒）  経過     759秒
+[ 364/1281] EURUSD naive:p=0.02:seed=1         739件    4.0秒（CPU   3.9秒）  経過     759秒
+[ 365/1281] EURUSD naive:p=0.02:seed=3         717件    4.2秒（CPU   4.2秒）  経過     761秒
+[ 366/1281] EURUSD naive:p=0.02:seed=4         781件    3.6秒（CPU   3.6秒）  経過     762秒
+[ 367/1281] EURUSD naive:p=0.02:seed=6         742件    3.9秒（CPU   3.8秒）  経過     763秒
+[ 368/1281] EURUSD naive:p=0.02:seed=5         755件    4.4秒（CPU   4.4秒）  経過     763秒
+[ 369/1281] EURUSD naive:p=0.02:seed=7         695件    3.6秒（CPU   3.6秒）  経過     764秒
+[ 370/1281] EURUSD naive:p=0.02:seed=8         760件    3.4秒（CPU   3.4秒）  経過     765秒
+[ 371/1281] EURUSD naive:p=0.02:seed=9         735件    4.1秒（CPU   4.1秒）  経過     767秒
+[ 372/1281] EURUSD naive:p=0.02:seed=10        728件    4.4秒（CPU   4.3秒）  経過     768秒
+[ 373/1281] EURUSD naive:p=0.02:seed=11        710件    3.5秒（CPU   3.5秒）  経過     768秒
+[ 374/1281] EURUSD naive:p=0.02:seed=12        729件    3.4秒（CPU   3.3秒）  経過     768秒
+[ 375/1281] EURUSD naive:p=0.02:seed=15        704件    3.6秒（CPU   3.6秒）  経過     771秒
+[ 376/1281] EURUSD naive:p=0.02:seed=13        731件    4.1秒（CPU   4.0秒）  経過     771秒
+[ 377/1281] EURUSD naive:p=0.02:seed=16        742件    3.7秒（CPU   3.7秒）  経過     772秒
+[ 378/1281] EURUSD naive:p=0.02:seed=14        716件    4.7秒（CPU   4.7秒）  経過     772秒
+[ 379/1281] EURUSD naive:p=0.02:seed=17        744件    3.8秒（CPU   3.8秒）  経過     775秒
+[ 380/1281] EURUSD naive:p=0.02:seed=18        757件    4.1秒（CPU   4.1秒）  経過     776秒
+[ 381/1281] EURUSD naive:p=0.02:seed=19        717件    4.7秒（CPU   4.6秒）  経過     777秒
+[ 382/1281] EURUSD naive:p=0.03:seed=0         979件    5.4秒（CPU   5.4秒）  経過     778秒
+[ 383/1281] EURUSD naive:p=0.03:seed=1        1006件    3.4秒（CPU   3.4秒）  経過     779秒
+[ 384/1281] EURUSD naive:p=0.03:seed=2         974件    3.8秒（CPU   3.7秒）  経過     779秒
+[ 385/1281] EURUSD naive:p=0.03:seed=3        1014件    4.2秒（CPU   4.2秒）  経過     781秒
+[ 386/1281] EURUSD naive:p=0.03:seed=6         977件    3.5秒（CPU   3.4秒）  経過     783秒
+[ 387/1281] EURUSD naive:p=0.03:seed=5        1007件    4.3秒（CPU   4.3秒）  経過     783秒
+[ 388/1281] EURUSD naive:p=0.03:seed=4        1012件    5.2秒（CPU   5.2秒）  経過     783秒
+[ 389/1281] EURUSD naive:p=0.03:seed=7         986件    3.9秒（CPU   3.8秒）  経過     785秒
+[ 390/1281] EURUSD naive:p=0.03:seed=8        1012件    3.9秒（CPU   3.8秒）  経過     787秒
+[ 391/1281] EURUSD naive:p=0.03:seed=10        992件    4.0秒（CPU   4.0秒）  経過     787秒
+[ 392/1281] EURUSD naive:p=0.03:seed=9        1005件    4.5秒（CPU   4.5秒）  経過     787秒
+[ 393/1281] EURUSD naive:p=0.03:seed=11        963件    3.3秒（CPU   3.3秒）  経過     788秒
+[ 394/1281] EURUSD naive:p=0.03:seed=12        936件    3.9秒（CPU   3.8秒）  経過     791秒
+[ 395/1281] EURUSD naive:p=0.03:seed=14        977件    4.6秒（CPU   4.6秒）  経過     792秒
+[ 396/1281] EURUSD naive:p=0.03:seed=13        971件    5.0秒（CPU   5.0秒）  経過     792秒
+[ 397/1281] EURUSD naive:p=0.03:seed=15        959件    4.7秒（CPU   4.6秒）  経過     793秒
+[ 398/1281] EURUSD naive:p=0.03:seed=16        976件    4.0秒（CPU   3.9秒）  経過     794秒
+[ 399/1281] EURUSD naive:p=0.03:seed=18       1012件    4.0秒（CPU   4.0秒）  経過     796秒
+[ 400/1281] EURUSD naive:p=0.03:seed=17       1012件    4.2秒（CPU   4.2秒）  経過     796秒
+[ 401/1281] EURUSD naive:p=0.03:seed=19        957件    3.8秒（CPU   3.7秒）  経過     797秒
+[ 402/1281] EURUSD naive:p=0.05:seed=0        1371件    3.8秒（CPU   3.8秒）  経過     798秒
+[ 403/1281] EURUSD naive:p=0.05:seed=2        1357件    3.1秒（CPU   3.1秒）  経過     799秒
+[ 404/1281] EURUSD naive:p=0.05:seed=1        1385件    4.2秒（CPU   4.2秒）  経過     800秒
+[ 405/1281] EURUSD naive:p=0.05:seed=3        1400件    4.1秒（CPU   4.0秒）  経過     801秒
+[ 406/1281] EURUSD naive:p=0.05:seed=4        1407件    4.2秒（CPU   4.1秒）  経過     802秒
+[ 407/1281] EURUSD naive:p=0.05:seed=6        1349件    4.5秒（CPU   4.5秒）  経過     805秒
+[ 408/1281] EURUSD naive:p=0.05:seed=5        1395件    5.6秒（CPU   5.6秒）  経過     805秒
+[ 409/1281] EURUSD naive:p=0.05:seed=7        1372件    5.7秒（CPU   5.7秒）  経過     806秒
+[ 410/1281] EURUSD naive:p=0.05:seed=8        1352件    4.8秒（CPU   4.8秒）  経過     807秒
+[ 411/1281] EURUSD naive:p=0.05:seed=9        1405件    3.4秒（CPU   3.4秒）  経過     808秒
+[ 412/1281] EURUSD naive:p=0.05:seed=10       1393件    4.5秒（CPU   4.5秒）  経過     810秒
+[ 413/1281] EURUSD naive:p=0.05:seed=11       1387件    3.7秒（CPU   3.7秒）  経過     810秒
+[ 414/1281] EURUSD naive:p=0.05:seed=12       1370件    4.2秒（CPU   4.2秒）  経過     811秒
+[ 415/1281] EURUSD naive:p=0.05:seed=13       1413件    4.1秒（CPU   4.1秒）  経過     812秒
+[ 416/1281] EURUSD naive:p=0.05:seed=14       1372件    3.6秒（CPU   3.5秒）  経過     813秒
+[ 417/1281] EURUSD naive:p=0.05:seed=15       1370件    3.9秒（CPU   3.9秒）  経過     814秒
+[ 418/1281] EURUSD naive:p=0.05:seed=16       1376件    3.7秒（CPU   3.6秒）  経過     815秒
+[ 419/1281] EURUSD naive:p=0.05:seed=17       1389件    4.1秒（CPU   4.0秒）  経過     816秒
+[ 420/1281] EURUSD naive:p=0.05:seed=18       1413件    3.7秒（CPU   3.6秒）  経過     817秒
+[ 421/1281] EURUSD naive:p=0.05:seed=19       1321件    4.0秒（CPU   4.0秒）  経過     818秒
+[ 422/1281] EURUSD naive:p=0.08:seed=0        1785件    3.8秒（CPU   3.8秒）  経過     819秒
+[ 423/1281] EURUSD naive:p=0.08:seed=1        1778件    3.7秒（CPU   3.7秒）  経過     820秒
+[ 424/1281] EURUSD naive:p=0.08:seed=2        1724件    4.4秒（CPU   4.4秒）  経過     821秒
+[ 425/1281] EURUSD naive:p=0.08:seed=3        1736件    4.5秒（CPU   4.3秒）  経過     823秒
+[ 426/1281] EURUSD naive:p=0.08:seed=4        1783件    4.2秒（CPU   4.2秒）  経過     823秒
+[ 427/1281] EURUSD naive:p=0.08:seed=5        1787件    4.3秒（CPU   4.2秒）  経過     824秒
+[ 428/1281] EURUSD naive:p=0.08:seed=6        1795件    3.9秒（CPU   3.9秒）  経過     825秒
+[ 429/1281] EURUSD naive:p=0.08:seed=8        1753件    3.7秒（CPU   3.6秒）  経過     827秒
+[ 430/1281] EURUSD naive:p=0.08:seed=7        1805件    4.5秒（CPU   4.4秒）  経過     827秒
+[ 431/1281] EURUSD naive:p=0.08:seed=9        1770件    3.7秒（CPU   3.7秒）  経過     828秒
+[ 432/1281] EURUSD naive:p=0.08:seed=10       1748件    4.2秒（CPU   4.2秒）  経過     829秒
+[ 433/1281] EURUSD naive:p=0.08:seed=12       1771件    3.8秒（CPU   3.7秒）  経過     831秒
+[ 434/1281] EURUSD naive:p=0.08:seed=11       1812件    4.2秒（CPU   4.2秒）  経過     831秒
+[ 435/1281] EURUSD naive:p=0.08:seed=13       1793件    3.8秒（CPU   3.7秒）  経過     832秒
+[ 436/1281] EURUSD naive:p=0.08:seed=14       1779件    4.0秒（CPU   4.0秒）  経過     833秒
+[ 437/1281] EURUSD naive:p=0.08:seed=15       1712件    4.3秒（CPU   4.3秒）  経過     835秒
+[ 438/1281] EURUSD naive:p=0.08:seed=16       1749件    4.2秒（CPU   4.2秒）  経過     835秒
+[ 439/1281] EURUSD naive:p=0.08:seed=17       1771件    4.2秒（CPU   4.1秒）  経過     836秒
+[ 440/1281] EURUSD naive:p=0.08:seed=18       1794件    4.0秒（CPU   4.0秒）  経過     837秒
+[ 441/1281] EURUSD naive:p=0.08:seed=19       1740件    3.7秒（CPU   3.7秒）  経過     839秒
+[ 442/1281] GBPUSD naive:p=0.005:seed=0        214件    3.7秒（CPU   3.7秒）  経過     839秒
+[ 443/1281] GBPUSD naive:p=0.005:seed=1        229件    4.0秒（CPU   3.9秒）  経過     840秒
+[ 444/1281] GBPUSD naive:p=0.005:seed=2        232件    4.1秒（CPU   4.1秒）  経過     841秒
+[ 445/1281] GBPUSD naive:p=0.005:seed=3        214件    4.1秒（CPU   4.0秒）  経過     843秒
+[ 446/1281] GBPUSD naive:p=0.005:seed=4        244件    4.4秒（CPU   4.3秒）  経過     843秒
+[ 447/1281] GBPUSD naive:p=0.005:seed=5        202件    4.1秒（CPU   4.0秒）  経過     844秒
+[ 448/1281] GBPUSD naive:p=0.005:seed=6        224件    3.6秒（CPU   3.6秒）  経過     845秒
+[ 449/1281] GBPUSD naive:p=0.005:seed=7        202件    4.1秒（CPU   4.0秒）  経過     847秒
+[ 450/1281] GBPUSD naive:p=0.005:seed=8        230件    3.8秒（CPU   3.8秒）  経過     847秒
+[ 451/1281] GBPUSD naive:p=0.005:seed=9        196件    3.5秒（CPU   3.5秒）  経過     848秒
+[ 452/1281] GBPUSD naive:p=0.005:seed=10       195件    3.7秒（CPU   3.7秒）  経過     849秒
+[ 453/1281] GBPUSD naive:p=0.005:seed=12       210件    3.8秒（CPU   3.7秒）  経過     851秒
+[ 454/1281] GBPUSD naive:p=0.005:seed=11       198件    4.4秒（CPU   4.4秒）  経過     851秒
+[ 455/1281] GBPUSD naive:p=0.005:seed=13       220件    4.0秒（CPU   3.9秒）  経過     852秒
+[ 456/1281] GBPUSD naive:p=0.005:seed=14       225件    3.5秒（CPU   3.5秒）  経過     852秒
+[ 457/1281] GBPUSD naive:p=0.005:seed=15       229件    3.7秒（CPU   3.7秒）  経過     855秒
+[ 458/1281] GBPUSD naive:p=0.005:seed=17       206件    3.8秒（CPU   3.7秒）  経過     855秒
+[ 459/1281] GBPUSD naive:p=0.005:seed=16       219件    4.1秒（CPU   4.1秒）  経過     856秒
+[ 460/1281] GBPUSD naive:p=0.005:seed=18       216件    3.6秒（CPU   3.6秒）  経過     856秒
+[ 461/1281] GBPUSD naive:p=0.005:seed=19       235件    3.9秒（CPU   3.9秒）  経過     859秒
+[ 462/1281] GBPUSD naive:p=0.01:seed=1         427件    3.4秒（CPU   3.4秒）  経過     859秒
+[ 463/1281] GBPUSD naive:p=0.01:seed=0         401件    3.6秒（CPU   3.6秒）  経過     859秒
+[ 464/1281] GBPUSD naive:p=0.01:seed=2         415件    3.6秒（CPU   3.5秒）  経過     859秒
+[ 465/1281] GBPUSD naive:p=0.01:seed=3         396件    3.7秒（CPU   3.7秒）  経過     862秒
+[ 466/1281] GBPUSD naive:p=0.01:seed=4         436件    3.5秒（CPU   3.4秒）  経過     863秒
+[ 467/1281] GBPUSD naive:p=0.01:seed=5         406件    3.6秒（CPU   3.6秒）  経過     863秒
+[ 468/1281] GBPUSD naive:p=0.01:seed=6         414件    3.7秒（CPU   3.6秒）  経過     863秒
+[ 469/1281] GBPUSD naive:p=0.01:seed=7         396件    4.0秒（CPU   4.0秒）  経過     866秒
+[ 470/1281] GBPUSD naive:p=0.01:seed=9         382件    3.7秒（CPU   3.7秒）  経過     866秒
+[ 471/1281] GBPUSD naive:p=0.01:seed=10        390件    3.4秒（CPU   3.3秒）  経過     866秒
+[ 472/1281] GBPUSD naive:p=0.01:seed=8         431件    4.4秒（CPU   4.3秒）  経過     867秒
+[ 473/1281] GBPUSD naive:p=0.01:seed=13        380件    3.5秒（CPU   3.5秒）  経過     870秒
+[ 474/1281] GBPUSD naive:p=0.01:seed=11        368件    4.0秒（CPU   4.0秒）  経過     870秒
+[ 475/1281] GBPUSD naive:p=0.01:seed=12        406件    4.2秒（CPU   4.1秒）  経過     871秒
+[ 476/1281] GBPUSD naive:p=0.01:seed=14        386件    3.8秒（CPU   3.7秒）  経過     871秒
+[ 477/1281] GBPUSD naive:p=0.01:seed=15        435件    4.1秒（CPU   4.1秒）  経過     874秒
+[ 478/1281] GBPUSD naive:p=0.01:seed=16        437件    3.9秒（CPU   3.9秒）  経過     874秒
+[ 479/1281] GBPUSD naive:p=0.01:seed=18        409件    4.0秒（CPU   4.0秒）  経過     875秒
+[ 480/1281] GBPUSD naive:p=0.01:seed=17        394件    4.1秒（CPU   4.1秒）  経過     875秒
+[ 481/1281] GBPUSD naive:p=0.01:seed=19        429件    3.7秒（CPU   3.6秒）  経過     878秒
+[ 482/1281] GBPUSD naive:p=0.015:seed=0        589件    4.1秒（CPU   4.0秒）  経過     878秒
+[ 483/1281] GBPUSD naive:p=0.015:seed=2        609件    3.8秒（CPU   3.8秒）  経過     879秒
+[ 484/1281] GBPUSD naive:p=0.015:seed=1        602件    4.0秒（CPU   3.9秒）  経過     879秒
+[ 485/1281] GBPUSD naive:p=0.015:seed=5        584件    3.1秒（CPU   3.1秒）  経過     882秒
+[ 486/1281] GBPUSD naive:p=0.015:seed=3        554件    3.9秒（CPU   3.9秒）  経過     882秒
+[ 487/1281] GBPUSD naive:p=0.015:seed=6        577件    3.4秒（CPU   3.4秒）  経過     882秒
+[ 488/1281] GBPUSD naive:p=0.015:seed=4        596件    3.9秒（CPU   3.9秒）  経過     882秒
+[ 489/1281] GBPUSD naive:p=0.015:seed=7        562件    2.8秒（CPU   2.8秒）  経過     884秒
+[ 490/1281] GBPUSD naive:p=0.015:seed=8        586件    3.9秒（CPU   3.8秒）  経過     886秒
+[ 491/1281] GBPUSD naive:p=0.015:seed=9        576件    3.7秒（CPU   3.7秒）  経過     886秒
+[ 492/1281] GBPUSD naive:p=0.015:seed=10       562件    3.7秒（CPU   3.7秒）  経過     886秒
+[ 493/1281] GBPUSD naive:p=0.015:seed=11       545件    3.4秒（CPU   3.4秒）  経過     888秒
+[ 494/1281] GBPUSD naive:p=0.015:seed=12       594件    3.5秒（CPU   3.5秒）  経過     889秒
+[ 495/1281] GBPUSD naive:p=0.015:seed=13       544件    3.7秒（CPU   3.6秒）  経過     890秒
+[ 496/1281] GBPUSD naive:p=0.015:seed=14       573件    3.6秒（CPU   3.6秒）  経過     890秒
+[ 497/1281] GBPUSD naive:p=0.015:seed=15       620件    3.8秒（CPU   3.8秒）  経過     892秒
+[ 498/1281] GBPUSD naive:p=0.015:seed=16       609件    4.0秒（CPU   3.9秒）  経過     893秒
+[ 499/1281] GBPUSD naive:p=0.015:seed=17       571件    3.9秒（CPU   3.8秒）  経過     893秒
+[ 500/1281] GBPUSD naive:p=0.015:seed=18       579件    3.7秒（CPU   3.7秒）  経過     893秒
+[ 501/1281] GBPUSD naive:p=0.015:seed=19       600件    3.8秒（CPU   3.7秒）  経過     895秒
+[ 502/1281] GBPUSD naive:p=0.02:seed=2         771件    3.5秒（CPU   3.5秒）  経過     897秒
+[ 503/1281] GBPUSD naive:p=0.02:seed=0         722件    3.9秒（CPU   3.9秒）  経過     897秒
+[ 504/1281] GBPUSD naive:p=0.02:seed=1         753件    3.9秒（CPU   3.9秒）  経過     897秒
+[ 505/1281] GBPUSD naive:p=0.02:seed=3         707件    4.6秒（CPU   4.5秒）  経過     900秒
+[ 506/1281] GBPUSD naive:p=0.02:seed=4         759件    3.6秒（CPU   3.6秒）  経過     901秒
+[ 507/1281] GBPUSD naive:p=0.02:seed=5         740件    3.8秒（CPU   3.7秒）  経過     901秒
+[ 508/1281] GBPUSD naive:p=0.02:seed=6         723件    4.2秒（CPU   4.2秒）  経過     902秒
+[ 509/1281] GBPUSD naive:p=0.02:seed=7         718件    3.7秒（CPU   3.6秒）  経過     904秒
+[ 510/1281] GBPUSD naive:p=0.02:seed=8         711件    3.5秒（CPU   3.4秒）  経過     904秒
+[ 511/1281] GBPUSD naive:p=0.02:seed=9         729件    3.8秒（CPU   3.7秒）  経過     905秒
+[ 512/1281] GBPUSD naive:p=0.02:seed=10        690件    3.5秒（CPU   3.4秒）  経過     905秒
+[ 513/1281] GBPUSD naive:p=0.02:seed=11        704件    3.7秒（CPU   3.7秒）  経過     907秒
+[ 514/1281] GBPUSD naive:p=0.02:seed=12        773件    3.8秒（CPU   3.8秒）  経過     908秒
+[ 515/1281] GBPUSD naive:p=0.02:seed=13        681件    3.5秒（CPU   3.5秒）  経過     908秒
+[ 516/1281] GBPUSD naive:p=0.02:seed=14        716件    4.2秒（CPU   4.2秒）  経過     909秒
+[ 517/1281] GBPUSD naive:p=0.02:seed=15        756件    3.8秒（CPU   3.8秒）  経過     911秒
+[ 518/1281] GBPUSD naive:p=0.02:seed=16        757件    3.9秒（CPU   3.9秒）  経過     912秒
+[ 519/1281] GBPUSD naive:p=0.02:seed=17        719件    3.8秒（CPU   3.7秒）  経過     912秒
+[ 520/1281] GBPUSD naive:p=0.02:seed=18        743件    3.7秒（CPU   3.6秒）  経過     913秒
+[ 521/1281] GBPUSD naive:p=0.02:seed=19        736件    3.4秒（CPU   3.4秒）  経過     915秒
+[ 522/1281] GBPUSD naive:p=0.03:seed=0         953件    3.7秒（CPU   3.7秒）  経過     916秒
+[ 523/1281] GBPUSD naive:p=0.03:seed=1         998件    3.8秒（CPU   3.7秒）  経過     916秒
+[ 524/1281] GBPUSD naive:p=0.03:seed=2        1033件    3.7秒（CPU   3.6秒）  経過     917秒
+[ 525/1281] GBPUSD naive:p=0.03:seed=3         947件    4.0秒（CPU   3.9秒）  経過     919秒
+[ 526/1281] GBPUSD naive:p=0.03:seed=5         996件    3.8秒（CPU   3.8秒）  経過     920秒
+[ 527/1281] GBPUSD naive:p=0.03:seed=4         996件    4.7秒（CPU   4.7秒）  経過     920秒
+[ 528/1281] GBPUSD naive:p=0.03:seed=6         982件    4.1秒（CPU   4.0秒）  経過     921秒
+[ 529/1281] GBPUSD naive:p=0.03:seed=8         990件    4.0秒（CPU   4.0秒）  経過     924秒
+[ 530/1281] GBPUSD naive:p=0.03:seed=7         976件    5.0秒（CPU   5.0秒）  経過     924秒
+[ 531/1281] GBPUSD naive:p=0.03:seed=9        1008件    4.3秒（CPU   4.3秒）  経過     925秒
+[ 532/1281] GBPUSD naive:p=0.03:seed=10        919件    4.6秒（CPU   4.5秒）  経過     925秒
+[ 533/1281] GBPUSD naive:p=0.03:seed=12       1012件    3.8秒（CPU   3.8秒）  経過     927秒
+[ 534/1281] GBPUSD naive:p=0.03:seed=11        951件    4.3秒（CPU   4.2秒）  経過     928秒
+[ 535/1281] GBPUSD naive:p=0.03:seed=13        964件    3.8秒（CPU   3.7秒）  経過     928秒
+[ 536/1281] GBPUSD naive:p=0.03:seed=14        982件    3.7秒（CPU   3.7秒）  経過     929秒
+[ 537/1281] GBPUSD naive:p=0.03:seed=15       1005件    3.5秒（CPU   3.5秒）  経過     931秒
+[ 538/1281] GBPUSD naive:p=0.03:seed=17        993件    3.8秒（CPU   3.8秒）  経過     932秒
+[ 539/1281] GBPUSD naive:p=0.03:seed=16       1002件    4.4秒（CPU   4.3秒）  経過     932秒
+[ 540/1281] GBPUSD naive:p=0.03:seed=18       1027件    4.1秒（CPU   4.0秒）  経過     933秒
+[ 541/1281] GBPUSD naive:p=0.03:seed=19       1004件    3.9秒（CPU   3.9秒）  経過     935秒
+[ 542/1281] GBPUSD naive:p=0.05:seed=0        1365件    3.9秒（CPU   3.9秒）  経過     936秒
+[ 543/1281] GBPUSD naive:p=0.05:seed=1        1356件    4.2秒（CPU   4.1秒）  経過     936秒
+[ 544/1281] GBPUSD naive:p=0.05:seed=2        1397件    4.8秒（CPU   4.8秒）  経過     938秒
+[ 545/1281] GBPUSD naive:p=0.05:seed=3        1345件    3.4秒（CPU   3.4秒）  経過     938秒
+[ 546/1281] GBPUSD naive:p=0.05:seed=5        1402件    4.0秒（CPU   4.0秒）  経過     940秒
+[ 547/1281] GBPUSD naive:p=0.05:seed=4        1348件    4.6秒（CPU   4.6秒）  経過     941秒
+[ 548/1281] GBPUSD naive:p=0.05:seed=6        1388件    3.9秒（CPU   3.9秒）  経過     942秒
+[ 549/1281] GBPUSD naive:p=0.05:seed=7        1386件    4.8秒（CPU   4.8秒）  経過     943秒
+[ 550/1281] GBPUSD naive:p=0.05:seed=8        1389件    3.7秒（CPU   3.7秒）  経過     944秒
+[ 551/1281] GBPUSD naive:p=0.05:seed=9        1386件    4.8秒（CPU   4.8秒）  経過     946秒
+[ 552/1281] GBPUSD naive:p=0.05:seed=10       1344件    3.8秒（CPU   3.7秒）  経過     946秒
+[ 553/1281] GBPUSD naive:p=0.05:seed=11       1348件    3.2秒（CPU   3.2秒）  経過     946秒
+[ 554/1281] GBPUSD naive:p=0.05:seed=12       1403件    3.8秒（CPU   3.8秒）  経過     948秒
+[ 555/1281] GBPUSD naive:p=0.05:seed=13       1341件    3.4秒（CPU   3.4秒）  経過     949秒
+[ 556/1281] GBPUSD naive:p=0.05:seed=14       1351件    4.2秒（CPU   4.2秒）  経過     950秒
+[ 557/1281] GBPUSD naive:p=0.05:seed=15       1409件    4.3秒（CPU   4.3秒）  経過     951秒
+[ 558/1281] GBPUSD naive:p=0.05:seed=16       1392件    4.3秒（CPU   4.3秒）  経過     952秒
+[ 559/1281] GBPUSD naive:p=0.05:seed=18       1416件    3.7秒（CPU   3.7秒）  経過     954秒
+[ 560/1281] GBPUSD naive:p=0.05:seed=17       1341件    5.2秒（CPU   5.1秒）  経過     954秒
+[ 561/1281] GBPUSD naive:p=0.05:seed=19       1346件    4.0秒（CPU   4.0秒）  経過     955秒
+[ 562/1281] GBPUSD naive:p=0.08:seed=0        1765件    3.5秒（CPU   3.5秒）  経過     956秒
+[ 563/1281] GBPUSD naive:p=0.08:seed=1        1747件    3.6秒（CPU   3.6秒）  経過     957秒
+[ 564/1281] GBPUSD naive:p=0.08:seed=3        1741件    4.0秒（CPU   4.0秒）  経過     959秒
+[ 565/1281] GBPUSD naive:p=0.08:seed=2        1729件    5.1秒（CPU   5.1秒）  経過     959秒
+[ 566/1281] GBPUSD naive:p=0.08:seed=4        1792件    3.6秒（CPU   3.6秒）  経過     959秒
+[ 567/1281] GBPUSD naive:p=0.08:seed=5        1715件    4.4秒（CPU   4.4秒）  経過     962秒
+[ 568/1281] GBPUSD naive:p=0.08:seed=6        1730件    4.1秒（CPU   4.0秒）  経過     963秒
+[ 569/1281] GBPUSD naive:p=0.08:seed=7        1752件    3.8秒（CPU   3.7秒）  経過     963秒
+[ 570/1281] GBPUSD naive:p=0.08:seed=8        1783件    4.1秒（CPU   4.0秒）  経過     964秒
+[ 571/1281] GBPUSD naive:p=0.08:seed=9        1742件    4.0秒（CPU   3.9秒）  経過     966秒
+[ 572/1281] GBPUSD naive:p=0.08:seed=10       1727件    4.0秒（CPU   4.0秒）  経過     967秒
+[ 573/1281] GBPUSD naive:p=0.08:seed=11       1723件    3.8秒（CPU   3.7秒）  経過     967秒
+[ 574/1281] GBPUSD naive:p=0.08:seed=12       1767件    4.0秒（CPU   4.0秒）  経過     968秒
+[ 575/1281] GBPUSD naive:p=0.08:seed=13       1754件    4.9秒（CPU   4.8秒）  経過     970秒
+[ 576/1281] GBPUSD naive:p=0.08:seed=14       1731件    3.8秒（CPU   3.8秒）  経過     971秒
+[ 577/1281] GBPUSD naive:p=0.08:seed=15       1746件    4.0秒（CPU   4.0秒）  経過     971秒
+[ 578/1281] GBPUSD naive:p=0.08:seed=16       1743件    3.7秒（CPU   3.7秒）  経過     971秒
+[ 579/1281] GBPUSD naive:p=0.08:seed=18       1794件    3.6秒（CPU   3.6秒）  経過     974秒
+[ 580/1281] GBPUSD naive:p=0.08:seed=17       1711件    4.3秒（CPU   4.3秒）  経過     975秒
+[ 581/1281] GBPUSD naive:p=0.08:seed=19       1730件    4.1秒（CPU   4.0秒）  経過     975秒
+[ 582/1281] EURJPY naive:p=0.005:seed=0        219件    4.3秒（CPU   4.3秒）  経過     976秒
+[ 583/1281] EURJPY naive:p=0.005:seed=1        194件    3.4秒（CPU   3.4秒）  経過     978秒
+[ 584/1281] EURJPY naive:p=0.005:seed=3        211件    3.8秒（CPU   3.8秒）  経過     979秒
+[ 585/1281] EURJPY naive:p=0.005:seed=2        216件    4.1秒（CPU   4.0秒）  経過     979秒
+[ 586/1281] EURJPY naive:p=0.005:seed=4        201件    3.8秒（CPU   3.7秒）  経過     979秒
+[ 587/1281] EURJPY naive:p=0.005:seed=5        226件    3.2秒（CPU   3.2秒）  経過     981秒
+[ 588/1281] EURJPY naive:p=0.005:seed=6        192件    3.7秒（CPU   3.7秒）  経過     983秒
+[ 589/1281] EURJPY naive:p=0.005:seed=7        185件    4.3秒（CPU   4.3秒）  経過     983秒
+[ 590/1281] EURJPY naive:p=0.005:seed=8        229件    4.0秒（CPU   4.0秒）  経過     983秒
+[ 591/1281] EURJPY naive:p=0.005:seed=9        206件    4.3秒（CPU   4.3秒）  経過     985秒
+[ 592/1281] EURJPY naive:p=0.005:seed=10       200件    4.4秒（CPU   4.4秒）  経過     987秒
+[ 593/1281] EURJPY naive:p=0.005:seed=11       205件    3.8秒（CPU   3.8秒）  経過     987秒
+[ 594/1281] EURJPY naive:p=0.005:seed=12       194件    4.1秒（CPU   4.1秒）  経過     987秒
+[ 595/1281] EURJPY naive:p=0.005:seed=13       203件    4.4秒（CPU   4.4秒）  経過     990秒
+[ 596/1281] EURJPY naive:p=0.005:seed=14       217件    4.3秒（CPU   4.3秒）  経過     991秒
+[ 597/1281] EURJPY naive:p=0.005:seed=15       198件    4.3秒（CPU   4.2秒）  経過     991秒
+[ 598/1281] EURJPY naive:p=0.005:seed=16       226件    3.8秒（CPU   3.8秒）  経過     991秒
+[ 599/1281] EURJPY naive:p=0.005:seed=17       197件    4.1秒（CPU   4.1秒）  経過     994秒
+[ 600/1281] EURJPY naive:p=0.01:seed=0         394件    3.5秒（CPU   3.4秒）  経過     995秒
+[ 601/1281] EURJPY naive:p=0.005:seed=19       215件    3.7秒（CPU   3.7秒）  経過     995秒
+[ 602/1281] EURJPY naive:p=0.005:seed=18       225件    3.9秒（CPU   3.8秒）  経過     995秒
+[ 603/1281] EURJPY naive:p=0.01:seed=1         349件    3.7秒（CPU   3.7秒）  経過     997秒
+[ 604/1281] EURJPY naive:p=0.01:seed=2         404件    3.9秒（CPU   3.9秒）  経過     999秒
+[ 605/1281] EURJPY naive:p=0.01:seed=3         383件    4.2秒（CPU   4.2秒）  経過     999秒
+[ 606/1281] EURJPY naive:p=0.01:seed=4         382件    4.2秒（CPU   4.2秒）  経過     999秒
+[ 607/1281] EURJPY naive:p=0.01:seed=5         416件    4.4秒（CPU   4.4秒）  経過    1002秒
+[ 608/1281] EURJPY naive:p=0.01:seed=7         396件    4.0秒（CPU   3.9秒）  経過    1003秒
+[ 609/1281] EURJPY naive:p=0.01:seed=6         382件    4.6秒（CPU   4.5秒）  経過    1003秒
+[ 610/1281] EURJPY naive:p=0.01:seed=8         399件    4.0秒（CPU   4.0秒）  経過    1003秒
+[ 611/1281] EURJPY naive:p=0.01:seed=9         383件    3.7秒（CPU   3.7秒）  経過    1005秒
+[ 612/1281] EURJPY naive:p=0.01:seed=11        392件    3.0秒（CPU   3.0秒）  経過    1006秒
+[ 613/1281] EURJPY naive:p=0.01:seed=12        373件    3.6秒（CPU   3.6秒）  経過    1007秒
+[ 614/1281] EURJPY naive:p=0.01:seed=10        409件    3.9秒（CPU   3.8秒）  経過    1007秒
+[ 615/1281] EURJPY naive:p=0.01:seed=13        380件    3.5秒（CPU   3.5秒）  経過    1009秒
+[ 616/1281] EURJPY naive:p=0.01:seed=14        402件    4.2秒（CPU   4.2秒）  経過    1010秒
+[ 617/1281] EURJPY naive:p=0.01:seed=16        409件    4.1秒（CPU   4.0秒）  経過    1011秒
+[ 618/1281] EURJPY naive:p=0.01:seed=15        384件    4.3秒（CPU   4.2秒）  経過    1011秒
+[ 619/1281] EURJPY naive:p=0.01:seed=17        397件    4.0秒（CPU   4.0秒）  経過    1013秒
+[ 620/1281] EURJPY naive:p=0.01:seed=18        408件    3.8秒（CPU   3.8秒）  経過    1014秒
+[ 621/1281] EURJPY naive:p=0.01:seed=19        376件    3.7秒（CPU   3.7秒）  経過    1015秒
+[ 622/1281] EURJPY naive:p=0.015:seed=0        541件    4.2秒（CPU   4.2秒）  経過    1015秒
+[ 623/1281] EURJPY naive:p=0.015:seed=1        506件    3.8秒（CPU   3.8秒）  経過    1017秒
+[ 624/1281] EURJPY naive:p=0.015:seed=2        557件    3.7秒（CPU   3.6秒）  経過    1018秒
+[ 625/1281] EURJPY naive:p=0.015:seed=3        523件    3.3秒（CPU   3.3秒）  経過    1018秒
+[ 626/1281] EURJPY naive:p=0.015:seed=4        550件    4.0秒（CPU   4.0秒）  経過    1019秒
+[ 627/1281] EURJPY naive:p=0.015:seed=5        566件    4.6秒（CPU   4.6秒）  経過    1021秒
+[ 628/1281] EURJPY naive:p=0.015:seed=6        549件    3.9秒（CPU   3.9秒）  経過    1022秒
+[ 629/1281] EURJPY naive:p=0.015:seed=7        584件    4.0秒（CPU   3.9秒）  経過    1022秒
+[ 630/1281] EURJPY naive:p=0.015:seed=8        566件    4.1秒（CPU   4.0秒）  経過    1024秒
+[ 631/1281] EURJPY naive:p=0.015:seed=9        533件    4.1秒（CPU   4.1秒）  経過    1026秒
+[ 632/1281] EURJPY naive:p=0.015:seed=10       570件    4.1秒（CPU   4.1秒）  経過    1026秒
+[ 633/1281] EURJPY naive:p=0.015:seed=11       559件    4.2秒（CPU   4.1秒）  経過    1026秒
+[ 634/1281] EURJPY naive:p=0.015:seed=12       546件    3.5秒（CPU   3.5秒）  経過    1027秒
+[ 635/1281] EURJPY naive:p=0.015:seed=13       545件    4.2秒（CPU   4.1秒）  経過    1030秒
+[ 636/1281] EURJPY naive:p=0.015:seed=15       556件    3.5秒（CPU   3.4秒）  経過    1030秒
+[ 637/1281] EURJPY naive:p=0.015:seed=14       566件    3.9秒（CPU   3.8秒）  経過    1030秒
+[ 638/1281] EURJPY naive:p=0.015:seed=16       565件    4.4秒（CPU   4.4秒）  経過    1031秒
+[ 639/1281] EURJPY naive:p=0.015:seed=19       547件    3.5秒（CPU   3.5秒）  経過    1033秒
+[ 640/1281] EURJPY naive:p=0.015:seed=17       559件    4.2秒（CPU   4.1秒）  経過    1034秒
+[ 641/1281] EURJPY naive:p=0.015:seed=18       555件    4.1秒（CPU   4.0秒）  経過    1034秒
+[ 642/1281] EURJPY naive:p=0.02:seed=0         684件    4.1秒（CPU   4.0秒）  経過    1036秒
+[ 643/1281] EURJPY naive:p=0.02:seed=1         661件    3.5秒（CPU   3.5秒）  経過    1037秒
+[ 644/1281] EURJPY naive:p=0.02:seed=3         665件    3.3秒（CPU   3.3秒）  経過    1037秒
+[ 645/1281] EURJPY naive:p=0.02:seed=2         667件    3.7秒（CPU   3.7秒）  経過    1038秒
+[ 646/1281] EURJPY naive:p=0.02:seed=4         702件    3.9秒（CPU   3.8秒）  経過    1039秒
+[ 647/1281] EURJPY naive:p=0.02:seed=5         686件    4.1秒（CPU   4.1秒）  経過    1041秒
+[ 648/1281] EURJPY naive:p=0.02:seed=6         683件    4.0秒（CPU   4.0秒）  経過    1041秒
+[ 649/1281] EURJPY naive:p=0.02:seed=7         706件    4.9秒（CPU   4.8秒）  経過    1042秒
+[ 650/1281] EURJPY naive:p=0.02:seed=8         699件    3.9秒（CPU   3.9秒）  経過    1043秒
+[ 651/1281] EURJPY naive:p=0.02:seed=9         681件    4.2秒（CPU   4.1秒）  経過    1045秒
+[ 652/1281] EURJPY naive:p=0.02:seed=10        684件    4.0秒（CPU   4.0秒）  経過    1045秒
+[ 653/1281] EURJPY naive:p=0.02:seed=11        712件    3.9秒（CPU   3.8秒）  経過    1046秒
+[ 654/1281] EURJPY naive:p=0.02:seed=12        703件    4.7秒（CPU   4.6秒）  経過    1048秒
+[ 655/1281] EURJPY naive:p=0.02:seed=13        685件    3.8秒（CPU   3.7秒）  経過    1049秒
+[ 656/1281] EURJPY naive:p=0.02:seed=14        717件    4.4秒（CPU   4.4秒）  経過    1050秒
+[ 657/1281] EURJPY naive:p=0.02:seed=15        701件    4.1秒（CPU   4.0秒）  経過    1050秒
+[ 658/1281] EURJPY naive:p=0.02:seed=16        700件    3.7秒（CPU   3.7秒）  経過    1052秒
+[ 659/1281] EURJPY naive:p=0.02:seed=17        719件    4.1秒（CPU   4.1秒）  経過    1053秒
+[ 660/1281] EURJPY naive:p=0.02:seed=18        702件    4.1秒（CPU   4.1秒）  経過    1054秒
+[ 661/1281] EURJPY naive:p=0.02:seed=19        659件    3.8秒（CPU   3.7秒）  経過    1054秒
+[ 662/1281] EURJPY naive:p=0.03:seed=0         912件    3.1秒（CPU   3.1秒）  経過    1055秒
+[ 663/1281] EURJPY naive:p=0.03:seed=1         929件    3.9秒（CPU   3.9秒）  経過    1057秒
+[ 664/1281] EURJPY naive:p=0.03:seed=4         947件    2.7秒（CPU   2.7秒）  経過    1058秒
+[ 665/1281] EURJPY naive:p=0.03:seed=2         952件    4.0秒（CPU   4.0秒）  経過    1058秒
+[ 666/1281] EURJPY naive:p=0.03:seed=3         900件    4.2秒（CPU   4.2秒）  経過    1058秒
+[ 667/1281] EURJPY naive:p=0.03:seed=6         908件    3.7秒（CPU   3.7秒）  経過    1061秒
+[ 668/1281] EURJPY naive:p=0.03:seed=5         951件    4.4秒（CPU   4.4秒）  経過    1061秒
+[ 669/1281] EURJPY naive:p=0.03:seed=7         941件    3.8秒（CPU   3.8秒）  経過    1062秒
+[ 670/1281] EURJPY naive:p=0.03:seed=8         946件    3.9秒（CPU   3.9秒）  経過    1062秒
+[ 671/1281] EURJPY naive:p=0.03:seed=9         894件    3.1秒（CPU   3.1秒）  経過    1064秒
+[ 672/1281] EURJPY naive:p=0.03:seed=10        925件    4.0秒（CPU   4.0秒）  経過    1065秒
+[ 673/1281] EURJPY naive:p=0.03:seed=12        968件    3.5秒（CPU   3.4秒）  経過    1066秒
+[ 674/1281] EURJPY naive:p=0.03:seed=11        985件    4.1秒（CPU   4.0秒）  経過    1066秒
+[ 675/1281] EURJPY naive:p=0.03:seed=13        927件    3.6秒（CPU   3.6秒）  経過    1068秒
+[ 676/1281] EURJPY naive:p=0.03:seed=14        934件    3.7秒（CPU   3.7秒）  経過    1069秒
+[ 677/1281] EURJPY naive:p=0.03:seed=16        958件    3.7秒（CPU   3.7秒）  経過    1069秒
+[ 678/1281] EURJPY naive:p=0.03:seed=15        950件    3.8秒（CPU   3.7秒）  経過    1069秒
+[ 679/1281] EURJPY naive:p=0.03:seed=17        962件    4.2秒（CPU   4.2秒）  経過    1072秒
+[ 680/1281] EURJPY naive:p=0.03:seed=18        943件    3.6秒（CPU   3.6秒）  経過    1073秒
+[ 681/1281] EURJPY naive:p=0.05:seed=0        1292件    3.9秒（CPU   3.8秒）  経過    1073秒
+[ 682/1281] EURJPY naive:p=0.03:seed=19        913件    4.3秒（CPU   4.2秒）  経過    1074秒
+[ 683/1281] EURJPY naive:p=0.05:seed=1        1305件    4.2秒（CPU   4.1秒）  経過    1076秒
+[ 684/1281] EURJPY naive:p=0.05:seed=2        1309件    4.1秒（CPU   4.0秒）  経過    1077秒
+[ 685/1281] EURJPY naive:p=0.05:seed=4        1319件    3.8秒（CPU   3.8秒）  経過    1078秒
+[ 686/1281] EURJPY naive:p=0.05:seed=3        1333件    4.5秒（CPU   4.5秒）  経過    1078秒
+[ 687/1281] EURJPY naive:p=0.05:seed=5        1305件    4.0秒（CPU   4.0秒）  経過    1080秒
+[ 688/1281] EURJPY naive:p=0.05:seed=6        1257件    3.7秒（CPU   3.7秒）  経過    1081秒
+[ 689/1281] EURJPY naive:p=0.05:seed=7        1316件    4.2秒（CPU   4.2秒）  経過    1082秒
+[ 690/1281] EURJPY naive:p=0.05:seed=8        1293件    4.1秒（CPU   4.1秒）  経過    1082秒
+[ 691/1281] EURJPY naive:p=0.05:seed=10       1296件    3.0秒（CPU   3.0秒）  経過    1084秒
+[ 692/1281] EURJPY naive:p=0.05:seed=9        1269件    3.6秒（CPU   3.6秒）  経過    1084秒
+[ 693/1281] EURJPY naive:p=0.05:seed=11       1390件    3.9秒（CPU   3.8秒）  経過    1086秒
+[ 694/1281] EURJPY naive:p=0.05:seed=12       1331件    3.8秒（CPU   3.7秒）  経過    1086秒
+[ 695/1281] EURJPY naive:p=0.05:seed=13       1328件    3.4秒（CPU   3.4秒）  経過    1087秒
+[ 696/1281] EURJPY naive:p=0.05:seed=14       1288件    4.0秒（CPU   4.0秒）  経過    1088秒
+[ 697/1281] EURJPY naive:p=0.05:seed=16       1292件    3.5秒（CPU   3.5秒）  経過    1089秒
+[ 698/1281] EURJPY naive:p=0.05:seed=15       1348件    4.4秒（CPU   4.4秒）  経過    1090秒
+[ 699/1281] EURJPY naive:p=0.05:seed=17       1311件    3.7秒（CPU   3.7秒）  経過    1091秒
+[ 700/1281] EURJPY naive:p=0.05:seed=18       1259件    3.7秒（CPU   3.6秒）  経過    1092秒
+[ 701/1281] EURJPY naive:p=0.05:seed=19       1258件    3.9秒（CPU   3.8秒）  経過    1093秒
+[ 702/1281] EURJPY naive:p=0.08:seed=0        1672件    4.3秒（CPU   4.3秒）  経過    1094秒
+[ 703/1281] EURJPY naive:p=0.08:seed=1        1678件    4.0秒（CPU   4.0秒）  経過    1095秒
+[ 704/1281] EURJPY naive:p=0.08:seed=2        1681件    4.1秒（CPU   4.1秒）  経過    1096秒
+[ 705/1281] EURJPY naive:p=0.08:seed=3        1643件    3.7秒（CPU   3.6秒）  経過    1097秒
+[ 706/1281] EURJPY naive:p=0.08:seed=4        1695件    3.1秒（CPU   3.1秒）  経過    1098秒
+[ 707/1281] EURJPY naive:p=0.08:seed=5        1660件    4.1秒（CPU   4.1秒）  経過    1099秒
+[ 708/1281] EURJPY naive:p=0.08:seed=6        1630件    3.6秒（CPU   3.6秒）  経過    1099秒
+[ 709/1281] EURJPY naive:p=0.08:seed=7        1655件    3.8秒（CPU   3.8秒）  経過    1101秒
+[ 710/1281] EURJPY naive:p=0.08:seed=8        1697件    3.4秒（CPU   3.4秒）  経過    1101秒
+[ 711/1281] EURJPY naive:p=0.08:seed=9        1628件    4.4秒（CPU   4.4秒）  経過    1103秒
+[ 712/1281] EURJPY naive:p=0.08:seed=10       1639件    4.1秒（CPU   4.1秒）  経過    1104秒
+[ 713/1281] EURJPY naive:p=0.08:seed=11       1695件    3.8秒（CPU   3.8秒）  経過    1105秒
+[ 714/1281] EURJPY naive:p=0.08:seed=12       1666件    3.9秒（CPU   3.9秒）  経過    1105秒
+[ 715/1281] EURJPY naive:p=0.08:seed=13       1632件    3.6秒（CPU   3.6秒）  経過    1107秒
+[ 716/1281] EURJPY naive:p=0.08:seed=14       1680件    4.2秒（CPU   4.2秒）  経過    1108秒
+[ 717/1281] EURJPY naive:p=0.08:seed=15       1642件    3.7秒（CPU   3.7秒）  経過    1108秒
+[ 718/1281] EURJPY naive:p=0.08:seed=16       1662件    3.9秒（CPU   3.8秒）  経過    1109秒
+[ 719/1281] EURJPY naive:p=0.08:seed=17       1660件    4.3秒（CPU   4.3秒）  経過    1111秒
+[ 720/1281] EURJPY naive:p=0.08:seed=18       1669件    3.8秒（CPU   3.8秒）  経過    1112秒
+[ 721/1281] EURJPY naive:p=0.08:seed=19       1642件    4.0秒（CPU   4.0秒）  経過    1112秒
+[ 722/1281] AUDUSD naive:p=0.005:seed=0        248件    4.4秒（CPU   4.3秒）  経過    1113秒
+[ 723/1281] AUDUSD naive:p=0.005:seed=2        196件    3.7秒（CPU   3.7秒）  経過    1115秒
+[ 724/1281] AUDUSD naive:p=0.005:seed=1        226件    4.0秒（CPU   4.0秒）  経過    1115秒
+[ 725/1281] AUDUSD naive:p=0.005:seed=4        234件    3.6秒（CPU   3.5秒）  経過    1117秒
+[ 726/1281] AUDUSD naive:p=0.005:seed=3        226件    4.5秒（CPU   4.4秒）  経過    1117秒
+[ 727/1281] AUDUSD naive:p=0.005:seed=5        188件    3.7秒（CPU   3.7秒）  経過    1119秒
+[ 728/1281] AUDUSD naive:p=0.005:seed=6        198件    3.7秒（CPU   3.7秒）  経過    1119秒
+[ 729/1281] AUDUSD naive:p=0.005:seed=7        215件    3.6秒（CPU   3.5秒）  経過    1120秒
+[ 730/1281] AUDUSD naive:p=0.005:seed=8        183件    3.7秒（CPU   3.7秒）  経過    1121秒
+[ 731/1281] AUDUSD naive:p=0.005:seed=9        198件    3.9秒（CPU   3.9秒）  経過    1123秒
+[ 732/1281] AUDUSD naive:p=0.005:seed=10       204件    4.0秒（CPU   3.9秒）  経過    1123秒
+[ 733/1281] AUDUSD naive:p=0.005:seed=11       235件    3.3秒（CPU   3.3秒）  経過    1124秒
+[ 734/1281] AUDUSD naive:p=0.005:seed=12       182件    3.7秒（CPU   3.7秒）  経過    1124秒
+[ 735/1281] AUDUSD naive:p=0.005:seed=13       214件    3.6秒（CPU   3.6秒）  経過    1126秒
+[ 736/1281] AUDUSD naive:p=0.005:seed=14       185件    3.9秒（CPU   3.9秒）  経過    1127秒
+[ 737/1281] AUDUSD naive:p=0.005:seed=15       217件    3.9秒（CPU   3.9秒）  経過    1128秒
+[ 738/1281] AUDUSD naive:p=0.005:seed=16       199件    3.5秒（CPU   3.5秒）  経過    1128秒
+[ 739/1281] AUDUSD naive:p=0.005:seed=17       203件    3.7秒（CPU   3.7秒）  経過    1130秒
+[ 740/1281] AUDUSD naive:p=0.005:seed=18       220件    3.9秒（CPU   3.8秒）  経過    1131秒
+[ 741/1281] AUDUSD naive:p=0.01:seed=0         407件    3.7秒（CPU   3.7秒）  経過    1131秒
+[ 742/1281] AUDUSD naive:p=0.005:seed=19       224件    3.9秒（CPU   3.9秒）  経過    1131秒
+[ 743/1281] AUDUSD naive:p=0.01:seed=1         389件    3.7秒（CPU   3.7秒）  経過    1134秒
+[ 744/1281] AUDUSD naive:p=0.01:seed=2         376件    3.7秒（CPU   3.7秒）  経過    1135秒
+[ 745/1281] AUDUSD naive:p=0.01:seed=3         394件    3.6秒（CPU   3.6秒）  経過    1135秒
+[ 746/1281] AUDUSD naive:p=0.01:seed=4         408件    3.6秒（CPU   3.6秒）  経過    1135秒
+[ 747/1281] AUDUSD naive:p=0.01:seed=5         359件    3.6秒（CPU   3.6秒）  経過    1137秒
+[ 748/1281] AUDUSD naive:p=0.01:seed=6         399件    3.8秒（CPU   3.8秒）  経過    1138秒
+[ 749/1281] AUDUSD naive:p=0.01:seed=7         374件    3.7秒（CPU   3.6秒）  経過    1139秒
+[ 750/1281] AUDUSD naive:p=0.01:seed=8         350件    3.8秒（CPU   3.8秒）  経過    1139秒
+[ 751/1281] AUDUSD naive:p=0.01:seed=9         387件    3.7秒（CPU   3.7秒）  経過    1141秒
+[ 752/1281] AUDUSD naive:p=0.01:seed=10        405件    3.6秒（CPU   3.5秒）  経過    1142秒
+[ 753/1281] AUDUSD naive:p=0.01:seed=11        410件    3.6秒（CPU   3.6秒）  経過    1142秒
+[ 754/1281] AUDUSD naive:p=0.01:seed=12        367件    3.6秒（CPU   3.6秒）  経過    1143秒
+[ 755/1281] AUDUSD naive:p=0.01:seed=13        405件    4.0秒（CPU   4.0秒）  経過    1145秒
+[ 756/1281] AUDUSD naive:p=0.01:seed=14        399件    3.4秒（CPU   3.3秒）  経過    1145秒
+[ 757/1281] AUDUSD naive:p=0.01:seed=16        358件    3.4秒（CPU   3.3秒）  経過    1146秒
+[ 758/1281] AUDUSD naive:p=0.01:seed=15        409件    3.7秒（CPU   3.6秒）  経過    1146秒
+[ 759/1281] AUDUSD naive:p=0.01:seed=18        395件    3.6秒（CPU   3.5秒）  経過    1149秒
+[ 760/1281] AUDUSD naive:p=0.01:seed=17        397件    3.9秒（CPU   3.9秒）  経過    1149秒
+[ 761/1281] AUDUSD naive:p=0.01:seed=19        404件    3.7秒（CPU   3.6秒）  経過    1150秒
+[ 762/1281] AUDUSD naive:p=0.015:seed=0        587件    3.7秒（CPU   3.7秒）  経過    1150秒
+[ 763/1281] AUDUSD naive:p=0.015:seed=1        574件    3.8秒（CPU   3.8秒）  経過    1153秒
+[ 764/1281] AUDUSD naive:p=0.015:seed=2        555件    4.1秒（CPU   4.1秒）  経過    1153秒
+[ 765/1281] AUDUSD naive:p=0.015:seed=3        564件    4.0秒（CPU   4.0秒）  経過    1154秒
+[ 766/1281] AUDUSD naive:p=0.015:seed=4        574件    3.9秒（CPU   3.9秒）  経過    1154秒
+[ 767/1281] AUDUSD naive:p=0.015:seed=5        538件    3.8秒（CPU   3.7秒）  経過    1156秒
+[ 768/1281] AUDUSD naive:p=0.015:seed=6        574件    3.7秒（CPU   3.7秒）  経過    1157秒
+[ 769/1281] AUDUSD naive:p=0.015:seed=8        538件    3.9秒（CPU   3.9秒）  経過    1158秒
+[ 770/1281] AUDUSD naive:p=0.015:seed=7        551件    4.1秒（CPU   4.0秒）  経過    1158秒
+[ 771/1281] AUDUSD naive:p=0.015:seed=9        528件    3.6秒（CPU   3.5秒）  経過    1160秒
+[ 772/1281] AUDUSD naive:p=0.015:seed=10       562件    3.9秒（CPU   3.9秒）  経過    1161秒
+[ 773/1281] AUDUSD naive:p=0.015:seed=11       563件    3.8秒（CPU   3.7秒）  経過    1161秒
+[ 774/1281] AUDUSD naive:p=0.015:seed=12       524件    3.7秒（CPU   3.7秒）  経過    1161秒
+[ 775/1281] AUDUSD naive:p=0.015:seed=13       553件    4.3秒（CPU   4.3秒）  経過    1164秒
+[ 776/1281] AUDUSD naive:p=0.015:seed=14       522件    4.4秒（CPU   4.4秒）  経過    1165秒
+[ 777/1281] AUDUSD naive:p=0.015:seed=16       546件    4.0秒（CPU   4.0秒）  経過    1165秒
+[ 778/1281] AUDUSD naive:p=0.015:seed=15       540件    4.2秒（CPU   4.1秒）  経過    1165秒
+[ 779/1281] AUDUSD naive:p=0.015:seed=17       538件    3.7秒（CPU   3.7秒）  経過    1168秒
+[ 780/1281] AUDUSD naive:p=0.015:seed=18       569件    3.5秒（CPU   3.5秒）  経過    1169秒
+[ 781/1281] AUDUSD naive:p=0.015:seed=19       562件    3.4秒（CPU   3.4秒）  経過    1169秒
+[ 782/1281] AUDUSD naive:p=0.02:seed=0         696件    3.7秒（CPU   3.7秒）  経過    1169秒
+[ 783/1281] AUDUSD naive:p=0.02:seed=1         717件    3.6秒（CPU   3.6秒）  経過    1172秒
+[ 784/1281] AUDUSD naive:p=0.02:seed=3         703件    3.9秒（CPU   3.8秒）  経過    1173秒
+[ 785/1281] AUDUSD naive:p=0.02:seed=2         689件    4.0秒（CPU   3.9秒）  経過    1173秒
+[ 786/1281] AUDUSD naive:p=0.02:seed=4         707件    4.2秒（CPU   4.1秒）  経過    1173秒
+[ 787/1281] AUDUSD naive:p=0.02:seed=5         677件    3.4秒（CPU   3.4秒）  経過    1175秒
+[ 788/1281] AUDUSD naive:p=0.02:seed=6         695件    3.8秒（CPU   3.7秒）  経過    1177秒
+[ 789/1281] AUDUSD naive:p=0.02:seed=7         681件    4.1秒（CPU   4.0秒）  経過    1177秒
+[ 790/1281] AUDUSD naive:p=0.02:seed=8         701件    4.0秒（CPU   3.9秒）  経過    1177秒
+[ 791/1281] AUDUSD naive:p=0.02:seed=9         686件    3.1秒（CPU   3.1秒）  経過    1178秒
+[ 792/1281] AUDUSD naive:p=0.02:seed=10        721件    3.3秒（CPU   3.3秒）  経過    1180秒
+[ 793/1281] AUDUSD naive:p=0.02:seed=11        701件    4.1秒（CPU   4.1秒）  経過    1181秒
+[ 794/1281] AUDUSD naive:p=0.02:seed=12        665件    3.6秒（CPU   3.5秒）  経過    1181秒
+[ 795/1281] AUDUSD naive:p=0.02:seed=13        709件    4.0秒（CPU   3.9秒）  経過    1182秒
+[ 796/1281] AUDUSD naive:p=0.02:seed=14        659件    3.8秒（CPU   3.7秒）  経過    1184秒
+[ 797/1281] AUDUSD naive:p=0.02:seed=15        689件    3.7秒（CPU   3.6秒）  経過    1185秒
+[ 798/1281] AUDUSD naive:p=0.02:seed=16        676件    3.8秒（CPU   3.8秒）  経過    1185秒
+[ 799/1281] AUDUSD naive:p=0.02:seed=17        702件    3.8秒（CPU   3.8秒）  経過    1186秒
+[ 800/1281] AUDUSD naive:p=0.02:seed=18        684件    3.6秒（CPU   3.6秒）  経過    1187秒
+[ 801/1281] AUDUSD naive:p=0.03:seed=0         967件    3.2秒（CPU   3.1秒）  経過    1188秒
+[ 802/1281] AUDUSD naive:p=0.02:seed=19        684件    3.9秒（CPU   3.9秒）  経過    1189秒
+[ 803/1281] AUDUSD naive:p=0.03:seed=1         932件    3.7秒（CPU   3.7秒）  経過    1190秒
+[ 804/1281] AUDUSD naive:p=0.03:seed=4         932件    2.9秒（CPU   2.9秒）  経過    1191秒
+[ 805/1281] AUDUSD naive:p=0.03:seed=2         914件    4.3秒（CPU   4.2秒）  経過    1191秒
+[ 806/1281] AUDUSD naive:p=0.03:seed=3         946件    3.7秒（CPU   3.6秒）  経過    1192秒
+[ 807/1281] AUDUSD naive:p=0.03:seed=5         912件    3.9秒（CPU   3.9秒）  経過    1193秒
+[ 808/1281] AUDUSD naive:p=0.03:seed=6         914件    3.8秒（CPU   3.8秒）  経過    1195秒
+[ 809/1281] AUDUSD naive:p=0.03:seed=7         951件    3.9秒（CPU   3.8秒）  経過    1195秒
+[ 810/1281] AUDUSD naive:p=0.03:seed=8         935件    4.4秒（CPU   4.4秒）  経過    1196秒
+[ 811/1281] AUDUSD naive:p=0.03:seed=9         915件    3.7秒（CPU   3.7秒）  経過    1197秒
+[ 812/1281] AUDUSD naive:p=0.03:seed=10        957件    4.0秒（CPU   4.0秒）  経過    1199秒
+[ 813/1281] AUDUSD naive:p=0.03:seed=11        945件    4.1秒（CPU   4.0秒）  経過    1199秒
+[ 814/1281] AUDUSD naive:p=0.03:seed=12        885件    4.0秒（CPU   3.9秒）  経過    1200秒
+[ 815/1281] AUDUSD naive:p=0.03:seed=13        948件    3.8秒（CPU   3.7秒）  経過    1201秒
+[ 816/1281] AUDUSD naive:p=0.03:seed=14        886件    3.9秒（CPU   3.8秒）  経過    1203秒
+[ 817/1281] AUDUSD naive:p=0.03:seed=15        942件    4.2秒（CPU   4.1秒）  経過    1204秒
+[ 818/1281] AUDUSD naive:p=0.03:seed=16        939件    4.6秒（CPU   4.6秒）  経過    1205秒
+[ 819/1281] AUDUSD naive:p=0.03:seed=17        948件    4.0秒（CPU   4.0秒）  経過    1205秒
+[ 820/1281] AUDUSD naive:p=0.03:seed=18        945件    3.8秒（CPU   3.8秒）  経過    1207秒
+[ 821/1281] AUDUSD naive:p=0.03:seed=19        917件    3.9秒（CPU   3.9秒）  経過    1208秒
+[ 822/1281] AUDUSD naive:p=0.05:seed=1        1306件    3.5秒（CPU   3.4秒）  経過    1208秒
+[ 823/1281] AUDUSD naive:p=0.05:seed=0        1308件    4.2秒（CPU   4.1秒）  経過    1209秒
+[ 824/1281] AUDUSD naive:p=0.05:seed=2        1299件    3.4秒（CPU   3.3秒）  経過    1210秒
+[ 825/1281] AUDUSD naive:p=0.05:seed=3        1292件    3.6秒（CPU   3.6秒）  経過    1211秒
+[ 826/1281] AUDUSD naive:p=0.05:seed=4        1262件    3.7秒（CPU   3.7秒）  経過    1212秒
+[ 827/1281] AUDUSD naive:p=0.05:seed=5        1295件    4.3秒（CPU   4.3秒）  経過    1213秒
+[ 828/1281] AUDUSD naive:p=0.05:seed=6        1309件    4.2秒（CPU   4.2秒）  経過    1215秒
+[ 829/1281] AUDUSD naive:p=0.05:seed=7        1305件    4.0秒（CPU   4.0秒）  経過    1215秒
+[ 830/1281] AUDUSD naive:p=0.05:seed=8        1290件    3.6秒（CPU   3.6秒）  経過    1216秒
+[ 831/1281] AUDUSD naive:p=0.05:seed=9        1294件    3.7秒（CPU   3.7秒）  経過    1217秒
+[ 832/1281] AUDUSD naive:p=0.05:seed=10       1337件    3.5秒（CPU   3.5秒）  経過    1218秒
+[ 833/1281] AUDUSD naive:p=0.05:seed=11       1304件    3.9秒（CPU   3.8秒）  経過    1219秒
+[ 834/1281] AUDUSD naive:p=0.05:seed=12       1275件    3.6秒（CPU   3.5秒）  経過    1219秒
+[ 835/1281] AUDUSD naive:p=0.05:seed=13       1274件    3.5秒（CPU   3.5秒）  経過    1220秒
+[ 836/1281] AUDUSD naive:p=0.05:seed=14       1276件    3.8秒（CPU   3.8秒）  経過    1222秒
+[ 837/1281] AUDUSD naive:p=0.05:seed=15       1276件    3.7秒（CPU   3.7秒）  経過    1223秒
+[ 838/1281] AUDUSD naive:p=0.05:seed=16       1264件    3.8秒（CPU   3.8秒）  経過    1223秒
+[ 839/1281] AUDUSD naive:p=0.05:seed=17       1345件    3.7秒（CPU   3.7秒）  経過    1224秒
+[ 840/1281] AUDUSD naive:p=0.05:seed=18       1298件    4.1秒（CPU   4.1秒）  経過    1226秒
+[ 841/1281] AUDUSD naive:p=0.05:seed=19       1315件    4.0秒（CPU   3.9秒）  経過    1227秒
+[ 842/1281] AUDUSD naive:p=0.08:seed=0        1687件    4.3秒（CPU   4.3秒）  経過    1228秒
+[ 843/1281] AUDUSD naive:p=0.08:seed=1        1665件    3.7秒（CPU   3.7秒）  経過    1228秒
+[ 844/1281] AUDUSD naive:p=0.08:seed=2        1661件    4.0秒（CPU   3.9秒）  経過    1230秒
+[ 845/1281] AUDUSD naive:p=0.08:seed=3        1669件    3.6秒（CPU   3.6秒）  経過    1230秒
+[ 846/1281] AUDUSD naive:p=0.08:seed=5        1668件    3.6秒（CPU   3.5秒）  経過    1232秒
+[ 847/1281] AUDUSD naive:p=0.08:seed=4        1668件    4.1秒（CPU   4.1秒）  経過    1232秒
+[ 848/1281] AUDUSD naive:p=0.08:seed=6        1671件    3.8秒（CPU   3.7秒）  経過    1234秒
+[ 849/1281] AUDUSD naive:p=0.08:seed=7        1684件    3.7秒（CPU   3.7秒）  経過    1234秒
+[ 850/1281] AUDUSD naive:p=0.08:seed=9        1670件    3.6秒（CPU   3.5秒）  経過    1235秒
+[ 851/1281] AUDUSD naive:p=0.08:seed=8        1648件    3.9秒（CPU   3.9秒）  経過    1235秒
+[ 852/1281] AUDUSD naive:p=0.08:seed=10       1675件    3.1秒（CPU   3.1秒）  経過    1237秒
+[ 853/1281] AUDUSD naive:p=0.08:seed=11       1681件    3.9秒（CPU   3.9秒）  経過    1238秒
+[ 854/1281] AUDUSD naive:p=0.08:seed=12       1628件    3.4秒（CPU   3.4秒）  経過    1239秒
+[ 855/1281] AUDUSD naive:p=0.08:seed=13       1669件    3.7秒（CPU   3.7秒）  経過    1239秒
+[ 856/1281] AUDUSD naive:p=0.08:seed=14       1632件    3.5秒（CPU   3.4秒）  経過    1240秒
+[ 857/1281] AUDUSD naive:p=0.08:seed=15       1671件    3.5秒（CPU   3.4秒）  経過    1241秒
+[ 858/1281] AUDUSD naive:p=0.08:seed=16       1623件    3.5秒（CPU   3.5秒）  経過    1242秒
+[ 859/1281] AUDUSD naive:p=0.08:seed=17       1659件    3.8秒（CPU   3.8秒）  経過    1243秒
+[ 860/1281] AUDUSD naive:p=0.08:seed=18       1641件    3.5秒（CPU   3.5秒）  経過    1244秒
+[ 861/1281] AUDUSD naive:p=0.08:seed=19       1683件    3.9秒（CPU   3.8秒）  経過    1245秒
+[ 862/1281] USDCAD naive:p=0.005:seed=0        212件    3.9秒（CPU   3.8秒）  経過    1246秒
+[ 863/1281] USDCAD naive:p=0.005:seed=1        214件    3.4秒（CPU   3.4秒）  経過    1246秒
+[ 864/1281] USDCAD naive:p=0.005:seed=2        243件    3.0秒（CPU   3.0秒）  経過    1247秒
+[ 865/1281] USDCAD naive:p=0.005:seed=3        220件    3.7秒（CPU   3.7秒）  経過    1249秒
+[ 866/1281] USDCAD naive:p=0.005:seed=4        212件    3.7秒（CPU   3.7秒）  経過    1250秒
+[ 867/1281] USDCAD naive:p=0.005:seed=5        197件    3.7秒（CPU   3.7秒）  経過    1250秒
+[ 868/1281] USDCAD naive:p=0.005:seed=6        199件    3.5秒（CPU   3.5秒）  経過    1250秒
+[ 869/1281] USDCAD naive:p=0.005:seed=7        204件    4.2秒（CPU   4.1秒）  経過    1253秒
+[ 870/1281] USDCAD naive:p=0.005:seed=8        214件    3.7秒（CPU   3.7秒）  経過    1253秒
+[ 871/1281] USDCAD naive:p=0.005:seed=9        220件    3.8秒（CPU   3.7秒）  経過    1254秒
+[ 872/1281] USDCAD naive:p=0.005:seed=10       221件    4.2秒（CPU   4.2秒）  経過    1255秒
+[ 873/1281] USDCAD naive:p=0.005:seed=12       214件    3.6秒（CPU   3.6秒）  経過    1257秒
+[ 874/1281] USDCAD naive:p=0.005:seed=11       215件    4.2秒（CPU   4.0秒）  経過    1257秒
+[ 875/1281] USDCAD naive:p=0.005:seed=13       184件    3.7秒（CPU   3.7秒）  経過    1258秒
+[ 876/1281] USDCAD naive:p=0.005:seed=14       189件    3.7秒（CPU   3.6秒）  経過    1258秒
+[ 877/1281] USDCAD naive:p=0.005:seed=15       204件    3.6秒（CPU   3.6秒）  経過    1261秒
+[ 878/1281] USDCAD naive:p=0.005:seed=17       209件    3.5秒（CPU   3.5秒）  経過    1261秒
+[ 879/1281] USDCAD naive:p=0.005:seed=16       213件    3.8秒（CPU   3.7秒）  経過    1261秒
+[ 880/1281] USDCAD naive:p=0.005:seed=18       215件    3.8秒（CPU   3.8秒）  経過    1262秒
+[ 881/1281] USDCAD naive:p=0.005:seed=19       221件    3.5秒（CPU   3.5秒）  経過    1264秒
+[ 882/1281] USDCAD naive:p=0.01:seed=1         396件    3.5秒（CPU   3.5秒）  経過    1265秒
+[ 883/1281] USDCAD naive:p=0.01:seed=0         398件    3.8秒（CPU   3.8秒）  経過    1265秒
+[ 884/1281] USDCAD naive:p=0.01:seed=2         408件    3.7秒（CPU   3.7秒）  経過    1266秒
+[ 885/1281] USDCAD naive:p=0.01:seed=3         405件    3.1秒（CPU   3.1秒）  経過    1267秒
+[ 886/1281] USDCAD naive:p=0.01:seed=4         416件    3.7秒（CPU   3.6秒）  経過    1269秒
+[ 887/1281] USDCAD naive:p=0.01:seed=5         375件    4.1秒（CPU   4.0秒）  経過    1269秒
+[ 888/1281] USDCAD naive:p=0.01:seed=6         385件    3.6秒（CPU   3.6秒）  経過    1270秒
+[ 889/1281] USDCAD naive:p=0.01:seed=7         401件    3.9秒（CPU   3.8秒）  経過    1271秒
+[ 890/1281] USDCAD naive:p=0.01:seed=8         416件    3.7秒（CPU   3.7秒）  経過    1272秒
+[ 891/1281] USDCAD naive:p=0.01:seed=9         419件    3.9秒（CPU   3.9秒）  経過    1273秒
+[ 892/1281] USDCAD naive:p=0.01:seed=10        378件    4.0秒（CPU   3.9秒）  経過    1274秒
+[ 893/1281] USDCAD naive:p=0.01:seed=11        402件    3.7秒（CPU   3.7秒）  経過    1275秒
+[ 894/1281] USDCAD naive:p=0.01:seed=12        413件    3.9秒（CPU   3.8秒）  経過    1276秒
+[ 895/1281] USDCAD naive:p=0.01:seed=14        382件    2.9秒（CPU   2.9秒）  経過    1276秒
+[ 896/1281] USDCAD naive:p=0.01:seed=13        394件    3.5秒（CPU   3.5秒）  経過    1277秒
+[ 897/1281] USDCAD naive:p=0.01:seed=15        393件    3.7秒（CPU   3.7秒）  経過    1279秒
+[ 898/1281] USDCAD naive:p=0.01:seed=17        419件    3.5秒（CPU   3.5秒）  経過    1280秒
+[ 899/1281] USDCAD naive:p=0.01:seed=16        374件    3.9秒（CPU   3.8秒）  経過    1280秒
+[ 900/1281] USDCAD naive:p=0.01:seed=18        405件    3.5秒（CPU   3.5秒）  経過    1280秒
+[ 901/1281] USDCAD naive:p=0.01:seed=19        369件    3.7秒（CPU   3.7秒）  経過    1282秒
+[ 902/1281] USDCAD naive:p=0.015:seed=0        577件    3.8秒（CPU   3.7秒）  経過    1284秒
+[ 903/1281] USDCAD naive:p=0.015:seed=2        565件    4.2秒（CPU   4.1秒）  経過    1284秒
+[ 904/1281] USDCAD naive:p=0.015:seed=1        571件    4.3秒（CPU   4.2秒）  経過    1284秒
+[ 905/1281] USDCAD naive:p=0.015:seed=3        569件    3.8秒（CPU   3.7秒）  経過    1286秒
+[ 906/1281] USDCAD naive:p=0.015:seed=4        587件    4.0秒（CPU   4.0秒）  経過    1288秒
+[ 907/1281] USDCAD naive:p=0.015:seed=5        548件    3.7秒（CPU   3.7秒）  経過    1288秒
+[ 908/1281] USDCAD naive:p=0.015:seed=6        588件    3.9秒（CPU   3.9秒）  経過    1288秒
+[ 909/1281] USDCAD naive:p=0.015:seed=7        555件    3.8秒（CPU   3.8秒）  経過    1290秒
+[ 910/1281] USDCAD naive:p=0.015:seed=8        582件    4.1秒（CPU   4.1秒）  経過    1292秒
+[ 911/1281] USDCAD naive:p=0.015:seed=9        615件    3.9秒（CPU   3.9秒）  経過    1292秒
+[ 912/1281] USDCAD naive:p=0.015:seed=10       568件    4.0秒（CPU   3.9秒）  経過    1292秒
+[ 913/1281] USDCAD naive:p=0.015:seed=11       573件    3.8秒（CPU   3.7秒）  経過    1294秒
+[ 914/1281] USDCAD naive:p=0.015:seed=14       558件    3.0秒（CPU   2.9秒）  経過    1295秒
+[ 915/1281] USDCAD naive:p=0.015:seed=12       583件    3.5秒（CPU   3.5秒）  経過    1295秒
+[ 916/1281] USDCAD naive:p=0.015:seed=13       553件    3.5秒（CPU   3.5秒）  経過    1295秒
+[ 917/1281] USDCAD naive:p=0.015:seed=15       578件    3.9秒（CPU   3.9秒）  経過    1298秒
+[ 918/1281] USDCAD naive:p=0.015:seed=16       559件    3.5秒（CPU   3.4秒）  経過    1299秒
+[ 919/1281] USDCAD naive:p=0.015:seed=17       581件    3.5秒（CPU   3.5秒）  経過    1299秒
+[ 920/1281] USDCAD naive:p=0.015:seed=18       567件    3.6秒（CPU   3.5秒）  経過    1299秒
+[ 921/1281] USDCAD naive:p=0.015:seed=19       550件    3.8秒（CPU   3.8秒）  経過    1301秒
+[ 922/1281] USDCAD naive:p=0.02:seed=2         708件    3.5秒（CPU   3.5秒）  経過    1303秒
+[ 923/1281] USDCAD naive:p=0.02:seed=1         722件    3.8秒（CPU   3.8秒）  経過    1303秒
+[ 924/1281] USDCAD naive:p=0.02:seed=0         712件    4.1秒（CPU   4.0秒）  経過    1303秒
+[ 925/1281] USDCAD naive:p=0.02:seed=3         711件    3.6秒（CPU   3.6秒）  経過    1305秒
+[ 926/1281] USDCAD naive:p=0.02:seed=5         700件    3.4秒（CPU   3.4秒）  経過    1306秒
+[ 927/1281] USDCAD naive:p=0.02:seed=6         760件    3.5秒（CPU   3.4秒）  経過    1306秒
+[ 928/1281] USDCAD naive:p=0.02:seed=4         721件    4.0秒（CPU   4.0秒）  経過    1307秒
+[ 929/1281] USDCAD naive:p=0.02:seed=7         733件    3.5秒（CPU   3.5秒）  経過    1308秒
+[ 930/1281] USDCAD naive:p=0.02:seed=8         730件    3.3秒（CPU   3.3秒）  経過    1309秒
+[ 931/1281] USDCAD naive:p=0.02:seed=10        731件    3.8秒（CPU   3.8秒）  経過    1310秒
+[ 932/1281] USDCAD naive:p=0.02:seed=9         766件    4.0秒（CPU   3.9秒）  経過    1310秒
+[ 933/1281] USDCAD naive:p=0.02:seed=11        736件    3.2秒（CPU   3.2秒）  経過    1312秒
+[ 934/1281] USDCAD naive:p=0.02:seed=12        754件    3.9秒（CPU   3.9秒）  経過    1313秒
+[ 935/1281] USDCAD naive:p=0.02:seed=13        701件    4.0秒（CPU   3.9秒）  経過    1314秒
+[ 936/1281] USDCAD naive:p=0.02:seed=14        700件    4.1秒（CPU   4.1秒）  経過    1315秒
+[ 937/1281] USDCAD naive:p=0.02:seed=15        716件    3.5秒（CPU   3.5秒）  経過    1315秒
+[ 938/1281] USDCAD naive:p=0.02:seed=16        712件    3.5秒（CPU   3.5秒）  経過    1317秒
+[ 939/1281] USDCAD naive:p=0.02:seed=18        728件    3.2秒（CPU   3.1秒）  経過    1318秒
+[ 940/1281] USDCAD naive:p=0.02:seed=17        704件    3.6秒（CPU   3.6秒）  経過    1318秒
+[ 941/1281] USDCAD naive:p=0.02:seed=19        728件    3.5秒（CPU   3.5秒）  経過    1319秒
+[ 942/1281] USDCAD naive:p=0.03:seed=0         961件    3.9秒（CPU   3.9秒）  経過    1321秒
+[ 943/1281] USDCAD naive:p=0.03:seed=2         973件    3.4秒（CPU   3.3秒）  経過    1321秒
+[ 944/1281] USDCAD naive:p=0.03:seed=1         971件    4.1秒（CPU   4.0秒）  経過    1322秒
+[ 945/1281] USDCAD naive:p=0.03:seed=3         949件    3.7秒（CPU   3.7秒）  経過    1322秒
+[ 946/1281] USDCAD naive:p=0.03:seed=4        1004件    3.3秒（CPU   3.3秒）  経過    1324秒
+[ 947/1281] USDCAD naive:p=0.03:seed=5         963件    3.8秒（CPU   3.7秒）  経過    1325秒
+[ 948/1281] USDCAD naive:p=0.03:seed=6         987件    4.0秒（CPU   3.9秒）  経過    1326秒
+[ 949/1281] USDCAD naive:p=0.03:seed=7         978件    3.8秒（CPU   3.7秒）  経過    1326秒
+[ 950/1281] USDCAD naive:p=0.03:seed=8         999件    2.9秒（CPU   2.9秒）  経過    1327秒
+[ 951/1281] USDCAD naive:p=0.03:seed=9        1012件    3.0秒（CPU   3.0秒）  経過    1328秒
+[ 952/1281] USDCAD naive:p=0.03:seed=10        976件    3.9秒（CPU   3.8秒）  経過    1330秒
+[ 953/1281] USDCAD naive:p=0.03:seed=11        977件    3.8秒（CPU   3.7秒）  経過    1330秒
+[ 954/1281] USDCAD naive:p=0.03:seed=12       1012件    3.7秒（CPU   3.7秒）  経過    1331秒
+[ 955/1281] USDCAD naive:p=0.03:seed=13        949件    3.7秒（CPU   3.7秒）  経過    1332秒
+[ 956/1281] USDCAD naive:p=0.03:seed=14        947件    4.0秒（CPU   3.9秒）  経過    1334秒
+[ 957/1281] USDCAD naive:p=0.03:seed=15        996件    3.8秒（CPU   3.8秒）  経過    1334秒
+[ 958/1281] USDCAD naive:p=0.03:seed=16        982件    3.5秒（CPU   3.5秒）  経過    1334秒
+[ 959/1281] USDCAD naive:p=0.03:seed=17        983件    3.7秒（CPU   3.6秒）  経過    1336秒
+[ 960/1281] USDCAD naive:p=0.03:seed=19        972件    3.7秒（CPU   3.7秒）  経過    1338秒
+[ 961/1281] USDCAD naive:p=0.03:seed=18        962件    3.9秒（CPU   3.8秒）  経過    1338秒
+[ 962/1281] USDCAD naive:p=0.05:seed=0        1342件    3.5秒（CPU   3.5秒）  経過    1338秒
+[ 963/1281] USDCAD naive:p=0.05:seed=1        1331件    4.0秒（CPU   3.9秒）  経過    1340秒
+[ 964/1281] USDCAD naive:p=0.05:seed=2        1342件    3.7秒（CPU   3.7秒）  経過    1341秒
+[ 965/1281] USDCAD naive:p=0.05:seed=3        1353件    3.8秒（CPU   3.6秒）  経過    1341秒
+[ 966/1281] USDCAD naive:p=0.05:seed=4        1364件    3.7秒（CPU   3.7秒）  経過    1341秒
+[ 967/1281] USDCAD naive:p=0.05:seed=5        1335件    4.1秒（CPU   4.0秒）  経過    1344秒
+[ 968/1281] USDCAD naive:p=0.05:seed=8        1366件    3.5秒（CPU   3.5秒）  経過    1345秒
+[ 969/1281] USDCAD naive:p=0.05:seed=6        1340件    3.8秒（CPU   3.8秒）  経過    1345秒
+[ 970/1281] USDCAD naive:p=0.05:seed=7        1340件    4.3秒（CPU   4.2秒）  経過    1346秒
+[ 971/1281] USDCAD naive:p=0.05:seed=9        1357件    3.6秒（CPU   3.5秒）  経過    1347秒
+[ 972/1281] USDCAD naive:p=0.05:seed=10       1312件    3.8秒（CPU   3.8秒）  経過    1349秒
+[ 973/1281] USDCAD naive:p=0.05:seed=11       1360件    3.8秒（CPU   3.8秒）  経過    1349秒
+[ 974/1281] USDCAD naive:p=0.05:seed=12       1368件    3.9秒（CPU   3.8秒）  経過    1350秒
+[ 975/1281] USDCAD naive:p=0.05:seed=13       1341件    3.9秒（CPU   3.9秒）  経過    1351秒
+[ 976/1281] USDCAD naive:p=0.05:seed=15       1371件    3.7秒（CPU   3.7秒）  経過    1353秒
+[ 977/1281] USDCAD naive:p=0.05:seed=14       1320件    3.8秒（CPU   3.8秒）  経過    1353秒
+[ 978/1281] USDCAD naive:p=0.05:seed=16       1334件    3.7秒（CPU   3.6秒）  経過    1353秒
+[ 979/1281] USDCAD naive:p=0.05:seed=17       1354件    3.3秒（CPU   3.3秒）  経過    1355秒
+[ 980/1281] USDCAD naive:p=0.05:seed=18       1332件    3.5秒（CPU   3.4秒）  経過    1356秒
+[ 981/1281] USDCAD naive:p=0.05:seed=19       1277件    3.5秒（CPU   3.5秒）  経過    1356秒
+[ 982/1281] USDCAD naive:p=0.08:seed=0        1763件    3.7秒（CPU   3.6秒）  経過    1357秒
+[ 983/1281] USDCAD naive:p=0.08:seed=1        1696件    3.5秒（CPU   3.5秒）  経過    1358秒
+[ 984/1281] USDCAD naive:p=0.08:seed=2        1721件    3.5秒（CPU   3.4秒）  経過    1360秒
+[ 985/1281] USDCAD naive:p=0.08:seed=3        1690件    3.8秒（CPU   3.8秒）  経過    1360秒
+[ 986/1281] USDCAD naive:p=0.08:seed=4        1730件    3.9秒（CPU   3.8秒）  経過    1361秒
+[ 987/1281] USDCAD naive:p=0.08:seed=5        1735件    4.1秒（CPU   4.1秒）  経過    1362秒
+[ 988/1281] USDCAD naive:p=0.08:seed=7        1689件    3.5秒（CPU   3.5秒）  経過    1363秒
+[ 989/1281] USDCAD naive:p=0.08:seed=6        1745件    4.4秒（CPU   4.3秒）  経過    1364秒
+[ 990/1281] USDCAD naive:p=0.08:seed=8        1744件    3.5秒（CPU   3.4秒）  経過    1364秒
+[ 991/1281] USDCAD naive:p=0.08:seed=9        1737件    3.7秒（CPU   3.6秒）  経過    1366秒
+[ 992/1281] USDCAD naive:p=0.08:seed=10       1733件    3.8秒（CPU   3.8秒）  経過    1367秒
+[ 993/1281] USDCAD naive:p=0.08:seed=11       1731件    3.6秒（CPU   3.6秒）  経過    1368秒
+[ 994/1281] USDCAD naive:p=0.08:seed=12       1757件    3.8秒（CPU   3.7秒）  経過    1368秒
+[ 995/1281] USDCAD naive:p=0.08:seed=13       1716件    3.5秒（CPU   3.4秒）  経過    1369秒
+[ 996/1281] USDCAD naive:p=0.08:seed=15       1749件    3.8秒（CPU   3.8秒）  経過    1371秒
+[ 997/1281] USDCAD naive:p=0.08:seed=14       1677件    4.0秒（CPU   4.0秒）  経過    1371秒
+[ 998/1281] USDCAD naive:p=0.08:seed=16       1741件    4.3秒（CPU   4.2秒）  経過    1372秒
+[ 999/1281] USDCAD naive:p=0.08:seed=17       1674件    3.7秒（CPU   3.7秒）  経過    1373秒
+[1000/1281] USDCAD naive:p=0.08:seed=19       1713件    3.6秒（CPU   3.6秒）  経過    1375秒
+[1001/1281] USDCAD naive:p=0.08:seed=18       1677件    4.0秒（CPU   4.0秒）  経過    1375秒
+[1002/1281] AUDJPY naive:p=0.005:seed=0        232件    3.9秒（CPU   3.8秒）  経過    1376秒
+[1003/1281] AUDJPY naive:p=0.005:seed=1        185件    3.8秒（CPU   3.8秒）  経過    1377秒
+[1004/1281] AUDJPY naive:p=0.005:seed=3        211件    3.4秒（CPU   3.4秒）  経過    1379秒
+[1005/1281] AUDJPY naive:p=0.005:seed=2        222件    3.9秒（CPU   3.8秒）  経過    1379秒
+[1006/1281] AUDJPY naive:p=0.005:seed=4        198件    4.0秒（CPU   3.9秒）  経過    1380秒
+[1007/1281] AUDJPY naive:p=0.005:seed=5        228件    3.7秒（CPU   3.7秒）  経過    1381秒
+[1008/1281] AUDJPY naive:p=0.005:seed=6        192件    3.5秒（CPU   3.4秒）  経過    1382秒
+[1009/1281] AUDJPY naive:p=0.005:seed=7        190件    3.5秒（CPU   3.5秒）  経過    1382秒
+[1010/1281] AUDJPY naive:p=0.005:seed=8        208件    3.8秒（CPU   3.7秒）  経過    1384秒
+[1011/1281] AUDJPY naive:p=0.005:seed=9        184件    4.0秒（CPU   4.0秒）  経過    1385秒
+[1012/1281] AUDJPY naive:p=0.005:seed=11       223件    3.0秒（CPU   3.0秒）  経過    1385秒
+[1013/1281] AUDJPY naive:p=0.005:seed=10       198件    3.5秒（CPU   3.4秒）  経過    1386秒
+[1014/1281] AUDJPY naive:p=0.005:seed=12       204件    3.7秒（CPU   3.6秒）  経過    1388秒
+[1015/1281] AUDJPY naive:p=0.005:seed=13       200件    3.7秒（CPU   3.7秒）  経過    1388秒
+[1016/1281] AUDJPY naive:p=0.005:seed=14       216件    3.5秒（CPU   3.5秒）  経過    1389秒
+[1017/1281] AUDJPY naive:p=0.005:seed=15       214件    3.4秒（CPU   3.4秒）  経過    1389秒
+[1018/1281] AUDJPY naive:p=0.005:seed=16       177件    3.5秒（CPU   3.4秒）  経過    1391秒
+[1019/1281] AUDJPY naive:p=0.005:seed=17       191件    3.7秒（CPU   3.7秒）  経過    1392秒
+[1020/1281] AUDJPY naive:p=0.005:seed=18       228件    3.7秒（CPU   3.7秒）  経過    1393秒
+[1021/1281] AUDJPY naive:p=0.005:seed=19       200件    3.6秒（CPU   3.6秒）  経過    1393秒
+[1022/1281] AUDJPY naive:p=0.01:seed=0         410件    3.5秒（CPU   3.5秒）  経過    1395秒
+[1023/1281] AUDJPY naive:p=0.01:seed=1         370件    3.8秒（CPU   3.7秒）  経過    1396秒
+[1024/1281] AUDJPY naive:p=0.01:seed=2         395件    3.7秒（CPU   3.6秒）  経過    1396秒
+[1025/1281] AUDJPY naive:p=0.01:seed=3         389件    3.6秒（CPU   3.6秒）  経過    1396秒
+[1026/1281] AUDJPY naive:p=0.01:seed=4         383件    3.2秒（CPU   3.2秒）  経過    1398秒
+[1027/1281] AUDJPY naive:p=0.01:seed=5         401件    3.4秒（CPU   3.4秒）  経過    1399秒
+[1028/1281] AUDJPY naive:p=0.01:seed=6         365件    3.6秒（CPU   3.5秒）  経過    1400秒
+[1029/1281] AUDJPY naive:p=0.01:seed=7         362件    3.7秒（CPU   3.6秒）  経過    1400秒
+[1030/1281] AUDJPY naive:p=0.01:seed=8         380件    3.5秒（CPU   3.4秒）  経過    1402秒
+[1031/1281] AUDJPY naive:p=0.01:seed=9         351件    4.1秒（CPU   4.0秒）  経過    1403秒
+[1032/1281] AUDJPY naive:p=0.01:seed=10        374件    3.8秒（CPU   3.7秒）  経過    1404秒
+[1033/1281] AUDJPY naive:p=0.01:seed=11        387件    3.7秒（CPU   3.7秒）  経過    1404秒
+[1034/1281] AUDJPY naive:p=0.01:seed=12        399件    3.5秒（CPU   3.4秒）  経過    1405秒
+[1035/1281] AUDJPY naive:p=0.01:seed=13        370件    3.2秒（CPU   3.2秒）  経過    1407秒
+[1036/1281] AUDJPY naive:p=0.01:seed=15        408件    3.7秒（CPU   3.6秒）  経過    1408秒
+[1037/1281] AUDJPY naive:p=0.01:seed=14        392件    4.0秒（CPU   4.0秒）  経過    1408秒
+[1038/1281] AUDJPY naive:p=0.01:seed=16        336件    2.8秒（CPU   2.7秒）  経過    1408秒
+[1039/1281] AUDJPY naive:p=0.01:seed=17        359件    3.7秒（CPU   3.7秒）  経過    1410秒
+[1040/1281] AUDJPY naive:p=0.01:seed=18        404件    3.6秒（CPU   3.5秒）  経過    1411秒
+[1041/1281] AUDJPY naive:p=0.01:seed=19        389件    3.7秒（CPU   3.6秒）  経過    1411秒
+[1042/1281] AUDJPY naive:p=0.015:seed=0        582件    3.5秒（CPU   3.4秒）  経過    1412秒
+[1043/1281] AUDJPY naive:p=0.015:seed=1        557件    3.7秒（CPU   3.7秒）  経過    1414秒
+[1044/1281] AUDJPY naive:p=0.015:seed=2        548件    3.4秒（CPU   3.4秒）  経過    1415秒
+[1045/1281] AUDJPY naive:p=0.015:seed=3        544件    3.4秒（CPU   3.4秒）  経過    1415秒
+[1046/1281] AUDJPY naive:p=0.015:seed=4        537件    3.7秒（CPU   3.6秒）  経過    1415秒
+[1047/1281] AUDJPY naive:p=0.015:seed=6        505件    3.3秒（CPU   3.3秒）  経過    1418秒
+[1048/1281] AUDJPY naive:p=0.015:seed=5        546件    4.0秒（CPU   3.9秒）  経過    1418秒
+[1049/1281] AUDJPY naive:p=0.015:seed=7        528件    3.5秒（CPU   3.4秒）  経過    1418秒
+[1050/1281] AUDJPY naive:p=0.015:seed=8        549件    3.8秒（CPU   3.7秒）  経過    1419秒
+[1051/1281] AUDJPY naive:p=0.015:seed=9        506件    3.7秒（CPU   3.7秒）  経過    1422秒
+[1052/1281] AUDJPY naive:p=0.015:seed=11       549件    3.5秒（CPU   3.5秒）  経過    1422秒
+[1053/1281] AUDJPY naive:p=0.015:seed=10       535件    3.9秒（CPU   3.8秒）  経過    1422秒
+[1054/1281] AUDJPY naive:p=0.015:seed=12       548件    4.2秒（CPU   4.1秒）  経過    1423秒
+[1055/1281] AUDJPY naive:p=0.015:seed=14       564件    2.7秒（CPU   2.7秒）  経過    1424秒
+[1056/1281] AUDJPY naive:p=0.015:seed=13       511件    3.5秒（CPU   3.5秒）  経過    1425秒
+[1057/1281] AUDJPY naive:p=0.015:seed=15       573件    3.3秒（CPU   3.3秒）  経過    1425秒
+[1058/1281] AUDJPY naive:p=0.015:seed=16       519件    3.8秒（CPU   3.7秒）  経過    1427秒
+[1059/1281] AUDJPY naive:p=0.015:seed=17       511件    3.4秒（CPU   3.4秒）  経過    1428秒
+[1060/1281] AUDJPY naive:p=0.015:seed=19       563件    3.2秒（CPU   3.1秒）  経過    1428秒
+[1061/1281] AUDJPY naive:p=0.015:seed=18       573件    3.4秒（CPU   3.3秒）  経過    1428秒
+[1062/1281] AUDJPY naive:p=0.02:seed=0         733件    3.3秒（CPU   3.2秒）  経過    1430秒
+[1063/1281] AUDJPY naive:p=0.02:seed=1         690件    3.6秒（CPU   3.6秒）  経過    1431秒
+[1064/1281] AUDJPY naive:p=0.02:seed=3         680件    3.5秒（CPU   3.5秒）  経過    1432秒
+[1065/1281] AUDJPY naive:p=0.02:seed=2         697件    3.9秒（CPU   3.8秒）  経過    1432秒
+[1066/1281] AUDJPY naive:p=0.02:seed=4         690件    3.7秒（CPU   3.7秒）  経過    1434秒
+[1067/1281] AUDJPY naive:p=0.02:seed=5         678件    3.6秒（CPU   3.5秒）  経過    1435秒
+[1068/1281] AUDJPY naive:p=0.02:seed=6         654件    3.6秒（CPU   3.6秒）  経過    1435秒
+[1069/1281] AUDJPY naive:p=0.02:seed=7         670件    3.6秒（CPU   3.6秒）  経過    1436秒
+[1070/1281] AUDJPY naive:p=0.02:seed=8         687件    3.9秒（CPU   3.8秒）  経過    1438秒
+[1071/1281] AUDJPY naive:p=0.02:seed=9         651件    3.8秒（CPU   3.7秒）  経過    1439秒
+[1072/1281] AUDJPY naive:p=0.02:seed=10        672件    3.8秒（CPU   3.8秒）  経過    1439秒
+[1073/1281] AUDJPY naive:p=0.02:seed=11        697件    3.6秒（CPU   3.6秒）  経過    1439秒
+[1074/1281] AUDJPY naive:p=0.02:seed=12        692件    4.0秒（CPU   4.0秒）  経過    1442秒
+[1075/1281] AUDJPY naive:p=0.02:seed=13        657件    4.3秒（CPU   4.2秒）  経過    1443秒
+[1076/1281] AUDJPY naive:p=0.02:seed=15        705件    3.8秒（CPU   3.8秒）  経過    1443秒
+[1077/1281] AUDJPY naive:p=0.02:seed=14        707件    3.9秒（CPU   3.8秒）  経過    1443秒
+[1078/1281] AUDJPY naive:p=0.02:seed=16        682件    3.5秒（CPU   3.4秒）  経過    1445秒
+[1079/1281] AUDJPY naive:p=0.02:seed=17        653件    3.5秒（CPU   3.4秒）  経過    1447秒
+[1080/1281] AUDJPY naive:p=0.02:seed=18        699件    3.6秒（CPU   3.6秒）  経過    1447秒
+[1081/1281] AUDJPY naive:p=0.02:seed=19        682件    3.6秒（CPU   3.6秒）  経過    1447秒
+[1082/1281] AUDJPY naive:p=0.03:seed=0         970件    3.4秒（CPU   3.3秒）  経過    1449秒
+[1083/1281] AUDJPY naive:p=0.03:seed=1         911件    3.2秒（CPU   3.2秒）  経過    1450秒
+[1084/1281] AUDJPY naive:p=0.03:seed=2         934件    3.5秒（CPU   3.5秒）  経過    1450秒
+[1085/1281] AUDJPY naive:p=0.03:seed=3         932件    3.6秒（CPU   3.6秒）  経過    1450秒
+[1086/1281] AUDJPY naive:p=0.03:seed=4         937件    3.9秒（CPU   3.8秒）  経過    1453秒
+[1087/1281] AUDJPY naive:p=0.03:seed=5         914件    4.0秒（CPU   3.9秒）  経過    1454秒
+[1088/1281] AUDJPY naive:p=0.03:seed=6         912件    3.7秒（CPU   3.7秒）  経過    1454秒
+[1089/1281] AUDJPY naive:p=0.03:seed=7         915件    4.4秒（CPU   4.3秒）  経過    1455秒
+[1090/1281] AUDJPY naive:p=0.03:seed=8         960件    3.9秒（CPU   3.7秒）  経過    1457秒
+[1091/1281] AUDJPY naive:p=0.03:seed=10        928件    3.6秒（CPU   3.5秒）  経過    1458秒
+[1092/1281] AUDJPY naive:p=0.03:seed=9         872件    4.2秒（CPU   4.1秒）  経過    1458秒
+[1093/1281] AUDJPY naive:p=0.03:seed=11        949件    3.7秒（CPU   3.7秒）  経過    1458秒
+[1094/1281] AUDJPY naive:p=0.03:seed=12        936件    3.6秒（CPU   3.6秒）  経過    1460秒
+[1095/1281] AUDJPY naive:p=0.03:seed=13        878件    3.1秒（CPU   3.0秒）  経過    1461秒
+[1096/1281] AUDJPY naive:p=0.03:seed=14        945件    3.6秒（CPU   3.6秒）  経過    1462秒
+[1097/1281] AUDJPY naive:p=0.03:seed=15        940件    3.3秒（CPU   3.3秒）  経過    1462秒
+[1098/1281] AUDJPY naive:p=0.03:seed=16        928件    3.6秒（CPU   3.6秒）  経過    1464秒
+[1099/1281] AUDJPY naive:p=0.03:seed=17        916件    3.3秒（CPU   3.2秒）  経過    1464秒
+[1100/1281] AUDJPY naive:p=0.03:seed=18        920件    3.7秒（CPU   3.6秒）  経過    1465秒
+[1101/1281] AUDJPY naive:p=0.03:seed=19        893件    3.6秒（CPU   3.6秒）  経過    1465秒
+[1102/1281] AUDJPY naive:p=0.05:seed=0        1332件    3.7秒（CPU   3.6秒）  経過    1467秒
+[1103/1281] AUDJPY naive:p=0.05:seed=1        1267件    3.6秒（CPU   3.6秒）  経過    1468秒
+[1104/1281] AUDJPY naive:p=0.05:seed=2        1242件    3.4秒（CPU   3.4秒）  経過    1469秒
+[1105/1281] AUDJPY naive:p=0.05:seed=3        1296件    3.5秒（CPU   3.5秒）  経過    1469秒
+[1106/1281] AUDJPY naive:p=0.05:seed=4        1252件    3.4秒（CPU   3.3秒）  経過    1471秒
+[1107/1281] AUDJPY naive:p=0.05:seed=5        1243件    3.7秒（CPU   3.7秒）  経過    1471秒
+[1108/1281] AUDJPY naive:p=0.05:seed=6        1257件    3.4秒（CPU   3.4秒）  経過    1472秒
+[1109/1281] AUDJPY naive:p=0.05:seed=7        1244件    3.6秒（CPU   3.5秒）  経過    1472秒
+[1110/1281] AUDJPY naive:p=0.05:seed=8        1283件    3.6秒（CPU   3.5秒）  経過    1474秒
+[1111/1281] AUDJPY naive:p=0.05:seed=9        1249件    3.4秒（CPU   3.4秒）  経過    1475秒
+[1112/1281] AUDJPY naive:p=0.05:seed=10       1256件    3.4秒（CPU   3.4秒）  経過    1475秒
+[1113/1281] AUDJPY naive:p=0.05:seed=11       1293件    3.3秒（CPU   3.3秒）  経過    1476秒
+[1114/1281] AUDJPY naive:p=0.05:seed=12       1234件    3.6秒（CPU   3.6秒）  経過    1478秒
+[1115/1281] AUDJPY naive:p=0.05:seed=13       1277件    3.8秒（CPU   3.8秒）  経過    1478秒
+[1116/1281] AUDJPY naive:p=0.05:seed=14       1287件    3.6秒（CPU   3.5秒）  経過    1479秒
+[1117/1281] AUDJPY naive:p=0.05:seed=15       1303件    3.5秒（CPU   3.5秒）  経過    1479秒
+[1118/1281] AUDJPY naive:p=0.05:seed=16       1252件    3.4秒（CPU   3.4秒）  経過    1481秒
+[1119/1281] AUDJPY naive:p=0.05:seed=17       1270件    3.5秒（CPU   3.5秒）  経過    1482秒
+[1120/1281] AUDJPY naive:p=0.05:seed=18       1270件    4.1秒（CPU   4.0秒）  経過    1483秒
+[1121/1281] AUDJPY naive:p=0.05:seed=19       1266件    4.0秒（CPU   4.0秒）  経過    1483秒
+[1122/1281] AUDJPY naive:p=0.08:seed=0        1591件    3.8秒（CPU   3.7秒）  経過    1485秒
+[1123/1281] AUDJPY naive:p=0.08:seed=1        1644件    3.8秒（CPU   3.8秒）  経過    1486秒
+[1124/1281] AUDJPY naive:p=0.08:seed=2        1595件    3.3秒（CPU   3.2秒）  経過    1486秒
+[1125/1281] AUDJPY naive:p=0.08:seed=3        1623件    3.5秒（CPU   3.5秒）  経過    1487秒
+[1126/1281] AUDJPY naive:p=0.08:seed=4        1610件    3.5秒（CPU   3.4秒）  経過    1489秒
+[1127/1281] AUDJPY naive:p=0.08:seed=5        1606件    3.9秒（CPU   3.9秒）  経過    1490秒
+[1128/1281] AUDJPY naive:p=0.08:seed=6        1583件    3.4秒（CPU   3.4秒）  経過    1490秒
+[1129/1281] AUDJPY naive:p=0.08:seed=7        1595件    3.7秒（CPU   3.7秒）  経過    1490秒
+[1130/1281] AUDJPY naive:p=0.08:seed=8        1591件    3.8秒（CPU   3.8秒）  経過    1493秒
+[1131/1281] AUDJPY naive:p=0.08:seed=9        1584件    3.4秒（CPU   3.3秒）  経過    1493秒
+[1132/1281] AUDJPY naive:p=0.08:seed=10       1592件    3.7秒（CPU   3.7秒）  経過    1494秒
+[1133/1281] AUDJPY naive:p=0.08:seed=11       1634件    3.9秒（CPU   3.9秒）  経過    1494秒
+[1134/1281] AUDJPY naive:p=0.08:seed=12       1634件    3.2秒（CPU   3.2秒）  経過    1496秒
+[1135/1281] AUDJPY naive:p=0.08:seed=13       1594件    3.6秒（CPU   3.6秒）  経過    1497秒
+[1136/1281] AUDJPY naive:p=0.08:seed=14       1634件    3.8秒（CPU   3.8秒）  経過    1497秒
+[1137/1281] AUDJPY naive:p=0.08:seed=15       1596件    3.4秒（CPU   3.4秒）  経過    1498秒
+[1138/1281] AUDJPY naive:p=0.08:seed=16       1607件    3.8秒（CPU   3.7秒）  経過    1500秒
+[1139/1281] AUDJPY naive:p=0.08:seed=17       1614件    3.5秒（CPU   3.5秒）  経過    1500秒
+[1140/1281] AUDJPY naive:p=0.08:seed=18       1626件    3.7秒（CPU   3.6秒）  経過    1501秒
+[1141/1281] AUDJPY naive:p=0.08:seed=19       1598件    3.7秒（CPU   3.7秒）  経過    1502秒
+[1142/1281] XAUUSD naive:p=0.005:seed=0        220件    3.0秒（CPU   3.0秒）  経過    1503秒
+[1143/1281] XAUUSD naive:p=0.005:seed=1        165件    3.4秒（CPU   3.4秒）  経過    1504秒
+[1144/1281] XAUUSD naive:p=0.005:seed=2        218件    3.3秒（CPU   3.3秒）  経過    1504秒
+[1145/1281] XAUUSD naive:p=0.005:seed=3        190件    3.1秒（CPU   3.1秒）  経過    1505秒
+[1146/1281] XAUUSD naive:p=0.005:seed=4        195件    3.3秒（CPU   3.2秒）  経過    1506秒
+[1147/1281] XAUUSD naive:p=0.005:seed=5        207件    3.2秒（CPU   3.2秒）  経過    1507秒
+[1148/1281] XAUUSD naive:p=0.005:seed=6        185件    3.4秒（CPU   3.3秒）  経過    1508秒
+[1149/1281] XAUUSD naive:p=0.005:seed=7        222件    3.5秒（CPU   3.4秒）  経過    1508秒
+[1150/1281] XAUUSD naive:p=0.005:seed=8        193件    3.4秒（CPU   3.3秒）  経過    1509秒
+[1151/1281] XAUUSD naive:p=0.005:seed=9        179件    3.2秒（CPU   3.1秒）  経過    1510秒
+[1152/1281] XAUUSD naive:p=0.005:seed=10       161件    3.4秒（CPU   3.3秒）  経過    1511秒
+[1153/1281] XAUUSD naive:p=0.005:seed=11       178件    3.5秒（CPU   3.4秒）  経過    1512秒
+[1154/1281] XAUUSD naive:p=0.005:seed=12       204件    2.8秒（CPU   2.8秒）  経過    1512秒
+[1155/1281] XAUUSD naive:p=0.005:seed=13       205件    3.3秒（CPU   3.3秒）  経過    1513秒
+[1156/1281] XAUUSD naive:p=0.005:seed=14       182件    2.5秒（CPU   2.5秒）  経過    1514秒
+[1157/1281] XAUUSD naive:p=0.005:seed=15       199件    3.0秒（CPU   3.0秒）  経過    1515秒
+[1158/1281] XAUUSD naive:p=0.005:seed=16       184件    3.4秒（CPU   3.3秒）  経過    1515秒
+[1159/1281] XAUUSD naive:p=0.005:seed=17       202件    2.9秒（CPU   2.9秒）  経過    1516秒
+[1160/1281] XAUUSD naive:p=0.005:seed=18       190件    3.2秒（CPU   3.2秒）  経過    1517秒
+[1161/1281] XAUUSD naive:p=0.005:seed=19       176件    3.4秒（CPU   3.4秒）  経過    1518秒
+[1162/1281] XAUUSD naive:p=0.01:seed=0         385件    3.2秒（CPU   3.2秒）  経過    1519秒
+[1163/1281] XAUUSD naive:p=0.01:seed=1         341件    3.3秒（CPU   3.3秒）  経過    1520秒
+[1164/1281] XAUUSD naive:p=0.01:seed=2         388件    3.1秒（CPU   3.1秒）  経過    1520秒
+[1165/1281] XAUUSD naive:p=0.01:seed=3         369件    3.3秒（CPU   3.3秒）  経過    1521秒
+[1166/1281] XAUUSD naive:p=0.01:seed=4         369件    3.4秒（CPU   3.3秒）  経過    1522秒
+[1167/1281] XAUUSD naive:p=0.01:seed=5         399件    3.3秒（CPU   3.3秒）  経過    1523秒
+[1168/1281] XAUUSD naive:p=0.01:seed=6         352件    3.3秒（CPU   3.3秒）  経過    1523秒
+[1169/1281] XAUUSD naive:p=0.01:seed=7         388件    3.6秒（CPU   3.5秒）  経過    1525秒
+[1170/1281] XAUUSD naive:p=0.01:seed=8         349件    3.6秒（CPU   3.6秒）  経過    1526秒
+[1171/1281] XAUUSD naive:p=0.01:seed=9         342件    3.3秒（CPU   3.2秒）  経過    1526秒
+[1172/1281] XAUUSD naive:p=0.01:seed=10        318件    3.2秒（CPU   3.1秒）  経過    1526秒
+[1173/1281] XAUUSD naive:p=0.01:seed=11        349件    3.8秒（CPU   3.7秒）  経過    1529秒
+[1174/1281] XAUUSD naive:p=0.01:seed=12        376件    3.2秒（CPU   3.1秒）  経過    1529秒
+[1175/1281] XAUUSD naive:p=0.01:seed=13        384件    2.9秒（CPU   2.9秒）  経過    1529秒
+[1176/1281] XAUUSD naive:p=0.01:seed=14        352件    3.1秒（CPU   3.1秒）  経過    1529秒
+[1177/1281] XAUUSD naive:p=0.01:seed=15        371件    3.4秒（CPU   3.4秒）  経過    1532秒
+[1178/1281] XAUUSD naive:p=0.01:seed=16        380件    3.5秒（CPU   3.5秒）  経過    1532秒
+[1179/1281] XAUUSD naive:p=0.01:seed=18        373件    3.2秒（CPU   3.1秒）  経過    1533秒
+[1180/1281] XAUUSD naive:p=0.01:seed=17        389件    3.5秒（CPU   3.4秒）  経過    1533秒
+[1181/1281] XAUUSD naive:p=0.015:seed=2        553件    2.6秒（CPU   2.6秒）  経過    1535秒
+[1182/1281] XAUUSD naive:p=0.015:seed=0        536件    3.1秒（CPU   3.1秒）  経過    1535秒
+[1183/1281] XAUUSD naive:p=0.01:seed=19        344件    3.4秒（CPU   3.3秒）  経過    1536秒
+[1184/1281] XAUUSD naive:p=0.015:seed=1        508件    3.1秒（CPU   3.1秒）  経過    1536秒
+[1185/1281] XAUUSD naive:p=0.015:seed=5        528件    3.0秒（CPU   2.9秒）  経過    1538秒
+[1186/1281] XAUUSD naive:p=0.015:seed=3        507件    3.4秒（CPU   3.4秒）  経過    1539秒
+[1187/1281] XAUUSD naive:p=0.015:seed=4        525件    3.4秒（CPU   3.4秒）  経過    1539秒
+[1188/1281] XAUUSD naive:p=0.015:seed=6        507件    3.1秒（CPU   3.1秒）  経過    1539秒
+[1189/1281] XAUUSD naive:p=0.015:seed=7        550件    3.1秒（CPU   3.0秒）  経過    1542秒
+[1190/1281] XAUUSD naive:p=0.015:seed=9        492件    3.1秒（CPU   3.1秒）  経過    1542秒
+[1191/1281] XAUUSD naive:p=0.015:seed=10       494件    3.1秒（CPU   3.1秒）  経過    1542秒
+[1192/1281] XAUUSD naive:p=0.015:seed=8        490件    3.5秒（CPU   3.5秒）  経過    1542秒
+[1193/1281] XAUUSD naive:p=0.015:seed=11       515件    3.3秒（CPU   3.2秒）  経過    1545秒
+[1194/1281] XAUUSD naive:p=0.015:seed=12       525件    3.3秒（CPU   3.2秒）  経過    1545秒
+[1195/1281] XAUUSD naive:p=0.015:seed=13       542件    3.4秒（CPU   3.4秒）  経過    1545秒
+[1196/1281] XAUUSD naive:p=0.015:seed=14       515件    3.4秒（CPU   3.3秒）  経過    1546秒
+[1197/1281] XAUUSD naive:p=0.015:seed=15       535件    3.3秒（CPU   3.2秒）  経過    1548秒
+[1198/1281] XAUUSD naive:p=0.015:seed=17       515件    3.1秒（CPU   3.1秒）  経過    1549秒
+[1199/1281] XAUUSD naive:p=0.015:seed=16       544件    3.4秒（CPU   3.3秒）  経過    1549秒
+[1200/1281] XAUUSD naive:p=0.015:seed=18       524件    3.3秒（CPU   3.3秒）  経過    1549秒
+[1201/1281] XAUUSD naive:p=0.015:seed=19       523件    3.4秒（CPU   3.4秒）  経過    1552秒
+[1202/1281] XAUUSD naive:p=0.02:seed=0         660件    3.3秒（CPU   3.3秒）  経過    1552秒
+[1203/1281] XAUUSD naive:p=0.02:seed=1         637件    3.5秒（CPU   3.4秒）  経過    1552秒
+[1204/1281] XAUUSD naive:p=0.02:seed=2         699件    3.4秒（CPU   3.4秒）  経過    1552秒
+[1205/1281] XAUUSD naive:p=0.02:seed=3         650件    3.1秒（CPU   3.1秒）  経過    1555秒
+[1206/1281] XAUUSD naive:p=0.02:seed=4         641件    3.3秒（CPU   3.3秒）  経過    1555秒
+[1207/1281] XAUUSD naive:p=0.02:seed=5         650件    3.1秒（CPU   3.0秒）  経過    1555秒
+[1208/1281] XAUUSD naive:p=0.02:seed=6         645件    3.5秒（CPU   3.4秒）  経過    1556秒
+[1209/1281] XAUUSD naive:p=0.02:seed=7         698件    2.9秒（CPU   2.9秒）  経過    1558秒
+[1210/1281] XAUUSD naive:p=0.02:seed=8         654件    3.1秒（CPU   3.0秒）  経過    1558秒
+[1211/1281] XAUUSD naive:p=0.02:seed=9         631件    3.2秒（CPU   3.1秒）  経過    1558秒
+[1212/1281] XAUUSD naive:p=0.02:seed=10        633件    3.1秒（CPU   3.0秒）  経過    1559秒
+[1213/1281] XAUUSD naive:p=0.02:seed=11        653件    3.4秒（CPU   3.4秒）  経過    1561秒
+[1214/1281] XAUUSD naive:p=0.02:seed=13        661件    2.9秒（CPU   2.8秒）  経過    1561秒
+[1215/1281] XAUUSD naive:p=0.02:seed=12        646件    3.3秒（CPU   3.3秒）  経過    1562秒
+[1216/1281] XAUUSD naive:p=0.02:seed=14        645件    3.0秒（CPU   3.0秒）  経過    1562秒
+[1217/1281] XAUUSD naive:p=0.02:seed=15        654件    3.2秒（CPU   3.2秒）  経過    1564秒
+[1218/1281] XAUUSD naive:p=0.02:seed=16        670件    3.2秒（CPU   3.1秒）  経過    1565秒
+[1219/1281] XAUUSD naive:p=0.02:seed=17        660件    3.2秒（CPU   3.2秒）  経過    1565秒
+[1220/1281] XAUUSD naive:p=0.02:seed=18        656件    3.3秒（CPU   3.3秒）  経過    1565秒
+[1221/1281] XAUUSD naive:p=0.02:seed=19        666件    3.1秒（CPU   3.1秒）  経過    1567秒
+[1222/1281] XAUUSD naive:p=0.03:seed=0         867件    3.3秒（CPU   3.3秒）  経過    1568秒
+[1223/1281] XAUUSD naive:p=0.03:seed=2         926件    2.7秒（CPU   2.7秒）  経過    1568秒
+[1224/1281] XAUUSD naive:p=0.03:seed=1         886件    3.3秒（CPU   3.3秒）  経過    1568秒
+[1225/1281] XAUUSD naive:p=0.03:seed=6         888件    2.4秒（CPU   2.4秒）  経過    1570秒
+[1226/1281] XAUUSD naive:p=0.03:seed=3         891件    3.1秒（CPU   3.1秒）  経過    1571秒
+[1227/1281] XAUUSD naive:p=0.03:seed=5         915件    3.2秒（CPU   3.2秒）  経過    1571秒
+[1228/1281] XAUUSD naive:p=0.03:seed=4         866件    3.7秒（CPU   3.6秒）  経過    1572秒
+[1229/1281] XAUUSD naive:p=0.03:seed=8         879件    3.0秒（CPU   3.0秒）  経過    1574秒
+[1230/1281] XAUUSD naive:p=0.03:seed=7         914件    3.1秒（CPU   3.1秒）  経過    1574秒
+[1231/1281] XAUUSD naive:p=0.03:seed=9         882件    3.3秒（CPU   3.3秒）  経過    1575秒
+[1232/1281] XAUUSD naive:p=0.03:seed=10        847件    3.5秒（CPU   3.4秒）  経過    1575秒
+[1233/1281] XAUUSD naive:p=0.03:seed=11        868件    3.3秒（CPU   3.3秒）  経過    1577秒
+[1234/1281] XAUUSD naive:p=0.03:seed=12        869件    3.3秒（CPU   3.3秒）  経過    1577秒
+[1235/1281] XAUUSD naive:p=0.03:seed=13        915件    3.2秒（CPU   3.2秒）  経過    1578秒
+[1236/1281] XAUUSD naive:p=0.03:seed=14        890件    3.4秒（CPU   3.3秒）  経過    1579秒
+[1237/1281] XAUUSD naive:p=0.03:seed=16        934件    3.1秒（CPU   3.1秒）  経過    1580秒
+[1238/1281] XAUUSD naive:p=0.03:seed=15        885件    3.4秒（CPU   3.4秒）  経過    1580秒
+[1239/1281] XAUUSD naive:p=0.03:seed=17        904件    3.0秒（CPU   3.0秒）  経過    1581秒
+[1240/1281] XAUUSD naive:p=0.03:seed=18        866件    3.3秒（CPU   3.2秒）  経過    1582秒
+[1241/1281] XAUUSD naive:p=0.03:seed=19        908件    3.3秒（CPU   3.3秒）  経過    1583秒
+[1242/1281] XAUUSD naive:p=0.05:seed=0        1223件    3.2秒（CPU   3.2秒）  経過    1583秒
+[1243/1281] XAUUSD naive:p=0.05:seed=1        1259件    3.3秒（CPU   3.2秒）  経過    1584秒
+[1244/1281] XAUUSD naive:p=0.05:seed=2        1255件    3.1秒（CPU   3.1秒）  経過    1585秒
+[1245/1281] XAUUSD naive:p=0.05:seed=4        1218件    3.1秒（CPU   3.0秒）  経過    1587秒
+[1246/1281] XAUUSD naive:p=0.05:seed=3        1235件    3.5秒（CPU   3.5秒）  経過    1587秒
+[1247/1281] XAUUSD naive:p=0.05:seed=5        1222件    3.4秒（CPU   3.4秒）  経過    1588秒
+[1248/1281] XAUUSD naive:p=0.05:seed=6        1240件    3.1秒（CPU   3.0秒）  経過    1588秒
+[1249/1281] XAUUSD naive:p=0.05:seed=7        1299件    3.2秒（CPU   3.1秒）  経過    1590秒
+[1250/1281] XAUUSD naive:p=0.05:seed=8        1233件    3.3秒（CPU   3.2秒）  経過    1590秒
+[1251/1281] XAUUSD naive:p=0.05:seed=9        1224件    3.5秒（CPU   3.4秒）  経過    1591秒
+[1252/1281] XAUUSD naive:p=0.05:seed=10       1227件    3.6秒（CPU   3.5秒）  経過    1592秒
+[1253/1281] XAUUSD naive:p=0.05:seed=11       1230件    3.4秒（CPU   3.4秒）  経過    1593秒
+[1254/1281] XAUUSD naive:p=0.05:seed=12       1218件    3.6秒（CPU   3.6秒）  経過    1594秒
+[1255/1281] XAUUSD naive:p=0.05:seed=13       1237件    2.9秒（CPU   2.8秒）  経過    1594秒
+[1256/1281] XAUUSD naive:p=0.05:seed=14       1265件    3.3秒（CPU   3.2秒）  経過    1595秒
+[1257/1281] XAUUSD naive:p=0.05:seed=15       1254件    2.8秒（CPU   2.8秒）  経過    1596秒
+[1258/1281] XAUUSD naive:p=0.05:seed=17       1260件    2.9秒（CPU   2.9秒）  経過    1597秒
+[1259/1281] XAUUSD naive:p=0.05:seed=16       1261件    3.5秒（CPU   3.4秒）  経過    1597秒
+[1260/1281] XAUUSD naive:p=0.05:seed=19       1241件    2.5秒（CPU   2.5秒）  経過    1598秒
+[1261/1281] XAUUSD naive:p=0.05:seed=18       1241件    3.6秒（CPU   3.5秒）  経過    1599秒
+[1262/1281] XAUUSD naive:p=0.08:seed=0        1518件    3.7秒（CPU   3.7秒）  経過    1600秒
+[1263/1281] XAUUSD naive:p=0.08:seed=1        1632件    3.6秒（CPU   3.5秒）  経過    1601秒
+[1264/1281] XAUUSD naive:p=0.08:seed=3        1568件    3.5秒（CPU   3.4秒）  経過    1602秒
+[1265/1281] XAUUSD naive:p=0.08:seed=2        1571件    3.8秒（CPU   3.7秒）  経過    1602秒
+[1266/1281] XAUUSD naive:p=0.08:seed=4        1569件    3.5秒（CPU   3.5秒）  経過    1604秒
+[1267/1281] XAUUSD naive:p=0.08:seed=5        1572件    3.4秒（CPU   3.4秒）  経過    1604秒
+[1268/1281] XAUUSD naive:p=0.08:seed=6        1605件    3.3秒（CPU   3.2秒）  経過    1605秒
+[1269/1281] XAUUSD naive:p=0.08:seed=7        1645件    3.4秒（CPU   3.3秒）  経過    1606秒
+[1270/1281] XAUUSD naive:p=0.08:seed=8        1609件    3.3秒（CPU   3.3秒）  経過    1607秒
+[1271/1281] XAUUSD naive:p=0.08:seed=9        1608件    3.2秒（CPU   3.2秒）  経過    1607秒
+[1272/1281] XAUUSD naive:p=0.08:seed=10       1581件    3.3秒（CPU   3.2秒）  経過    1609秒
+[1273/1281] XAUUSD naive:p=0.08:seed=11       1607件    3.3秒（CPU   3.3秒）  経過    1609秒
+[1274/1281] XAUUSD naive:p=0.08:seed=12       1564件    3.2秒（CPU   3.1秒）  経過    1611秒
+[1275/1281] XAUUSD naive:p=0.08:seed=13       1617件    3.3秒（CPU   3.3秒）  経過    1611秒
+[1276/1281] XAUUSD naive:p=0.08:seed=14       1578件    3.5秒（CPU   3.4秒）  経過    1612秒
+[1277/1281] XAUUSD naive:p=0.08:seed=15       1581件    3.5秒（CPU   3.5秒）  経過    1612秒
+[1278/1281] XAUUSD naive:p=0.08:seed=17       1604件    3.1秒（CPU   3.1秒）  経過    1614秒
+[1279/1281] XAUUSD naive:p=0.08:seed=16       1566件    3.2秒（CPU   3.2秒）  経過    1614秒
+[1280/1281] XAUUSD naive:p=0.08:seed=18       1566件    3.5秒（CPU   3.4秒）  経過    1616秒
+[1281/1281] XAUUSD naive:p=0.08:seed=19       1582件    3.5秒（CPU   3.4秒）  経過    1616秒
+[final_eval] 集計中…
+BT 同梱 EURUSD: 2017-04-19 12:00:00〜2018-02-07 17:00:00 4998本 → fusion 21回（2017年分 18回）
+[final_eval] 判定: 不合格  P1=× P2=× P3=× P4=× P5=× P6=×
+[final_eval] 出力: <出力フォルダ>/results.json, trades.csv.gz, report.md
+[final_eval] 所要時間: 実行 1629秒（仕事の CPU 時間の合計 6300秒）、合計 1674秒
+[final_eval] ピークメモリ: 本体 659MB、子プロセスの最大 190MB
+exit=0
