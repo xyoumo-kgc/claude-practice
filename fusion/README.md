@@ -11,8 +11,11 @@ fusion/
 ├── broker.py      # 約定シミュレーター（スプレッド・窓開け・損切り優先・部分利確・建値移動）
 ├── stats.py       # R単位の成績集計
 ├── baselines.py   # 比較用: 従来版EA（MAスロープ）・4P-Score を先読みなしで再実装
+├── strategy.py    # ★融合システム FUSION-CORE v1.0 の参照実装（仕様: SPEC.md）
 ├── evaluate.py    # 開発期間(IS)/検証期間(OOS)に分けた実データ検証
-└── tests/         # python -m unittest discover -s fusion/tests -t .
+├── SPEC.md        # 凍結した仕様書（判定ルール・出口・時刻ルール・MQL5 実装注記・照合表）
+├── PREREGISTRATION.md  # 最終検証の事前登録（未接触データ・合格基準・プロトコル逸脱の記録）
+└── tests/         # python -m unittest discover -s fusion/tests -t .（golden/ に照合用の取引一覧）
 ```
 
 ## 先読み（ルックアヘッド）を防ぐ約束

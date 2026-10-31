@@ -15,12 +15,11 @@ import os
 import pandas as pd
 
 from fusion import baselines as bl
+from fusion import broker as bk
 from fusion import data as fd
 from fusion import stats as st
 
-# 一般的な口座の平均スプレッド（価格単位）
-SPREAD = {'EURUSD': 0.00010, 'GBPUSD': 0.00015, 'USDJPY': 0.010, 'EURJPY': 0.015, 'GBPJPY': 0.025,
-          'AUDUSD': 0.00012, 'XAUUSD': 0.30}
+SPREAD = bk.NOMINAL_SPREAD     # 一般的な口座の平均スプレッド（価格単位）
 
 PERIODS = {
     'IS(2013-2017)': ('2013-01-01', '2017-12-31 23:59'),
@@ -29,16 +28,15 @@ PERIODS = {
 
 
 def strategy_registry():
+    """戦略名 → f(frames, symbol) -> 取引リスト"""
+    from fusion import strategy as fs
     reg = {
-        'ma_slope': lambda d, s: bl.ma_slope(d['H1'], s),
-        'fourp_score': lambda d, s: bl.fourp_score(d['H1'], s, min_score=70),
+        'ma_slope': lambda d, sym: bl.ma_slope(d['H1'], SPREAD[sym]),
+        'fourp_score': lambda d, sym: bl.fourp_score(d['H1'], SPREAD[sym], min_score=70),
+        'p2': lambda d, sym: fs.run(d, sym, variant='p2'),
     }
-    try:
-        from fusion import strategy as fs
-        for name in fs.VARIANTS:
-            reg[name] = (lambda n: (lambda d, s: fs.run(d, s, variant=n)))(name)
-    except ImportError:
-        pass
+    for name in list(fs.VARIANTS) + list(fs.SENSITIVITY):
+        reg[name] = (lambda n: (lambda d, sym: fs.run(d, sym, variant=n)))(name)
     return reg
 
 
@@ -67,9 +65,8 @@ def run(data_dir, symbols, strategies, periods=PERIODS, verbose=True):
     results = {}
     for sym in symbols:
         d = load_symbol(sym, data_dir)
-        spread = SPREAD.get(sym, 0.0)
         for name in strategies:
-            trades = reg[name](d, spread)
+            trades = reg[name](d, sym)
             parts = split(trades, periods)
             results[(sym, name)] = {'all': trades, **parts}
             if verbose:
@@ -98,7 +95,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--data-dir', required=True)
     ap.add_argument('--symbols', default='EURUSD,GBPUSD,EURJPY,XAUUSD')
-    ap.add_argument('--strategies', default='ma_slope,fourp_score')
+    ap.add_argument('--strategies', default='ma_slope,fourp_score,fusion')
     ap.add_argument('--mt5', nargs='*', help='MT5書き出しCSV（H1 と任意で M15）。--symbols の1銘柄として取り込む')
     ap.add_argument('--periods', default='IS,OOS', help='集計する期間（IS / OOS / ALL）。開発中は IS のみを見る')
     ap.add_argument('--json')

@@ -15,6 +15,10 @@
 from dataclasses import dataclass, field
 from typing import Optional
 
+# 名目スプレッド（価格単位。一般的な口座の平均。Python の検証は固定スプレッドで行う）
+NOMINAL_SPREAD = {'EURUSD': 0.00010, 'GBPUSD': 0.00015, 'USDJPY': 0.010, 'EURJPY': 0.015, 'GBPJPY': 0.025,
+                  'AUDUSD': 0.00012, 'USDCAD': 0.00015, 'AUDJPY': 0.015, 'XAUUSD': 0.30}
+
 
 @dataclass
 class Position:
