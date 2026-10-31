@@ -8,6 +8,8 @@ import os
 import shutil
 import tempfile
 import unittest
+from collections import OrderedDict
+from unittest import mock
 
 import numpy as np
 import pandas as pd
@@ -447,6 +449,208 @@ class TestConfigsAndOutput(unittest.TestCase):
         self.assertEqual(out, {'a': None, 'b': 'inf', 'c': 3, 'd': True, 'e': '2020-01-02T03:00:00', 'f': [1.5, None],
                                '3': 'x'})
         json.dumps(out, allow_nan=False)
+
+
+# ---------------------------------------------------------------- analyze の配線（合成の取引だけ。戦略は走らせない）
+class TestAnalyzeWiring(unittest.TestCase):
+    """DSR の系列と V の構成・期間、素朴ベースラインの p を「プール内の回数」だけで選ぶこと、P4 の値、Holm の族、銘柄年を、
+    analyze に合成の取引を渡して、事前登録の文言から独立に計算した値と比べる"""
+    SPEC = dict(
+        dry_run=True, symbols=['EURUSD', 'GBPUSD'], clip=None, bt_cut='2018-01-01',
+        pools=[('U-A', ['EURUSD', 'GBPUSD'], '2010-01-01', '2010-06-30'), ('U-C', ['GBPUSD'], '2010-07-01', '2010-12-31'),
+               ('U-B', ['EURUSD', 'GBPUSD'], '2011-01-01', '2011-06-30')],
+        periods={'U-A': ('2010-01-01', '2010-06-30'), 'U-B': ('2011-01-01', '2011-06-30'), 'U-C': ('2010-07-01', '2010-12-31')},
+        midpoints=None, refs=[('既知IS', ['EURUSD', 'GBPUSD'], '2009-01-01', '2009-12-31')],
+        dsr_months=('2010-01', '2011-06'), dev=(['EURUSD', 'GBPUSD'], '2009-01-01', '2009-12-31'), cuts=[], data_periods=None)
+    CFGS = ['fusion', 'oku_only', 'F-slope', 'F+G3', 'S:N_BIG=10', 'ma_slope']
+
+    def trades(self, seed, per_month, months, syms=('EURUSD', 'GBPUSD'), skip=()):
+        rng = np.random.default_rng(seed)
+        rows = []
+        for m in months:
+            if str(m) in skip:
+                continue
+            for s in syms:
+                for k in range(per_month):
+                    rows.append((s, m.start_time + pd.Timedelta(days=2 + k % 20, hours=10), float(rng.normal(0.05, 1.5)),
+                                 1 if k % 2 else -1))
+        return fe.chrono(fe.assign(make_trades(rows), self.SPEC))
+
+    def setUp(self):
+        all_m = pd.period_range('2009-01', '2011-06', freq='M')
+        pool_m = [m for m in all_m if m.year >= 2010]
+        T = OrderedDict()
+        for i, c in enumerate(self.CFGS):
+            T[c] = self.trades(i, 3 + i % 2, all_m, skip=('2010-03',) if c == 'fusion' else ())   # fusion は 2010-03 に取引なし
+        # 素朴: p=0.02 はプール内の回数が fusion に近いが、プール外（2009年）の取引が多い。全取引で数えると p=0.05 が近くなる
+        self.naive_p, self.naive_seeds = [0.02, 0.05], [0, 1]
+        for s in self.naive_seeds:
+            T[fe.naive_name(0.02, s)] = fe.chrono(fe.assign(pd.concat([
+                self.trades(100 + s, 3, pool_m, syms=('EURUSD',)),
+                self.trades(200 + s, 12, [m for m in all_m if m.year == 2009])], ignore_index=True), self.SPEC))
+            T[fe.naive_name(0.05, s)] = self.trades(300 + s, 8, pool_m)
+        self.T = T
+        infos = {s: dict(first=pd.Timestamp('2009-01-01'), last=pd.Timestamp('2011-06-30 23:00')) for s in ('EURUSD', 'GBPUSD')}
+        cfgs = self.CFGS + [fe.naive_name(p, s) for p in self.naive_p for s in self.naive_seeds]
+        self.res = fe.analyze(T, self.SPEC, ['EURUSD', 'GBPUSD'], infos, OrderedDict(all_match=None, rows=[]),
+                              OrderedDict(available=False, note='test'), self.naive_p, self.naive_seeds, cfgs,
+                              OrderedDict(_funnel=OrderedDict()))
+
+    def pool(self, c):
+        d = self.T[c]
+        return d[d['pool'] != '']
+
+    def test_dsr_inputs(self):
+        f = self.pool('fusion')
+        months = pd.period_range('2010-01', '2011-06', freq='M')
+        x = np.array([f.loc[f['entry_time'].dt.to_period('M') == m, 'pnl_r'].sum() for m in months])
+        self.assertEqual(x[2], 0.0)                                                  # 取引のない月は0
+        d = self.res['dsr']
+        self.assertEqual(d['T'], 18)
+        for got, want in zip(d['monthly_r'].values(), x):
+            self.assertAlmostEqual(got, want, places=12)
+        self.assertEqual(len(d['monthly_r']), 18)
+        srs = []
+        for c in ('fusion', 'oku_only', 'F-slope', 'F+G3', 'S:N_BIG=10'):          # V_SET に入るもの（ma_slope は入らない）
+            t = self.T[c]
+            dev = t[t['entry_time'] < pd.Timestamp('2010-01-01')]
+            y = np.array([dev.loc[dev['entry_time'].dt.to_period('M') == m, 'pnl_r'].sum()
+                          for m in pd.period_range('2009-01', '2009-12', freq='M')])
+            srs.append(y.mean() / y.std(ddof=1))
+        self.assertEqual(d['n_trials_for_V'], 5)
+        self.assertAlmostEqual(d['V'], float(np.var(srs, ddof=1)), places=14)
+        self.assertAlmostEqual(d['sr'], x.mean() / x.std(ddof=1), places=14)
+
+    def test_naive_p_by_pool_counts_only(self):
+        n_f = len(self.pool('fusion'))
+        sel = self.res['naive']['selection']
+        self.assertEqual(sel['target'], n_f)
+        self.assertEqual(sel['p'], 0.02)                                             # 全取引で数えると 0.05 になる
+        all_counts = {p: np.mean([len(self.T[fe.naive_name(p, s)]) for s in self.naive_seeds]) for p in self.naive_p}
+        self.assertEqual(min(all_counts, key=lambda p: abs(all_counts[p] - n_f)), 0.05)
+        avgs = [self.pool(fe.naive_name(0.02, s))['pnl_r'].mean() for s in self.naive_seeds]
+        p4 = self.res['verdict']['P4']
+        self.assertAlmostEqual(p4['naive_mean'], float(np.mean(avgs)), places=14)
+        self.assertAlmostEqual(p4['naive_p95'], float(np.percentile(avgs, 95)), places=14)
+        self.assertAlmostEqual(p4['fusion_avg'], self.pool('fusion')['pnl_r'].mean(), places=14)
+
+    def test_families_and_symbol_years(self):
+        self.assertEqual(list(self.res['ablations']['rows']), ['F-slope', 'F+G3'])   # 比較・感度は族に入れない
+        self.assertEqual(list(self.res['sensitivity']), ['S:N_BIG=10'])
+        self.assertEqual([tuple(k) for k in self.res['comparisons']['symbol_years']],
+                         [('U-A', 'EURUSD', 2010), ('U-A', 'GBPUSD', 2010), ('U-B', 'EURUSD', 2011), ('U-B', 'GBPUSD', 2011),
+                          ('U-C', 'GBPUSD', 2010)])
+        self.assertEqual(list(self.res['comparisons']['results']), ['oku_only', 'ma_slope'])
+        self.assertTrue(self.res['comparisons']['results']['oku_only']['judged'])
+        self.assertFalse(self.res['comparisons']['results']['ma_slope']['judged'])
+
+
+# ---------------------------------------------------------------- 本番の実行前の確認（何も計算しないうちに止める）
+class TestProductionPreflight(unittest.TestCase):
+    """本番は §2 の7銘柄すべての H1・M15 が §2 の期間を覆い、BT 同梱ファイルがあり、評価に使うファイルがコミット済みで
+    なければ止める（不完全な実行の結果を見てから走らせ直す、ということが起きないように）。時刻の列だけの合成 CSV で確かめる"""
+
+    def setUp(self):
+        self.tmp = tempfile.mkdtemp(prefix='final_eval_pre_')
+        self.bt = os.path.join(self.tmp, 'EURUSD_bt.csv')
+        open(self.bt, 'w').close()
+        self.patch_bt = mock.patch.object(fd, 'backtesting_eurusd_path', return_value=self.bt)
+        self.patch_bt.start()
+
+    def tearDown(self):
+        self.patch_bt.stop()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def write(self, d, sym, tf, first, last):
+        pd.DataFrame({'Open': 1.0, 'High': 1.0, 'Low': 1.0, 'Close': 1.0, 'Volume': 1.0},
+                     index=pd.DatetimeIndex([first, last], name='Time')).to_csv(os.path.join(d, f'{sym}_{tf}.csv'))
+
+    def full_dir(self, name='data'):
+        d = os.path.join(self.tmp, name)
+        os.makedirs(d)
+        for s in fe.SYMBOLS:
+            for tf in ('H1', 'M15'):
+                self.write(d, s, tf, '2006-03-20 02:00' if s == 'XAUUSD' else '2005-01-03 00:00', '2020-05-14 23:00')
+        return d
+
+    def test_registered_data_periods(self):
+        per = fe.make_spec(dry_run=False)['data_periods']                           # PREREGISTRATION §2
+        self.assertEqual(list(per), fe.SYMBOLS)
+        for s in fe.FX:
+            self.assertEqual(per[s], ('2005-01-03', '2020-05-14'))
+        self.assertEqual(per['XAUUSD'], ('2006-03-20', '2020-05-14'))
+        self.assertIsNone(fe.make_spec(dry_run=True)['data_periods'])
+
+    def test_complete_data_passes(self):
+        syms, m15, problems, spans = fe.preflight(fe.make_spec(dry_run=False), self.full_dir())
+        self.assertEqual((syms, m15, problems), (fe.SYMBOLS, fe.SYMBOLS, []))
+        self.assertEqual(len(spans), 14)
+        self.assertEqual(spans['XAUUSD_H1']['registered'], ['2006-03-20', '2020-05-14'])
+
+    def test_missing_or_short_data_is_reported(self):
+        d = self.full_dir()
+        os.remove(os.path.join(d, 'AUDJPY_M15.csv'))
+        self.write(d, 'USDCAD', 'H1', '2005-03-01 00:00', '2020-05-14 23:00')        # 始まりが遅い（U-A のウォームアップ不足）
+        self.write(d, 'XAUUSD', 'M15', '2006-03-20 02:00', '2019-12-31 23:00')       # 終わりが早い
+        self.write(d, 'EURUSD', 'H1', '2005-01-10 00:00', '2020-05-07 00:00')        # ちょうど ±7日は許す
+        syms, m15, problems, _ = fe.preflight(fe.make_spec(dry_run=False), d)
+        self.assertEqual(len(problems), 3, problems)
+        self.assertTrue(any('AUDJPY_M15' in p for p in problems))
+        self.assertTrue(any('USDCAD_H1' in p for p in problems))
+        self.assertTrue(any('XAUUSD_M15' in p for p in problems))
+        self.assertNotIn('AUDJPY', m15)
+        os.remove(self.bt)
+        self.assertTrue(any('EURUSD.csv' in p for p in fe.preflight(fe.make_spec(dry_run=False), d)[2]))
+
+    def test_dry_run_uses_what_exists(self):
+        d = self.full_dir()
+        os.remove(os.path.join(d, 'GBPUSD_H1.csv'))
+        syms, _, problems, spans = fe.preflight(fe.make_spec(dry_run=True), d)
+        self.assertEqual((syms, problems, len(spans)), (['EURUSD', 'EURJPY', 'XAUUSD'], [], 0))
+
+    def test_run_all_stops_before_computing(self):
+        d = self.full_dir()
+        os.remove(os.path.join(d, 'AUDUSD_H1.csv'))
+        out = os.path.join(self.tmp, 'out')
+        with mock.patch.object(fe, 'execute') as ex:
+            with self.assertRaises(SystemExit) as cm:
+                fe.run_all(d, out, workers=1, log=lambda s: None, require_clean_git=False)
+            ex.assert_not_called()
+        self.assertIn('AUDUSD_H1.csv', str(cm.exception))
+        self.assertFalse(os.path.exists(out))
+
+    def test_uncommitted_code_stops_production(self):
+        d = self.full_dir()
+        dirty = OrderedDict(commit='abc', modified_in_fusion=['fusion/strategy.py'], untracked_in_fusion=[],
+                            eval_files_dirty=['fusion/strategy.py'], eval_files_untracked=[])
+        with mock.patch.object(fe, 'git_state', return_value=dirty), mock.patch.object(fe, 'execute') as ex:
+            with self.assertRaises(SystemExit) as cm:
+                fe.run_all(d, os.path.join(self.tmp, 'out'), workers=1, log=lambda s: None)
+            ex.assert_not_called()
+        self.assertIn('fusion/strategy.py', str(cm.exception))
+
+    def test_git_problems(self):
+        clean = dict(commit='abc', eval_files_dirty=[], eval_files_untracked=[])
+        self.assertEqual(fe.git_problems(clean), [])
+        for bad in (dict(clean, commit=None), dict(clean, eval_files_dirty=None),
+                    dict(clean, eval_files_dirty=['fusion/final_eval.py']), dict(clean, eval_files_untracked=['fusion/stats.py'])):
+            self.assertEqual(len(fe.git_problems(bad)), 1, bad)
+        g = fe.git_state()                                                           # このリポジトリで実際に取れること
+        self.assertTrue(g['commit'])
+        self.assertIsInstance(g['eval_files_dirty'], list)
+        self.assertEqual(g['eval_files_untracked'], [])
+        root = os.path.dirname(os.path.dirname(os.path.abspath(fe.__file__)))
+        for f in fe.EVAL_FILES:
+            self.assertTrue(os.path.exists(os.path.join(root, f)), f)
+        # final_eval が読み込む fusion のモジュールは、すべて EVAL_FILES に入っている（別プロセスで確かめる）
+        import subprocess
+        import sys
+        out = subprocess.run([sys.executable, '-c', 'import sys, fusion.final_eval; print("\\n".join(sorted('
+                              'm.__file__ for n, m in sys.modules.items() if n.split(".")[0] == "fusion")))'],
+                             cwd=root, capture_output=True, text=True, check=True).stdout.split()
+        self.assertTrue(out)
+        for p in out:
+            self.assertIn(os.path.relpath(p, root).replace(os.sep, '/'), fe.EVAL_FILES)
 
 
 # ---------------------------------------------------------------- 全体の通し（合成データ・小さな構成）

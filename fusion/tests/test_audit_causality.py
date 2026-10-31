@@ -14,9 +14,11 @@ test_strategy.TestCausality（合成データを2点で切り、決済済みの�
   - 切断（足 c 以降を捨てる）
   - 差し替え: 足 c 以降を足 c-1 の終値を軸に反転して値幅を 1.5 倍にし、足 c に大きなひげと極端な終値を付ける。
     反転だけだと TR（ATR）が変わらず、ひげがないと境界付近のスイングが崩れず、終値が近いと上抜け・下抜けの判定が変わらないため
-  - 切る位置は、約定の1〜2本前・建玉中に BIG スイングが確定する足・直近の SMALL/BIG スイングが確定する足を含める
-  （監査時に、本体の写しへ先読み・約定の楽観を1つずつ入れた変異体 19 種で、このファイルのテストが落ちることを確かめた:
-    ATR・runLow・G1・未消化判定・ダウ状態機械の1本先読み、スイングの1本早い認識、節目に未確定スイング、トレールの先読みと
+  - 切る位置は、約定の1〜2本前・建玉中に BIG スイングが確定する足・判定した足の次に SMALL/BIG スイングが確定する足・
+    注文案まで進んだ足（節目を作る）の次に BIG/D1 スイングが確定する足を含める
+  - 判定記録には、その判定で節目エンジン（fs.cluster）に渡した点の一覧も含める
+  （監査時に、本体の写しへ先読み・約定の楽観を1つずつ入れた変異体 20 種で、このファイルのテストが落ちることを確かめた:
+    ATR・runLow・G1・未消化判定・ダウ状態機械の1本先読み、スイングの1本早い認識、節目に未確定スイング（1本・2本）、トレールの先読みと
     同じ足での適用、約定判定で次の足を覗く、窓開けでも price で約定、仲値で約定・損切り判定、約定足で TP1、TP1 を SL より先、
     空白を前の足で知る（2種）、パターン②で確定前の H1 足、再集計の右閉区間）
 約定モデル（SPEC §7.4・§10.2）:
@@ -84,24 +86,30 @@ class Run:
 
 
 def _traced_call(fn, *a, **k):
-    ev, codes, holder = {}, {}, {}
+    """判定記録には、その判定の中で節目エンジン（fs.cluster）に渡した点の一覧も含める（節目の入力の先読みも比べる）"""
+    ev, codes, holder, pending = {}, {}, {}, []
 
     def tr(event, t, p):
         if event == 'eval':
-            ev.setdefault(t, []).append(repr(p))
+            ev.setdefault(t, []).append(repr(p) + ''.join(pending))
             codes.setdefault(t, []).append(p['code'])
-    orig_h1, orig_broker = fs.run_h1, fs.bk.Broker
+            pending.clear()
+    orig_h1, orig_broker, orig_cluster = fs.run_h1, fs.bk.Broker, fs.cluster
 
     def run_h1_traced(*aa, **kk):
         kk['trace'] = tr
         holder['align'] = kk.get('align')
         return orig_h1(*aa, **kk)
+
+    def cluster_rec(points, tol):
+        pending.append(repr((sorted(points), tol)))
+        return orig_cluster(points, tol)
     RecBroker.rec, RecBroker.last_time = [], None
-    fs.run_h1, fs.bk.Broker = run_h1_traced, RecBroker
+    fs.run_h1, fs.bk.Broker, fs.cluster = run_h1_traced, RecBroker, cluster_rec
     try:
         trades = fn(*a, **k)[0]
     finally:
-        fs.run_h1, fs.bk.Broker = orig_h1, orig_broker
+        fs.run_h1, fs.bk.Broker, fs.cluster = orig_h1, orig_broker, orig_cluster
     return Run(trades, ev, codes, list(RecBroker.rec), holder.get('align'))
 
 
@@ -145,12 +153,14 @@ def entry_fields(tr):
     return tuple(tr[k] for k in keys) + tuple(sorted((k, repr(v)) for k, v in tr.items() if k.startswith('m_')))
 
 
-def boundary_cuts(df, run, rng, delta=H1, n_trades=2, n_big=12, n_small=3):
+def boundary_cuts(df, run, rng, delta=H1, n_trades=2, n_big=12, n_small=3, n_d1=72):
     """先読みが境界に現れやすい切断点: 約定の1〜2本前（待機注文あり）、建玉中に BIG スイングが確定する足、
-    判定した足（SMALL はトリガー判定まで進んだ足）の次に SMALL/BIG のスイングが確定する足、それとランダムに1点"""
+    判定した足（SMALL はトリガー判定まで進んだ足）の次に SMALL/BIG のスイングが確定する足、
+    注文案まで進んだ足（節目を作る）の次に BIG/D1 のスイングが確定する足、それとランダムに1点"""
     H, L = df['High'].to_numpy(), df['Low'].to_numpy()
     ihb, ilb = ind.pivots(H, L, n_big)
     ihs, ils = ind.pivots(H, L, n_small)
+    ihd, ild = ind.pivots(H, L, n_d1)
     pos = {t: i for i, t in enumerate(df.index)}
     cuts = set()
     trades = run.trades
@@ -165,8 +175,9 @@ def boundary_cuts(df, run, rng, delta=H1, n_trades=2, n_big=12, n_small=3):
                 break
     evaluated = sorted(run.ev)
     triggered = [t for t in evaluated if any(c not in ('R00', 'R01', 'R02') for c in run.codes[t])]
+    leveled = [t for t in evaluated if any(c == 'OK' or c >= 'R11' for c in run.codes[t])]
     for piv, depth, ts in ((ihs, n_small, triggered), (ils, n_small, triggered), (ihb, n_big, evaluated),
-                           (ilb, n_big, evaluated)):
+                           (ilb, n_big, evaluated), (ihb | ilb, n_big, leveled), (ihd | ild, n_d1, leveled)):
         cand = [t + 1 for t in ts if t + 1 < len(df) and piv[t + 1 - depth]]
         if cand:
             cuts.add(int(rng.choice(cand)))

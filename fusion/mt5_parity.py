@@ -50,7 +50,6 @@ import sys
 import warnings
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from datetime import date
 
 import numpy as np
 import pandas as pd
@@ -1105,9 +1104,27 @@ def _context_hints(t, ctx):
     if ctx.ecmp is not None:
         near_bars = [b for b in ctx.ecmp.bars_only_ea + ctx.ecmp.bars_only_py if abs((b - py.bars.index[t]) / HOUR) <= 400]
         if near_bars:
-            out.append(_hint('missing_bars', f'評価ログの足の集合が違う（例: {_ft(near_bars[0])}）。EA だけにある足 '
-                                             f'{len(ctx.ecmp.bars_only_ea)}・Python だけにある足 {len(ctx.ecmp.bars_only_py)}'))
+            wk = _weekend_dropped(ctx)
+            if wk:
+                out.append(_hint('time_rules', wk))
+            else:
+                out.append(_hint('missing_bars', f'評価ログの足の集合が違う（例: {_ft(near_bars[0])}）。EA だけにある足 '
+                                                 f'{len(ctx.ecmp.bars_only_ea)}・Python だけにある足 {len(ctx.ecmp.bars_only_py)}。'
+                                                 'EA の _bars.csv を --bars に渡すとそろう'))
     return out
+
+
+def _weekend_dropped(ctx):
+    """EA にだけある足の大半が「この --offset で換算すると土日」なら、その説明（オフセットの違いの疑い）。なければ None"""
+    ec = ctx.ecmp
+    if ec is None or not ec.bars_only_ea:
+        return None
+    off = pd.Timedelta(hours=ctx.py.offset_h)
+    wk = [b for b in ec.bars_only_ea if (b - off).dayofweek >= 5]
+    if len(wk) < 0.8 * len(ec.bars_only_ea):
+        return None
+    return (f'EA にだけある足 {len(ec.bars_only_ea)} 本のうち {len(wk)} 本は、--offset {ctx.py.offset_h} で NY+7 に換算すると土日になり、'
+            f'Python 側で捨てた足（例 {_ft(wk[0])}）。--offset が EA の InpServerOffsetHours と違う疑い')
 
 
 def _bars_suspect(ctx):
@@ -1172,7 +1189,8 @@ CODE_SOURCE = {
     'R16': ('window', '目標は節目と SMA480 で決まる'),
 }
 # EA がその段階まで計算して書く値（両側にあれば「同じ値なのに判定が違う」を言える）
-STAGE_VALUE = {'R02': 'depth', 'R08': 'slope80', 'R09': 'r_atr', 'R10': 'r_atr', 'R12': 'gap', 'R15': 'rr_cf'}
+STAGE_VALUE = {'R02': ('depth', 'ZONE_ATR'), 'R08': ('slope80', 'SLOPE_MIN'), 'R09': ('r_atr', 'R_MIN_ATR'),
+               'R10': ('r_atr', 'R_MAX_ATR'), 'R12': ('gap', 'GAP_HI'), 'R15': ('rr_cf', 'RR_CF')}
 
 
 def _boundary_hints(code, d, pattern, t, ea_row, py_row, diag, ctx):
@@ -1248,7 +1266,6 @@ def eval_hints(ea_row, py_row, t, ctx):
     """評価行の食い違い → ヒントの一覧（可能性の高い順）。ea_row / py_row は片方が None でもよい"""
     py = ctx.py
     hints = []
-    explained = False
     ref = ea_row if ea_row is not None else py_row
     d, pattern = int(ref['dir']), int(ref['pattern'])
     a = None if ea_row is None else str(ea_row['code'])
@@ -1266,14 +1283,16 @@ def eval_hints(ea_row, py_row, t, ctx):
             if _shifted_t(ctx, t, ea_t, py_t):
                 what += '。隣の足では同じ見送りが出ている＝時刻ルールが1時間ずれている'
             hints.append(_time_hint(t, ctx, what))
-        explained = True
+    elif (a is None and not ea_codes) or (b is None and not py_codes):
+        side = 'EA' if a is None else 'Python'
+        hints.append(_hint('missing_bars', f'{side} にはこの足の評価行がない（足の集合か、判定の開始・終了の足が違う）。'
+                                           'EA の _bars.csv を --bars に渡したか、ログの期間を確認'))
     elif a is None or b is None:
         if pattern == 3:
             hints.append(_hint('engine', '③（パターン3）の行が片方だけにある。構成（_info.csv の switches の p3）がそろっているか、'
                                          '①の候補の有無が違わないかを確認'))
         else:
             hints.append(_hint('engine', '同じ足で評価した方向・パターンの組が違う'))
-        explained = True
     else:
         ca = 'OK' if a in CANDIDATE else a
         cb = 'OK' if b in CANDIDATE else b
@@ -1286,7 +1305,6 @@ def eval_hints(ea_row, py_row, t, ctx):
                 hints.append(_hint('dow_init' if s4 else 'rounding',
                                    '両方向が成立し、スコアの勝ち負けが違う。S4（日足との関係 rel＝T_D1）が違えばダウ状態機械の初期値、'
                                    'それ以外は S1（slope≥0.10）・S5（rr_cf 1/2/3）・S2（depth≤0）・S6（conv≤0.5）の境界'))
-            explained = True
         elif ca in CODE_ORDER and cb in CODE_ORDER:
             dec = ca if CODE_ORDER.index(ca) < CODE_ORDER.index(cb) else cb
             bh = _boundary_hints(dec, d, pattern, t, ea_row, py_row, diag, ctx)
@@ -1297,22 +1315,21 @@ def eval_hints(ea_row, py_row, t, ctx):
             elif not bh:
                 if dec in CODE_SOURCE:
                     hints.append(_hint(*CODE_SOURCE[dec]))
-                col = STAGE_VALUE.get(dec)
+                col, par = STAGE_VALUE.get(dec, (None, None))
                 if col and not _isnan(ea_row.get(col)) and not _isnan(py_row.get(col)):
-                    hints.append(_hint('engine', f'両側の {col} は同じ（{float(py_row[col]):.9g}）で閾値からも離れているのに、'
-                                                 f'{dec}（{CODE_DESC.get(dec, "")}）の判定だけが違う。EA の判定式・不等号の移植を確認'))
+                    hints.append(_hint('engine', f'両側の {col} は同じ（{float(py_row[col]):.9g}）で、Python の閾値 {par}={py.P[par]:g} からも'
+                                                 f'離れているのに、{dec}（{CODE_DESC.get(dec, "")}）の判定だけが違う。EA の入力（_info.csv の params）'
+                                                 'が Python とそろっているか、EA の判定式・不等号の移植を確認'))
                 elif not _bars_suspect(ctx) and dec not in ('R06', 'R11', 'R13'):
                     hints.append(_hint('engine', f'足と始点は EA と同じなので、{dec}（{CODE_DESC.get(dec, "")}）を決める計算'
                                                  '（帳簿・指標・判定式）の移植を確認'))
-            explained = True
     if ea_row is not None and py_row is not None:
         diff = [c for c in ('T_D1', 'T_BIG', 'T_SMALL') if not _vals_equal(ea_row.get(c), py_row.get(c), 0)]
         if diff:
             hints.append(_hint('dow_init', f'{"/".join(diff)} が違う（EA {"/".join(_fi(ea_row.get(c)) for c in diff)}・'
                                            f'Python {"/".join(_fi(py_row.get(c)) for c in diff)}）。持続型ダウ状態機械は始点から再生する'
                                            'ので、始点が違うと最初の転換イベントまでずれる'))
-            explained = True
-    hints += _context_hints(t, ctx)
+    hints = _with_context(hints, _context_hints(t, ctx), ctx)
     if not hints:
         hints.append(_hint('engine', 'ここまでの分類に当たらない。EA の判定エンジン部（//@@ENGINE_BEGIN〜END）を直したなら、'
                                      'mt5/engine_check/run.sh で C++ に写した EA と Python を照合する'))
@@ -1372,6 +1389,7 @@ def trade_hints(m, ea, pyt, ctx):
                     hints.append(_touch_hint(py, te, d, armed[0]['price'], ctx, '直前の足の判定は両側で同じ。約定'))
         else:
             y = next((r for r in pr.values() if r['dir'] == d), None) or next(iter(pr.values()), None)
+            src = 'engine' if ctx.start_aligned is True else 'window'
             if y is not None:
                 c = str(y['code'])
                 if c == 'T4':
@@ -1379,14 +1397,17 @@ def trade_hints(m, ea, pyt, ctx):
                 elif c in T_CODES:
                     hints.append(_time_hint(te - 1, ctx, f'Python は直前の足を見送った（{c}）'))
                 elif c in ('ARMED', 'UPDATE') and not _isnan(y['price']):
-                    hints.append(_touch_hint(py, te, d, y['price'], ctx, 'Python は直前の足で逆指値を置いた。約定'))
-                    if side_in == 'Python':
-                        hints.append(_hint('engine', 'EA が直前の足で同じ逆指値を置いたかは、EA の評価ログ（--eval）で確かめられる'))
+                    mg = _touch_margin(py, te, d, float(y['price']))
+                    if side_in == 'Python' and abs(mg) > max(py.s_nom, 2 * ctx.point):
+                        hints.append(_hint(src, f'Python は直前の足で逆指値を置き、約定足でも {mg / ctx.point:+.1f} ポイントの余裕で届いている。'
+                                                'EA は直前の足で逆指値を置かなかった可能性が高い（EA の評価ログ --eval で直前の足の判定を並べる）'))
+                    else:
+                        hints.append(_touch_hint(py, te, d, y['price'], ctx, 'Python は直前の足で逆指値を置いた。約定'))
                 else:
-                    bh = _boundary_hints(c, d, int(y['pattern']), te - 1, None, y, py.diag.get((te - 1, d, int(y['pattern']))), ctx)
-                    hints += bh
-                    hints.append(_hint('engine', f'Python は直前の足を {c}（{CODE_DESC.get(c, "")}）で見送った。'
-                                                 'EA の評価ログ（--eval）を渡すと、EA がなぜ置いたかを並べて見られる'))
+                    hints += _boundary_hints(c, d, int(y['pattern']), te - 1, None, y,
+                                             py.diag.get((te - 1, d, int(y['pattern']))), ctx)
+                    hints.append(_hint(src, f'Python は直前の足を {c}（{CODE_DESC.get(c, "")}）で見送った。'
+                                            'EA の評価ログ（--eval）を渡すと、EA がなぜ置いたかを並べて見られる'))
         if ctx.real:
             hints.append(_hint('real_only', 'スプレッド防御（3×s_nom 超）・STOPS_LEVEL・FREEZE_LEVEL・発注の失敗で、'
                                             '実約定側だけ見送ることがある（EA のエキスパートログで確認）'))
@@ -1430,11 +1451,30 @@ def trade_hints(m, ea, pyt, ctx):
                 hints.append(_hint('window', 'トレールは BIG 帳簿（深さ12・3000本）の最新の安値・高値と ATR で決まる。帳簿の範囲・足の集合を確認'))
     if 'KEY' in kinds:
         hints.append(_hint('window', 'key（1H の戻り高値・安値の足）が違う。SMALL 帳簿（深さ3・400本）と足の集合を確認'))
+    if 'ENTRY' in kinds:
+        hints.append(_hint('spread', '約定価格は max(始値＋s/2, 逆指値)（売りは min(始値−s/2, 逆指値)）。逆指値（SH＋0.05ATR）か s_nom が違う'))
+    if 'SCORE' in kinds:
+        tag = 'dow_init' if ctx.start_aligned is not True else 'rounding'
+        hints.append(_hint(tag, 'スコアは情報用（既定の売買には効かない）。S4（rel＝T_D1）が違えば持続型ダウ状態機械の初期値（始点）、'
+                                'それ以外は S1（slope≥0.10）・S5（rr_cf 1/2/3）などの境界'))
+    first_ea = ea['entry_time'].min() if len(ea) else None
+    if ctx.start_aligned is not True and first_ea is not None and m['time'] < first_ea:
+        hints.insert(0, _hint('window', f'EA の最初の取引（{_ft(first_ea)}）より前の食い違い。EA の読込開始（first_bar_time）が分からない'
+                                        'か足の CSV と違うので、EA のログの範囲外かもしれない。_info.csv を渡すか、'
+                                        f'--from {first_ea.strftime("%Y-%m-%d")} で比べる'))
     if 0 <= te < n:
-        hints += _context_hints(te, ctx)
+        hints = _with_context(hints, _context_hints(te, ctx), ctx)
     if not hints:
         hints.append(_hint('engine', 'ここまでの分類に当たらない。mt5/engine_check/run.sh で EA のエンジン部と Python を照合する'))
     return _dedup(hints)
+
+
+def _with_context(hints, ctxh, ctx):
+    """状況のヒントを足す。始点がそろっていないときは、始点（窓の長さ）のヒントを先頭に出す"""
+    if ctx.start_aligned is not True:
+        win = [h for h in ctxh if h['tag'] == 'window']
+        return win + hints + [h for h in ctxh if h['tag'] != 'window']
+    return hints + ctxh
 
 
 # ---------------------------------------------------------------- 全体
@@ -1590,6 +1630,10 @@ def run_parity(bars, trades, symbol, eval_path=None, offset=None, date_from=None
 
 
 # ---------------------------------------------------------------- 表示
+def _pts(v):
+    return f'{round(float(v), 2) + 0.0:+.2f}'
+
+
 def _pct(x):
     return '∞' if math.isinf(x) else f'{x * 100:+.1f}%'
 
@@ -1661,7 +1705,13 @@ def first_eval_detail(res):
     row = ec.merged.loc[k]
     ea_r, py_r = _split_merged_row(row, 'ea'), _split_merged_row(row, 'py')
     t = py.bar_of(row['bar_time'])
-    lines = [f'【評価ログの最初の食い違い】{_ft(row["bar_time"])}（足番号 t={t}、Python の判定開始から {t - py.first} 本目）']
+    if row['bar_time'] not in py.bars.index:
+        where = 'この足は Python に渡した足にない'
+    elif t < py.first:
+        where = f'足番号 t={t}。Python はまだ判定を始めていない（判定開始は t={py.first}）'
+    else:
+        where = f'足番号 t={t}、Python の判定開始から {t - py.first} 本目'
+    lines = [f'【評価ログの最初の食い違い】{_ft(row["bar_time"])}（{where}）']
     for _, rr in rows.iterrows():
         a, b = _split_merged_row(rr, 'ea'), _split_merged_row(rr, 'py')
         mark = '  ' if (a is not None and b is not None and a['code'] == b['code']) else '≠ '
@@ -1699,8 +1749,9 @@ def first_trade_detail(res):
     lines.append(f'    EA    : {_fmt_trade(e, dg)}')
     lines.append(f'    Python: {_fmt_trade(p, dg)}')
     if e is not None and p is not None:
-        lines.append(f'    差: 約定 {int(e["entry_bar"]) - int(p["entry_bar"]):+d} 本、初期SL {(float(e["initial_sl"]) - float(p["initial_sl"])) / res.point:+.2f} ポイント、'
-                     f'約定価格 {(float(e["entry"]) - float(p["entry"])) / res.point:+.2f} ポイント' if not _isnan(e['entry']) else '')
+        dsl = _pts((float(e['initial_sl']) - float(p['initial_sl'])) / res.point)
+        den = '' if _isnan(e['entry']) else f"、約定価格 {_pts((float(e['entry']) - float(p['entry'])) / res.point)} ポイント"
+        lines.append(f'    差: 約定 {int(e["entry_bar"]) - int(p["entry_bar"]):+d} 本、初期SL {dsl} ポイント{den}')
     opp = [(i, j) for i, j in tc.opposite if i == m['ea'] or j == m['py']]
     if opp:
         i, j = opp[0]
@@ -1776,8 +1827,9 @@ def format_report(res, max_list=10):
                          f'--offset {res.offset_h + ec.offset_shift} を試す（EA の InpServerOffsetHours と同じ値にする）')
         if ec.bars_only_ea or ec.bars_only_py:
             ex = (ec.bars_only_ea + ec.bars_only_py)[0]
+            wk = _weekend_dropped(res.ctx)
             lines.append(f'  足の集合が違う: EA だけにある足 {len(ec.bars_only_ea)}・Python だけにある足 {len(ec.bars_only_py)}'
-                         f'（例 {_ft(ex)}）。EA の _bars.csv を --bars に渡すとそろう')
+                         f'（例 {_ft(ex)}）。' + (wk if wk else 'EA の _bars.csv を --bars に渡すとそろう'))
         if ec.tstate_rows:
             msg = f'  持続型ダウ状態（T_D1/T_BIG/T_SMALL）が違う行: {ec.tstate_rows:,}（最後 {_ft(ec.tstate_last)}）'
             if res.ctx.start_aligned is not True:
@@ -1791,10 +1843,13 @@ def format_report(res, max_list=10):
                 vals = '、'.join(f'{c} EA {row[c + "_ea"]} / Python {row[c + "_py"]}' for c in ff['fields'][:4])
                 lines.append(f'    最初: {_ft(ff["bar_time"])} {_dirname(row["dir"])}{_patname(row["pattern"])} {vals}')
     lines.append('')
-    tl, th = first_trade_detail(res)
-    el, eh = first_eval_detail(res)
+    tl, _ = first_trade_detail(res)
+    el, _ = first_eval_detail(res)
     if not tl and not el:
-        lines.append('食い違い: なし')
+        if ec is not None and ec.field_mismatch:
+            lines.append('取引と理由コードの食い違い: なし（コードが同じ行の値の食い違いは【参考】を参照）')
+        else:
+            lines.append('食い違い: なし')
     lines += tl
     if tl and el:
         lines.append('')
@@ -1873,7 +1928,7 @@ def build_parser():
     ap.add_argument('--offset', type=int, default=None,
                     help='サーバー時間 −（NY+7）［時間］。EA の InpServerOffsetHours（省略時は _info.csv、なければ 0）')
     ap.add_argument('--from', dest='date_from', help='比べる期間の開始（サーバー時間。例 2023-01-01）')
-    ap.add_argument('--to', dest='date_to', help='比べる期間の終わり（この時刻より前まで）')
+    ap.add_argument('--to', dest='date_to', help='比べる期間の終わり（この時刻より前まで。MT5 の書き出しに形成中の足が入っているときにも使う）')
     ap.add_argument('--info', help='<銘柄>_info.csv（省略時は --trades と同じ場所を探す）')
     ap.add_argument('--no-info', action='store_true', help='_info.csv を読まない')
     ap.add_argument('--point', type=float, help='1ポイントの価格幅（省略時は JPY 0.001・XAUUSD 0.01・ほか 0.00001）')

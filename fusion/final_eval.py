@@ -12,6 +12,9 @@ FUSION-CORE v1.0 の最終評価（事前登録 fusion/PREREGISTRATION.md と SP
   （PREREGISTRATION §2〜§3。区間は「開始日0時」から「終了日の翌日0時」の直前まで）。
 - 構成は §4 の全部を一度に走らせ、一度に出力する（一部だけを先に見ることはしない）。
 - 乱数（素朴ベースラインの seed、ブートストラップの seed）と並び順を固定しているので、同じ入力からは同じ出力ができる。
+- 本番は実行前に確かめ、次のどれかに当たれば何も計算しないうちに止まる（不完全な実行の結果を見てから走らせ直すことを防ぐ）:
+  §2 の7銘柄のどれかに H1・M15 がない、§2 の期間（±7日）を覆っていない、BT 同梱ファイルがない、
+  評価に使うファイル（EVAL_FILES）に未コミットの変更がある。
 - --dry-run: 開発データ（2013〜2017）の中に作った仮のプールで、コードの通り道だけを確かめる。結果の数値には意味がない。
   未接触データに触れないよう、読み込んだ足を 2013-01-01〜2017-12-31 に切り、開発期間の4銘柄（EURUSD・GBPUSD・EURJPY・
   XAUUSD）だけを使う。backtesting.py 同梱の EURUSD も 2018-01-01 より前に切る。
@@ -134,6 +137,8 @@ def make_spec(dry_run=False):
             dsr_months=('2005-04', '2020-05'),
             dev=(list(FOUR), '2013-01-01', '2017-12-31'),
             cuts=['2009-01-01', '2018-01-01'],
+            # §2 の銘柄と期間（実行前の確認に使う。足りない銘柄・期間があれば何も計算せずに止める）
+            data_periods=OrderedDict((s, ('2006-03-20' if s == 'XAUUSD' else '2005-01-03', '2020-05-14')) for s in SYMBOLS),
         )
     return dict(
         dry_run=True,
@@ -152,6 +157,7 @@ def make_spec(dry_run=False):
         dsr_months=('2013-04', '2017-12'),
         dev=(list(FOUR), '2013-01-01', '2017-12-31'),
         cuts=['2016-01-01'],
+        data_periods=None,
     )
 
 
@@ -297,6 +303,44 @@ def build_jobs(syms, m15_syms, cfgs, cuts):
     jobs += [(s, MAIN, cut) for s in syms for cut in cuts if MAIN in cfgs]
     jobs += [(s, c, None) for s in syms for c in cfgs if c.startswith('naive')]
     return jobs
+
+
+# ---------------------------------------------------------------- 実行前の確認（本番。何も計算しないうちに止める）
+COVER_TOL = pd.Timedelta(days=7)        # §2 の期間との許容差（サーバー時間への変換で端が数時間ずれる分を吸収する）
+
+
+def file_span(path):
+    """CSV の1列目（時刻）だけを読み、土日を除いた最初と最後の時刻と本数を返す（値の列は読まない）"""
+    t = pd.DatetimeIndex(pd.to_datetime(pd.read_csv(path, usecols=[0]).iloc[:, 0]))
+    t = t[t.dayofweek < 5]
+    return (t.min(), t.max(), int(len(t))) if len(t) else (None, None, 0)
+
+
+def preflight(spec, data_dir):
+    """使う銘柄と、本番で止めるべき問題の一覧。本番（spec['data_periods'] あり）は §2 の7銘柄すべてに H1・M15 があり、
+    それぞれ §2 の期間（±7日）を覆っていることと、BT 同梱ファイルがあることを求める。ドライラン・テストは見つかった銘柄だけを使う"""
+    exists = lambda s, tf: os.path.exists(os.path.join(data_dir, f'{s}_{tf}.csv'))
+    syms = [s for s in spec['symbols'] if exists(s, 'H1')]
+    m15_syms = [s for s in syms if exists(s, 'M15')]
+    problems, spans = [], OrderedDict()
+    periods = spec.get('data_periods')
+    if periods:
+        for s in spec['symbols']:
+            a, b = (pd.Timestamp(x) for x in periods[s])
+            for tf in ('H1', 'M15'):
+                if not exists(s, tf):
+                    problems.append(f'{s}_{tf}.csv がない')
+                    continue
+                first, last, n = file_span(os.path.join(data_dir, f'{s}_{tf}.csv'))
+                spans[f'{s}_{tf}'] = OrderedDict(first=first, last=last, bars=n, registered=[str(a.date()), str(b.date())])
+                if first is None or first > a + COVER_TOL or last < b - COVER_TOL:
+                    problems.append(f'{s}_{tf}.csv の期間 {first}〜{last} が §2 の {a.date()}〜{b.date()} を覆っていない')
+        try:
+            if not os.path.exists(fd.backtesting_eurusd_path()):
+                problems.append('backtesting.py 同梱の EURUSD.csv がない（SPEC §21 の必須項目）')
+        except FileNotFoundError as e:
+            problems.append(str(e))
+    return syms, m15_syms, problems, spans
 
 
 def execute(jobs, data_dir, clip, workers, log):
@@ -872,6 +916,12 @@ def write_trades(path, T, cfgs):
                 first = False
 
 
+# 評価の結果を決めるファイル（final_eval が読み込むコードと、凍結した仕様・事前登録）。本番はこれらがコミット済みであること
+EVAL_FILES = ['fusion/__init__.py', 'fusion/final_eval.py', 'fusion/strategy.py', 'fusion/indicators.py', 'fusion/broker.py',
+              'fusion/data.py', 'fusion/evaluate.py', 'fusion/baselines.py', 'fusion/stats.py',
+              'fusion/SPEC.md', 'fusion/PREREGISTRATION.md']
+
+
 def git_state():
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -883,23 +933,49 @@ def git_state():
             return None
     changed = git('diff', '--name-only', 'HEAD', '--', 'fusion')
     untracked = git('ls-files', '--others', '--exclude-standard', '--', 'fusion')
+    dirty = git('status', '--porcelain', '--untracked-files=all', '--', *EVAL_FILES)
+    tracked = git('ls-files', '--', *EVAL_FILES)
+    tracked = set(tracked.split('\n')) if tracked else set()
     return OrderedDict(commit=git('rev-parse', 'HEAD'),
                        modified_in_fusion=changed.split('\n') if changed else [],
-                       untracked_in_fusion=untracked.split('\n') if untracked else [])
+                       untracked_in_fusion=untracked.split('\n') if untracked else [],
+                       eval_files_dirty=(None if dirty is None else [ln.strip().split(None, 1)[-1]
+                                                                     for ln in dirty.split('\n') if ln.strip()]),
+                       eval_files_untracked=[f for f in EVAL_FILES if f not in tracked])
+
+
+def git_problems(g):
+    """本番で止める理由（実行したコードをコミットのハッシュで特定できない）"""
+    out = []
+    if not g.get('commit'):
+        out.append('git のコミットのハッシュが取れない（PREREGISTRATION §10 で記載が必要）')
+    if g.get('eval_files_dirty') is None:
+        out.append('git status が取れない')
+    elif g['eval_files_dirty']:
+        out.append('評価に使うファイルに未コミットの変更がある: ' + '、'.join(g['eval_files_dirty']))
+    if g.get('eval_files_untracked'):
+        out.append('評価に使うファイルが git に登録されていない: ' + '、'.join(g['eval_files_untracked']))
+    return out
 
 
 def run_all(data_dir, out_dir, workers=4, dry_run=False, log=print, spec=None, configs=None,
-            naive_p=NAIVE_P, naive_seeds=NAIVE_SEEDS):
-    """評価の本体。spec・configs・naive_p・naive_seeds の差し替えはテスト専用（CLI からは変えられない）"""
+            naive_p=NAIVE_P, naive_seeds=NAIVE_SEEDS, require_clean_git=True):
+    """評価の本体。spec・configs・naive_p・naive_seeds・require_clean_git の差し替えはテスト専用（CLI からは変えられない）。
+    本番（spec['dry_run'] が False）は、§2 のデータがそろっていないときと、評価に使うファイルがコミット済みでないときに、
+    何も計算しないうちに止める（不完全な実行の結果を見てから走らせ直す、ということが起きないように）"""
     t_start = time.perf_counter()
     spec = spec or make_spec(dry_run)
     cfgs = list(configs) if configs is not None else all_configs(naive_p, naive_seeds)
     if dry_run or spec['dry_run']:
         log('[final_eval] ドライラン：数値は無意味（開発データの中に作った仮のプールで、コードの通り道だけを確かめる）')
     pool_midpoints(spec)                                       # 中点が事前登録の値と合うことを先に確かめる
-    syms = [s for s in spec['symbols'] if os.path.exists(os.path.join(data_dir, f'{s}_H1.csv'))]
+    gstate = git_state()
+    syms, m15_syms, problems, spans = preflight(spec, data_dir)
+    if not spec['dry_run'] and require_clean_git:
+        problems += git_problems(gstate)
+    if problems:
+        raise SystemExit('[final_eval] 本番の実行前の確認で止めた（何も計算していない）:\n  - ' + '\n  - '.join(problems))
     missing = [s for s in spec['symbols'] if s not in syms]
-    m15_syms = [s for s in syms if os.path.exists(os.path.join(data_dir, f'{s}_M15.csv'))]
     if MAIN not in cfgs or not syms:
         raise SystemExit('fusion の構成か、H1 データのある銘柄がない')
     log(f'[final_eval] データ: {data_dir}  銘柄: {" ".join(syms)}（M15: {" ".join(m15_syms) or "なし"}）'
@@ -931,9 +1007,11 @@ def run_all(data_dir, out_dir, workers=4, dry_run=False, log=print, spec=None, c
         dry_run=bool(spec['dry_run']),
         note=('ドライラン：数値は無意味。開発データ（2013〜2017）の中に作った仮のプールで、コードの通り道だけを確かめたもの'
               if spec['dry_run'] else '本番（未接触データでの1回だけの評価）'),
-        git=git_state(), python=platform.python_version(), numpy=np.__version__, pandas=pd.__version__,
+        git=gstate, python=platform.python_version(), numpy=np.__version__, pandas=pd.__version__,
         data_dir=os.path.abspath(data_dir), symbols=syms, missing_symbols=missing, m15_symbols=m15_syms,
         data=OrderedDict((s, OrderedDict(H1=infos.get(s), M15=m15_info.get(s))) for s in syms),
+        data_periods=spec.get('data_periods'), preflight=spans,
+        git_checked=bool(not spec['dry_run'] and require_clean_git),
         clip=spec['clip'], pools=spec['pools'], periods=spec['periods'],
         midpoints=OrderedDict((p, m) for p, m in pool_midpoints(spec).items()),
         refs=spec['refs'], dsr_months=spec['dsr_months'], dev_window=spec['dev'], cuts=spec['cuts'],
@@ -1076,10 +1154,16 @@ def render_report(r):
         L.append(f"- 見つからなかった銘柄：{'、'.join(m['missing_symbols'])}")
     if m['clip']:
         L.append(f"- 読み込んだ足の切り取り：{m['clip'][0]} 以上 {m['clip'][1]} 未満（ドライラン）")
-    L += ['', _table(['銘柄', 'H1 期間', 'H1 本数', 'M15 期間', 'M15 本数'], [
+    reg = m.get('data_periods') or {}
+    L += ['', _table(['銘柄', 'H1 期間', 'H1 本数', 'M15 期間', 'M15 本数'] + (['§2 の期間'] if reg else []), [
         [s, f"{_ts(d['H1']['first'])} 〜 {_ts(d['H1']['last'])}" if d['H1'] else '—', d['H1']['bars'] if d['H1'] else '—',
          f"{_ts(d['M15']['first'])} 〜 {_ts(d['M15']['last'])}" if d['M15'] else '—', d['M15']['bars'] if d['M15'] else '—']
+        + ([' 〜 '.join(reg[s]) if s in reg else '—'] if reg else [])
         for s, d in m['data'].items()]), '']
+    if reg:
+        L += ['- 実行前の確認：§2 の7銘柄すべてに H1・M15 があり、それぞれ §2 の期間を ±7日で覆っていることを確かめてから実行した。'
+              + ('評価に使うファイル（' + '、'.join(f'`{x}`' for x in EVAL_FILES) + '）がコミット済みであることも確かめた。'
+                 if m.get('git_checked') else '**git の確認は省いた（テスト用の設定）**'), '']
     L += [_table(['プール', '銘柄', 'エントリー時刻の範囲（開始日0時以上、終了日の翌日0時未満）', '中点'], [
         [p, '、'.join(ps), f'{a} 〜 {b}', _ts(m['midpoints'].get(p))]
         for p, ps, a, b in m['pools']]), '']
@@ -1146,9 +1230,10 @@ def _rest_of_report(r, m, v, w, cf, f, pools, cmp_):
     # 5. 比較
     L += ['## 5. 比較（§8。銘柄年ブートストラップ seed=2024・10,000回、平均R差は ±1.645·SE）', '',
           f"銘柄年の数：{len(r['comparisons']['symbol_years'])}", '',
-          _table(['比較対象', '回数', '平均R', '銘柄年あたり総R差 [90%区間]', '総R差（合計）', '平均R差 [90%区間]', '判定'],
+          _table(['比較対象', '回数', '平均R', '銘柄年あたり総R差 [90%区間]', '総R差（合計）[90%区間]', '平均R差 [90%区間]', '判定'],
                  [[c + ('' if x['judged'] else '（参考）'), cf[c]['合算']['trades'], _n(cf[c]['合算']['avg_r']),
-                   f"{_n(x['per_symyear_diff'], '{:+.2f}')} {_ci(*x['per_symyear_ci90'])}", _n(x['total_diff'], '{:+.1f}'),
+                   f"{_n(x['per_symyear_diff'], '{:+.2f}')} {_ci(*x['per_symyear_ci90'])}",
+                   f"{_n(x['total_diff'], '{:+.1f}')} [{_n(x['total_diff_ci90'][0], '{:+.1f}')}, {_n(x['total_diff_ci90'][1], '{:+.1f}')}]",
                    f"{_n(x['mean_diff'])} {_ci(*x['mean_diff_ci90'])}",
                    ('fusion の勝ち' if x['fusion_wins'] else '勝ちとは言えない')] for c, x in cmp_.items()]), '',
           '- 判定の対象は oku_only・kenjin_only・mincore_final。従来版EA（ma_slope）・4P-Score（fourp_score）は同じ方法で計算した参考値。',
