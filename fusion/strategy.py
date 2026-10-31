@@ -406,7 +406,10 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
         s6 = (8 if not gap_bad else 0) + (7 if conv <= P['CONV_ATR'] else 0)
         score = s1 + s2 + s3 + s4 + s5 + s6
         meta = dict(dir=d, pattern=pattern, score=score, rel=rel, rr_cf=round(min(rr_cf, 99.0), 2),
-                    n_sup=len(types), r_atr=round(R / a_t, 2), year=idx[t].year)
+                    n_sup=len(types), r_atr=round(R / a_t, 2), year=idx[t].year,
+                    s1=s1, s2=s2, s3=s3, s4=s4, s5=s5, s6=s6, sup='+'.join(sorted(types)),
+                    slope=round(slope, 3), depth=round(depth, 3), gap=None if np.isnan(gap) else round(gap, 3),
+                    conv=round(conv, 3), near_r=round(min(near_r, 99.0), 2), tp1=tp1)          # ログ・層別分析用（判定には使わない）
         return dict(dir=d, key=key, price=price, sl=sl, tp1=tp1, meta=meta)
 
     def open_market(m, t):
