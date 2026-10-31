@@ -1,0 +1,39 @@
+; MT5 ストラテジーテスター推奨設定ファイル
+; FX4Pattern_EA.mq5 用
+; このファイルをストラテジーテスターの「入力」タブから読み込む
+
+; === バックテスト基本設定 ===
+; シンボル    : USDJPY / EURUSD / GBPUSD / XAUUSD（ゴールド）のいずれか
+; 時間足      : H1（1時間足）★ 必須
+; モデル      : 全ティック（精度最高）または コントロールポイント
+; 開始日      : 2020.01.01
+; 終了日      : 2025.06.01（約5年）
+; 初期証拠金  : 1,000,000 円（または 10,000 USD）
+; レバレッジ  : 25倍（国内業者標準）
+
+; === 入力パラメータ ===
+InpRiskPercent=1.0
+InpRiskReward=2.0
+InpSL_ATR_Mult=2.0
+InpMaxPositions=1
+
+InpMA_1H=20
+InpMA_4H_Equiv=80
+InpMA_Day_Equiv=480
+
+InpSlopeWindow=5
+InpUseDailyFilter=true
+InpAllowBuy=true
+InpAllowSell=true
+
+InpStartHour=2
+InpEndHour=22
+InpNoFridayNight=true
+
+InpMagicNumber=20240001
+
+; === 最適化推奨パラメータ範囲 ===
+; InpRiskReward  : 1.5 〜 3.0 ステップ 0.5
+; InpSL_ATR_Mult : 1.5 〜 3.0 ステップ 0.5
+; InpSlopeWindow : 3   〜 8   ステップ 1
+; InpUseDailyFilter: true / false
