@@ -1312,9 +1312,8 @@ def eval_hints(ea_row, py_row, t, ctx):
                                            f'Python {"/".join(_fi(py_row.get(c)) for c in diff)}）。持続型ダウ状態機械は始点から再生する'
                                            'ので、始点が違うと最初の転換イベントまでずれる'))
             explained = True
-    ctxh = _context_hints(t, ctx)
-    hints += ctxh
-    if not explained and not ctxh:
+    hints += _context_hints(t, ctx)
+    if not hints:
         hints.append(_hint('engine', 'ここまでの分類に当たらない。EA の判定エンジン部（//@@ENGINE_BEGIN〜END）を直したなら、'
                                      'mt5/engine_check/run.sh で C++ に写した EA と Python を照合する'))
     return _dedup(hints)
