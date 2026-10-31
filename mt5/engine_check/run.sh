@@ -20,7 +20,7 @@ FROM=${FROM:-2013-01-01}
 TO=${TO:-2018-01-01}
 WORK=${WORK:-$(mktemp -d)}
 MODE=${1:-full}
-cd "$WORK" || exit 1
+mkdir -p "$WORK" && cd "$WORK" || exit 1
 cp "$HERE"/mql5shim.h "$HERE"/conn_shim.h "$HERE"/conn_mock.h "$HERE"/conntest.cpp "$HERE"/harness.cpp "$HERE"/synctest.cpp "$HERE"/caltest.cpp .
 python3 "$HERE/transpile.py" "$REPO/mt5/FX_Fusion_EA.mq5" engine_gen.h || exit 1
 for p in harness synctest caltest; do
