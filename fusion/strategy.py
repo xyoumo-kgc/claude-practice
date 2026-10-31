@@ -199,8 +199,9 @@ def cluster(points, tol):
 
 
 # ---------------------------------------------------------------- 本体
-def run_h1(h1, sym, sw=None, tf='H1', align=None):
-    """h1: サーバー時間の OHLC（tf='M15' ならパターン②用の M15）。戻り値: (取引の辞書リスト, 理由コード別の件数)"""
+def run_h1(h1, sym, sw=None, tf='H1', align=None, trace=None):
+    """h1: サーバー時間の OHLC（tf='M15' ならパターン②用の M15）。戻り値: (取引の辞書リスト, 理由コード別の件数)
+    trace: 判定の記録先（snapshot 用）。trace('eval', t, {...}) を判定ごとに、trace('final', t, {...}) を最後に1回呼ぶ。判定には影響しない"""
     S = dict(DEFAULT_SW); S.update(sw or {})
     P = dict(CORE); P.update(AUX); P.update(FIX)
     P.update({k: v for k, v in S.items() if k in P})          # 感度用のパラメータ上書き
@@ -219,9 +220,11 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
     no_new, flat, rollover, gap_before = time_rules(idx, sym, S, delta, P['GAP_FALLBACK_H'])
     rng = np.random.default_rng(S['naive_seed'] * 1000 + SYMBOL_ORDER.index(sym)) if S['entry'] == 'naive' else None
     funnel = {}
+    last = {'code': None, 'diag': {}}                          # 直近の判定の理由コードと途中の値（trace 用）
 
     def rej(code):
         funnel[code] = funnel.get(code, 0) + 1
+        last['code'] = code
         return None
 
     def levels_at(t):
@@ -255,6 +258,8 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
 
     def setup(t, d, pattern):
         """足 t の確定時点で方向 d の注文案を作る（SPEC §5〜§9）。不成立なら理由コードを数えて None"""
+        diag = last['diag'] = {}
+        last['code'] = None
         if np.isnan(atr[t]) or np.isnan(ma80[t]) or t < P['SLOPE_LB'] or np.isnan(ma80[t - P['SLOPE_LB']]):
             return rej('R00')
         if align is not None and align[t] != d:
@@ -285,6 +290,7 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
             if np.isnan(ma480[t]):
                 return rej('R00')
             ref_ma = ma480
+        diag['j_peak'] = j_peak
         a_t = atr[t]
         slope = (ma80[t] - ma80[t - P['SLOPE_LB']]) / a_t * d
         win = slice(j_peak + 1, t + 1)
@@ -293,6 +299,7 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
         else:
             depth = float(np.nanmin((ref_ma[win] - H[win]) / atr[win]))
         conv = float(np.nanmin(np.abs(ma20[win] - ma80[win]) / atr[win]))
+        diag.update(depth=depth, slope=slope, conv=conv)
         if S['place'] == 'touch':
             if S['g2'] and depth > P['ZONE_ATR']:
                 return rej('R02')                              # G2: 押しが 4H MA に届いていない
@@ -308,6 +315,7 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
             if not cands:
                 return rej('R03')
             run_ext = float(np.min(L[j_sh + 1:t + 1]))
+            diag.update(sh=lvl, l0=cands[0], run_ext=run_ext)
             if run_ext <= cands[0]:
                 return rej('R04')                              # 安値切上げの崩れ
             if np.any(C[j_sh + 1:t + 1] > lvl):
@@ -321,6 +329,7 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
             if not cands:
                 return rej('R03')
             run_ext = float(np.max(H[j_sh + 1:t + 1]))
+            diag.update(sh=lvl, l0=cands[0], run_ext=run_ext)
             if run_ext >= cands[0]:
                 return rej('R04')
             if np.any(C[j_sh + 1:t + 1] < lvl):
@@ -344,6 +353,7 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
                 anchor = min(near) if d == 1 else max(near)
         sl = anchor - d * buf
         R = (price - sl) * d
+        diag.update(price=price, sl=sl, R=R, r_atr=R / a_t)
         rel = int(TD[t] * d)
         rmax = P['R_MAX_ATR'] * (0.5 if (S['d1_gate'] == 'soft' and rel == -1) else 1.0)
         if S['rcap'] and R < P['R_MIN_ATR'] * a_t:
@@ -410,6 +420,7 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
                     s1=s1, s2=s2, s3=s3, s4=s4, s5=s5, s6=s6, sup='+'.join(sorted(types)),
                     slope=round(slope, 3), depth=round(depth, 3), gap=None if np.isnan(gap) else round(gap, 3),
                     conv=round(conv, 3), near_r=round(min(near_r, 99.0), 2), tp1=tp1)          # ログ・層別分析用（判定には使わない）
+        diag.update(meta)
         return dict(dir=d, key=key, price=price, sl=sl, tp1=tp1, meta=meta)
 
     def open_market(m, t):
@@ -498,11 +509,15 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
         best = None
         for d in (1, -1):
             s = setup(t, d, 1)
+            if trace:
+                trace('eval', t, dict(d=d, pattern=1, code='OK' if s else last['code'], diag=dict(last['diag']), setup=s))
             if s is not None and (best is None or s['meta']['score'] > best['meta']['score']):
                 best = s
         if best is None and S['p3']:
             for d in (1, -1):
                 s = setup(t, d, 3)
+                if trace:
+                    trace('eval', t, dict(d=d, pattern=3, code='OK' if s else last['code'], diag=dict(last['diag']), setup=s))
                 if s is not None and (best is None or s['meta']['score'] > best['meta']['score']):
                     best = s
         if best is None:
@@ -519,6 +534,11 @@ def run_h1(h1, sym, sw=None, tf='H1', align=None):
                     pend = None
                     continue
             pend = best
+    if trace and n:
+        t = n - 1
+        paused = ('FLAT' if flat[t] else 'NO_NEW' if no_new[t] else 'ROLLOVER' if rollover[t] else None)
+        trace('final', t, dict(pend=pend, market=market, open=list(br.open), paused=paused,
+                               levels=levels_at(t) if not np.isnan(atr[t]) else []))
     for pos in list(br.open):
         br.close(pos, idx[-1] + delta, C[-1], 'END')
     trades = [bk.trade_record(p, sym) for p in sorted(br.closed, key=lambda p: p.id)]
@@ -548,6 +568,42 @@ def run_p2(m15, h1, sym, sw=None):
     m = ind.closed_index_map(m15.index, pd.Timedelta(minutes=15), h1.index, pd.Timedelta(hours=1))
     align = np.where(m >= 0, g[np.clip(m, 0, None)], 0)
     return run_h1(m15, sym, sw, tf='M15', align=align)
+
+
+STATE_BY_CODE = {'R00': 'IDLE', 'R01': 'IDLE', 'R02': 'WATCH', 'R08': 'WATCH', 'OK': 'ARMED'}   # それ以外は ZONE（SPEC §15）
+
+
+def snapshot(h1, sym, sw=None):
+    """最後の確定足の時点の状態（ダッシュボード・分析スキル用。判定は run_h1 と同じ）
+
+    戻り値: time（最後の確定足の開始時刻）、paused（FLAT / NO_NEW / ROLLOVER / None）、
+            position（決済されずに残った建玉）、pending（次の足から有効な逆指値）、
+            evals（方向 → state・code・diag。その足で判定しなかった方向はない）、levels（節目）、trades（決済済みの取引）"""
+    n = len(h1)
+    evals, final = {}, {}
+
+    def trace(event, t, payload):
+        if event == 'eval' and t == n - 1 and payload['d'] not in evals:
+            evals[payload['d']] = payload
+        elif event == 'final':
+            final.update(payload)
+
+    trades, _ = run_h1(h1, sym, sw, trace=trace)
+    idx = h1.index
+    for e in evals.values():
+        e['state'] = STATE_BY_CODE.get(e['code'], 'ZONE')
+        if 'j_peak' in e['diag']:
+            e['diag']['j_peak_time'] = idx[e['diag']['j_peak']]
+    position = None
+    for p in final.get('open', []):
+        bid_ask = h1['Close'].iloc[-1] - p.direction * S_NOM[sym] / 2
+        position = dict(direction=p.direction, entry_time=p.entry_time, entry=p.entry_price, sl=p.sl,
+                        initial_sl=p.initial_sl, r_now=(bid_ask - p.entry_price) * p.direction / p.risk, meta=p.meta)
+    pend = final.get('pend')
+    pending = None if pend is None else dict(dir=pend['dir'], price=pend['price'], sl=pend['sl'], tp1=pend['tp1'],
+                                            key_time=idx[pend['key'][1]], meta=pend['meta'])
+    return dict(time=idx[-1] if n else None, paused=final.get('paused'), position=position, pending=pending,
+                evals=evals, levels=final.get('levels', []), trades=[t for t in trades if t['exit_reason'] != 'END'])
 
 
 def config(variant):
