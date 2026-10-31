@@ -402,7 +402,7 @@ class TestIndicatorCausality(unittest.TestCase):
         idx = idx[idx.dayofweek < 5]
         for sym in ('EURUSD', 'XAUUSD'):
             full = fs.time_rules(idx, sym, dict(fs.DEFAULT_SW), H1, 12)
-            for cut in ('2014-12-31 12:00', '2015-04-02 20:00', '2015-12-31 23:00'):
+            for cut in ('2014-12-31 12:00', '2015-01-05 00:00', '2015-04-02 20:00', '2015-12-31 23:00'):
                 k = idx.searchsorted(pd.Timestamp(cut))
                 part = fs.time_rules(idx[:k], sym, dict(fs.DEFAULT_SW), H1, 12)
                 for a, b in zip(full, part):
@@ -448,11 +448,17 @@ def run_spy(df, sym, sw):
 
 class TestExecutionModel(unittest.TestCase):
     def check_fills(self, df, sym, variant):
-        """逆指値の約定は、直前の確定足の注文案どおり（SPEC §2.2・§7.4）"""
-        trades, ev, log = run_spy(df, sym, fs.config(variant))
+        """逆指値の約定は、直前の確定足の注文案どおり（SPEC §2.2・§7.4）。トレールの SL は、直前に処理した足の
+        確定時点の帳簿・ATR・終値から決まり（SPEC §10.1）、次の足から効く"""
+        sw = fs.config(variant)
+        trades, ev, log = run_spy(df, sym, sw)
         pos = {t: i for i, t in enumerate(df.index)}
-        O, Hh, Ll = (df[k].to_numpy() for k in ('Open', 'High', 'Low'))
+        O, Hh, Ll, Cc = (df[k].to_numpy() for k in ('Open', 'High', 'Low', 'Close'))
         s = fs.S_NOM[sym]
+        trail = dict(fs.DEFAULT_SW, **sw)['trail']
+        book = ind.SwingBook(Hh, Ll, fs.CORE['N_BIG'] if trail == 'big' else fs.CORE['N_SMALL'],
+                             lookback=fs.FIX['LB_BIG'] if trail == 'big' else fs.FIX['LB_SMALL'])
+        atr = ind.atr(Hh, Ll, Cc, 14)
         self.assertGreater(len(trades), 5)
         for t in trades:
             e, d = pos[t['entry_time']], t['direction']
@@ -491,7 +497,13 @@ class TestExecutionModel(unittest.TestCase):
             elif rec[0] == 'modify':
                 _, pid, old, new_sl = rec
                 self.assertEqual(cur[2], pid)                                 # 直前に処理したのと同じ建玉の確定時
-                next_sl[pid] = new_sl if (new_sl - old) * cur[3] > 0 else old
+                t = pos[cur[1]]                                               # 直前に処理した足＝確定した足
+                d = cur[3]
+                sw_ = book.lows(t, 1) if d == 1 else book.highs(t, 1)
+                exp = sw_[0][0] - d * max(fs.CORE['SL_BUF_ATR'] * atr[t], fs.FIX['SPREAD_FLOOR'] * s)
+                self.assertEqual(new_sl, exp, f'{variant} {cur[1]}: トレールの SL が足 {t} の確定時点の値でない')
+                self.assertGreater((Cc[t] - new_sl) * d, 0)
+                next_sl[pid] = new_sl if (new_sl - old) * d > 0 else old
 
     def test_fills_and_trail_timing_synthetic(self):
         df = synth('2015-01-05', 5000, seed=3)
