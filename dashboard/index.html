@@ -42,7 +42,7 @@
       min-height: 100vh;
     }
 
-    /* ── Header ── */
+    /* ── ヘッダー ── */
     .header {
       background: linear-gradient(135deg, #0d1117 0%, #161b22 50%, #0d1117 100%);
       border-bottom: 1px solid var(--border);
@@ -113,7 +113,7 @@
     }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
 
-    /* ── Main Layout ── */
+    /* ── 全体レイアウト ── */
     .main {
       max-width: 1200px;
       margin: 0 auto;
@@ -123,7 +123,7 @@
       gap: 28px;
     }
 
-    /* ── Section Headings ── */
+    /* ── セクション見出し ── */
     .section-header {
       display: flex; align-items: center; gap: 10px;
       margin-bottom: 14px;
@@ -148,7 +148,7 @@
       flex: 1; height: 1px; background: var(--border);
     }
 
-    /* ── Summary Cards ── */
+    /* ── サマリーカード ── */
     .summary-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -201,7 +201,7 @@
       margin-top: 6px;
     }
 
-    /* ── Table ── */
+    /* ── 成績テーブル ── */
     .table-wrap {
       background: var(--card);
       border: 1px solid var(--border);
@@ -272,7 +272,7 @@
       border-left: 1px solid rgba(88,166,255,.3) !important;
     }
 
-    /* ── Chart Section ── */
+    /* ── 月次損益チャート ── */
     .chart-card {
       background: var(--card);
       border: 1px solid var(--border);
@@ -319,7 +319,7 @@
       height: 260px;
     }
 
-    /* ── Scoring Card ── */
+    /* ── スコア内訳・グレードのカード ── */
     .scoring-grid {
       display: grid;
       grid-template-columns: 1fr 280px;
@@ -403,7 +403,7 @@
     .grade-desc { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
     .grade-score { font-size: 13px; font-weight: 800; }
 
-    /* ── Pattern Cards ── */
+    /* ── パターン説明カード ── */
     .pattern-grid {
       display: grid;
       grid-template-columns: repeat(4, 1fr);
@@ -447,7 +447,7 @@
     .ptag-big { background: rgba(210,153,34,.15); color: var(--yellow-light); border: 1px solid var(--yellow); }
     .ptag-info { background: rgba(248,81,73,.12); color: #ff8080; border: 1px solid rgba(248,81,73,.5); }
 
-    /* ── Footer ── */
+    /* ── フッター ── */
     .footer {
       background: var(--card);
       border-top: 1px solid var(--border);
@@ -463,13 +463,13 @@
     }
     .footer-warning strong { color: var(--yellow-light); }
 
-    /* ── Scrollbar ── */
+    /* ── スクロールバー ── */
     ::-webkit-scrollbar { width: 6px; height: 6px; }
     ::-webkit-scrollbar-track { background: var(--bg); }
     ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-    /* ── Utility ── */
+    /* ── 汎用クラス ── */
     .text-green { color: var(--green-light); }
     .text-red { color: var(--red); }
     .text-yellow { color: var(--yellow-light); }
@@ -479,7 +479,7 @@
 </head>
 <body>
 
-<!-- ── HEADER ── -->
+<!-- ── ヘッダー ── -->
 <header class="header">
   <div class="header-inner">
     <div class="header-top">
@@ -496,28 +496,34 @@
           <span id="currentDate">読み込み中…</span>
         </div>
         <div class="status-pill">
-          📊 シミュレーション実績（3年）
+          📊 合成データのシミュレーション（実相場ではない）
         </div>
       </div>
     </div>
   </div>
 </header>
 
-<!-- ── MAIN ── -->
+<!-- ── メイン ── -->
 <main class="main">
+
+  <!-- 0. 合成データの注意（フッターの免責事項の要点を最初の画面にも出す） -->
+  <div role="note" style="background:var(--yellow-dim); border:1px solid var(--yellow); border-radius:12px; padding:12px 16px; font-size:12px; line-height:1.7;">
+    <strong style="color:var(--yellow-light);">⚠️ この画面の成績はすべて合成データによるシミュレーションで、実相場の成績ではありません（年月も仮のラベル）。</strong>
+    実データでは従来版・4P-Score とも優位性を確認できませんでした（下の免責事項、fusion/RESULTS.md）。
+  </div>
 
   <!-- 1. サマリーカード -->
   <section>
     <div class="section-header">
       <h2>パフォーマンス サマリー</h2>
-      <span class="section-tag tag-green">従来版 3年間</span>
+      <span class="section-tag tag-green">従来版・合成データ 3年</span>
       <div class="section-line"></div>
     </div>
     <div class="summary-grid">
       <div class="summary-card blue">
         <div class="card-label">総トレード数</div>
         <div class="card-value neutral">174</div>
-        <div class="card-sub">回 ／ 3年間 (2021-2023)</div>
+        <div class="card-sub">回 ／ 合成データ上の3年</div>
       </div>
       <div class="summary-card green">
         <div class="card-label">総損益</div>
@@ -551,7 +557,7 @@
             <th rowspan="2">通貨ペア</th>
             <th colspan="3">従来版</th>
             <th colspan="3" class="col-divider">4P-Score</th>
-            <th rowspan="2">優位性</th>
+            <th rowspan="2">合成データ上の比較</th>
           </tr>
           <tr>
             <th>トレード数</th>
@@ -642,7 +648,7 @@
         <div class="chart-meta">
           <div>
             <div class="chart-title" id="chartTitle">USD/JPY 月次損益</div>
-            <div class="chart-subtitle">2021年1月 〜 2023年12月（36ヶ月）</div>
+            <div class="chart-subtitle">合成データ上の36ヶ月（年月は仮のラベル）</div>
           </div>
           <div class="chart-stats">
             <div class="chart-stat">
@@ -728,7 +734,7 @@
           <div class="grade-badge grade-s">S</div>
           <div class="grade-info">
             <div class="grade-name">最高優先度エントリー</div>
-            <div class="grade-desc">全条件揃い・最高勝率期待</div>
+            <div class="grade-desc">全条件揃い（成績との関係は未確認）</div>
           </div>
           <div class="grade-score" style="color:var(--gold)">85点+</div>
         </div>
@@ -804,19 +810,20 @@
 
 </main>
 
-<!-- ── FOOTER ── -->
+<!-- ── フッター ── -->
 <footer class="footer">
   <div class="footer-warning">
     <strong>⚠️ 免責事項</strong><br>
     本ダッシュボードの数値は合成データによるシミュレーションです。実際の市場データとは異なります。
     実データ（OANDA 2013〜2020、4銘柄、先読みなし・スプレッド込み）で検証し直したところ、4P-Score に安定した優位性は
-    確認できませんでした（検証期間 2018〜2020：99回 −16.8R、PF0.76。詳細は fusion/README.md）。後継は融合システム FUSION-CORE です。
+    確認できませんでした（検証期間 2018〜2020：99回 −16.8R、PF0.76。詳細は fusion/README.md）。後継は融合システム FUSION-CORE ですが、
+    こちらも最終検証は不合格で、裁量の補助ツールとして提供しています（fusion/RESULTS.md）。
     過去の結果は将来の利益を保証しません。FX取引は元本割れのリスクを伴います。投資判断はご自身の責任で行ってください。
   </div>
 </footer>
 
 <script>
-  // ── Date Display ──
+  // ── 日付の表示 ──
   (function() {
     const d = new Date();
     const pad = n => String(n).padStart(2,'0');
@@ -825,7 +832,7 @@
     document.getElementById('currentDate').textContent = str;
   })();
 
-  // ── Chart Data ──
+  // ── チャートのデータ（合成データ上の月次損益） ──
   const LABELS = [
     '2021-01','2021-02','2021-03','2021-04','2021-05','2021-06',
     '2021-07','2021-08','2021-09','2021-10','2021-11','2021-12',
@@ -872,7 +879,7 @@
     });
   }
 
-  // ── Chart Init ──
+  // ── チャートの初期化 ──
   let currentPair = 'usdjpy';
   let plChart = null;
 
@@ -935,7 +942,7 @@
             maxRotation: 45,
             font: { size: 9 },
             callback: function(val, idx) {
-              // Show only Jan labels as year markers, else just month
+              // 1月は「年/01」で年の区切りにし、ほかは3本ごとに月だけ出す
               const lbl = LABELS[idx];
               const [year, month] = lbl.split('-');
               if (month === '01') return year + '/01';
@@ -962,7 +969,7 @@
 
   plChart = initChart();
 
-  // Update stats UI
+  // 合計・勝ち月・最大月益の表示を更新
   function updateStats(pair) {
     const s = calcStats(DATA[pair]);
     const totalEl = document.getElementById('chartTotal');
@@ -977,12 +984,12 @@
 
   updateStats('usdjpy');
 
-  // ── Tab Switching ──
+  // ── タブの切り替え ──
   function switchChart(pair, el) {
     if (pair === currentPair) return;
     currentPair = pair;
 
-    // Update tabs
+    // タブの見た目を更新
     document.querySelectorAll('.chart-tab').forEach(t => {
       t.classList.remove('active');
       t.classList.remove('eurusd','gbpusd','xauusd');
@@ -990,7 +997,7 @@
     el.classList.add('active');
     if (pair !== 'usdjpy') el.classList.add(pair);
 
-    // Update chart
+    // チャートのデータと色を差し替え
     if (plChart) {
       const d = DATA[pair];
       plChart.data.datasets[0].data = d;

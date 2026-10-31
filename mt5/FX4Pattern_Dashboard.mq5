@@ -113,8 +113,8 @@ int DowTrend(ENUM_TIMEFRAMES tf)
    int depth = InpSwingDepth;
 
    // スイング高値・安値を収集（新しい順）
-   double sh[];  // swing highs
-   double sl[];  // swing lows
+   double sh[];  // スイング高値
+   double sl[];  // スイング安値
    ArrayResize(sh, 0); ArrayResize(sl, 0);
 
    for(int i = depth + 1; i < bars; i++)

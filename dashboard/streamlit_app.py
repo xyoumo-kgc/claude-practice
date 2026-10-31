@@ -485,10 +485,11 @@ st.sidebar.markdown("---")
 st.sidebar.markdown("""
 **4P-Score とは**
 4つの鉄板パターンに基づく
-スコアリングシステムです。
+スコアリングシステムです
+（この画面のものは簡易版）。
 最低スコアを上げるほど
-エントリー数は減りますが
-高品質なシグナルに絞れます。
+エントリー数は減ります。
+成績が良くなるとは限りません。
 """)
 
 # ─────────────────────────────────────────
@@ -499,7 +500,10 @@ st.caption("4つの鉄板パターン — インタラクティブ・バック�
 st.warning(
     "このダッシュボードは**合成データ**で動いています。実データ（OANDA 2013〜2020、4銘柄、先読みなし・スプレッド込み）で"
     "検証し直したところ、従来版・4P-Score とも安定した優位性は確認できませんでした（fusion/README.md）。"
-    "実データで判定する後継のダッシュボードは `streamlit run dashboard/fusion_app.py` です。"
+    "実データで検証したのは EA 相当の再実装（fusion/baselines.py）で、この画面の計算は EA を簡略化したものです。"
+    "特に 4P-Score は配点が EA と違う簡易版で、実データでは検証していません。"
+    "実データで判定する後継のダッシュボードは `streamlit run dashboard/fusion_app.py` です"
+    "（後継の FUSION-CORE も最終検証は不合格で、裁量の補助として提供しています）。"
 )
 
 # st.button は押した直後の 1 リランしか True にならないため、
@@ -781,18 +785,21 @@ with tab3:
 # TAB 4: スコア解説
 # ════════════════════════════════════════
 with tab4:
-    st.subheader("🎯 4P-Score スコアリングシステム解説")
+    st.subheader("🎯 4P-Score（簡易版）スコアリング解説")
 
     st.markdown("""
     4P-Score は **ダウ理論**に基づくスイング分析に、
     4つのパターン確認項目をスコアリングして
-    エントリー品質を数値化するシステムです。
+    条件の揃い具合を数値化するシステムです。
+
+    **この画面の配点は簡易版です。** EA（`mt5/FX4Pattern_Signal.mq5`）と `mt5/README_SIGNAL.md` の 4P-Score
+    （日足合致・反対勢力・MA整列・押し戻りの深さ）とは配点も判定も異なり、実データでは検証していません。
     """)
 
     st.markdown("---")
 
     # スコア内訳 (横積み棒グラフ)
-    st.subheader("スコア内訳")
+    st.subheader("スコア内訳（簡易版の配点）")
 
     categories = ['ベーススコア', '①ダウ反転構造', '②モメンタム乖離', '③ボラ急変', '④-B ブレイクアウト']
     values = [40, 20, 15, 10, 15]
@@ -845,7 +852,7 @@ with tab4:
         <div style="font-size: 2.5rem;">🏆 S</div>
         <div style="font-size: 1.2rem;">85〜100点</div>
         <div style="font-size: 0.85rem; margin-top: 8px;">
-        全条件が揃った<br>最高品質シグナル。<br>フルロットで入れる。
+        全条件が揃った<br>最上位の点数帯。<br>成績との関係は未確認。
         </div>
         </div>
         """, unsafe_allow_html=True)
@@ -863,7 +870,7 @@ with tab4:
         <div style="font-size: 2.5rem;">🥈 A</div>
         <div style="font-size: 1.2rem;">70〜84点</div>
         <div style="font-size: 0.85rem; margin-top: 8px;">
-        高品質シグナル。<br>通常ロットで<br>積極的に狙う。
+        上位の点数帯。<br>成績との関係は<br>未確認。
         </div>
         </div>
         """, unsafe_allow_html=True)
@@ -881,7 +888,7 @@ with tab4:
         <div style="font-size: 2.5rem;">🥉 B</div>
         <div style="font-size: 1.2rem;">55〜69点</div>
         <div style="font-size: 0.85rem; margin-top: 8px;">
-        参考シグナル。<br>半ロット or<br>スキップも可。
+        下位の点数帯。<br>成績との関係は<br>未確認。
         </div>
         </div>
         """, unsafe_allow_html=True)
@@ -948,7 +955,6 @@ with tab4:
     st.markdown("---")
     st.markdown("""
     > **使い方のヒント**
-    > サイドバーの「最低スコア」を上げるとトレード数が減りますが、
-    > 高品質なシグナルに絞り込めます。
-    > RR比2.0 + 最低スコア70（グレードA以上）を基準として試してみてください。
+    > サイドバーの「最低スコア」を上げるとトレード数が減ります（成績が良くなるとは限りません）。
+    > 既定値は RR比2.0・最低スコア70（グレードA以上）です。数値はどれも合成データ上のものです。
     """)
