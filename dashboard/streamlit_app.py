@@ -496,6 +496,11 @@ st.sidebar.markdown("""
 # ─────────────────────────────────────────
 st.title("📈 4P-Score FX Dashboard")
 st.caption("4つの鉄板パターン — インタラクティブ・バックテスト")
+st.warning(
+    "このダッシュボードは**合成データ**で動いています。実データ（OANDA 2013〜2020、4銘柄、先読みなし・スプレッド込み）で"
+    "検証し直したところ、従来版・4P-Score とも安定した優位性は確認できませんでした（fusion/README.md）。"
+    "実データで判定する後継のダッシュボードは `streamlit run dashboard/fusion_app.py` です。"
+)
 
 # st.button は押した直後の 1 リランしか True にならないため、
 # session_state に保持しないとタブ内の selectbox 操作等で画面が初期状態に戻ってしまう。
