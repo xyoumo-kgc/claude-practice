@@ -154,10 +154,12 @@ def backtest(name, config):
     df_4h = add_indicators(df_4h, 20, ATR_PERIOD)
 
     df_4h['trend_4h'] = get_trend(df_4h['MA20'], MA_SLOPE_WINDOW)
-    df_1h = df_1h.join(
-        df_4h[['trend_4h', 'MA20']].rename(columns={'MA20': '4H_MA20'})
-        .reindex(df_1h.index, method='ffill')
-    )
+    # 先読み防止: 4H足は確定時刻（開始+4h）で、1H足も確定時刻（開始+1h）で突き合わせる
+    h4 = df_4h[['trend_4h', 'MA20']].rename(columns={'MA20': '4H_MA20'})
+    h4.index = h4.index + pd.Timedelta(hours=4)
+    aligned = h4.reindex(df_1h.index + pd.Timedelta(hours=1), method='ffill')
+    aligned.index = df_1h.index
+    df_1h = df_1h.join(aligned)
     df_1h['trend_1h']      = get_trend(df_1h['MA20'], MA_SLOPE_WINDOW)
     df_1h['prev_trend_1h'] = df_1h['trend_1h'].shift(1)
 

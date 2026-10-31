@@ -186,9 +186,10 @@ def backtest_4pscore(df_1h):
     tr4 = SwingTracker(sh4, sl4)
     trd = SwingTracker(shd, sld)
 
-    # 1Hバー → 4H/D1バーのマッピング
-    idx4 = df_4h.index.searchsorted(df_1h.index, side='right') - 1
-    idxd = df_d1.index.searchsorted(df_1h.index, side='right') - 1
+    # 1Hバー → 確定済みの4H/D1バーのマッピング（確定時刻 = 開始 + 期間 で比較し、先読みを防ぐ）
+    t_close = df_1h.index + pd.Timedelta(hours=1)
+    idx4 = (df_4h.index + pd.Timedelta(hours=4)).searchsorted(t_close, side='right') - 1
+    idxd = (df_d1.index + pd.Timedelta(days=1)).searchsorted(t_close, side='right') - 1
     ma4_arr = df_4h['MA20'].values
     atr4_arr = df_4h['ATR'].values
 
@@ -348,7 +349,11 @@ def backtest_baseline(df_1h):
         return np.where(slope > 0, 1, np.where(slope < 0, -1, 0))
 
     df_4h['trend_4h'] = trend(df_4h['MA20'])
-    df_1h = df_1h.join(df_4h[['trend_4h']].reindex(df_1h.index, method='ffill'))
+    h4 = df_4h[['trend_4h']].copy()
+    h4.index = h4.index + pd.Timedelta(hours=4)          # 4H足の確定時刻
+    aligned = h4.reindex(df_1h.index + pd.Timedelta(hours=1), method='ffill')  # 1H足の確定時刻で参照
+    aligned.index = df_1h.index
+    df_1h = df_1h.join(aligned)
     df_1h['trend_1h'] = trend(df_1h['MA20'])
     df_1h['prev_trend_1h'] = df_1h['trend_1h'].shift(1)
 
