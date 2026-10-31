@@ -1,0 +1,120 @@
+{
+  "_note": "回帰テスト用の固定スペック。examples/sample-room.json と同じ間取りになる。テンプレを編集してもテストが壊れないよう別ファイルにしている。",
+  "meta": {
+    "project": "サンプル様邸 1LDK",
+    "customer": "山田 花子"
+  },
+  "rooms": [
+    {
+      "name": "LDK",
+      "width": 4500,
+      "depth": 4000,
+      "height": 2400,
+      "x": 0,
+      "z": 0,
+      "color": "#c9a97a"
+    },
+    {
+      "name": "寝室",
+      "width": 3000,
+      "depth": 4000,
+      "height": 2400,
+      "attach": {
+        "to": "LDK",
+        "side": "e"
+      },
+      "color": "#b8a184"
+    }
+  ],
+  "openings": [
+    {
+      "type": "door",
+      "name": "玄関ドア",
+      "room": "LDK",
+      "side": "s",
+      "offset": 1300
+    },
+    {
+      "type": "door",
+      "name": "寝室ドア",
+      "room": "LDK",
+      "side": "e",
+      "offset": 800
+    },
+    {
+      "type": "window",
+      "name": "窓 1",
+      "room": "LDK",
+      "side": "w",
+      "offset": -600
+    },
+    {
+      "type": "window",
+      "name": "窓 2",
+      "room": "LDK",
+      "side": "n",
+      "offset": -600
+    },
+    {
+      "type": "window",
+      "name": "窓 3",
+      "room": "寝室",
+      "side": "n",
+      "offset": 150
+    }
+  ],
+  "furniture": [
+    {
+      "type": "table",
+      "name": "テーブル",
+      "room": "LDK",
+      "x": 500,
+      "z": 600
+    },
+    {
+      "type": "chair",
+      "name": "イス 1",
+      "room": "LDK",
+      "x": 300,
+      "z": 1300,
+      "rotation": 180
+    },
+    {
+      "type": "chair",
+      "name": "イス 2",
+      "room": "LDK",
+      "x": 150,
+      "z": -100
+    },
+    {
+      "type": "sofa",
+      "name": "ソファ",
+      "room": "LDK",
+      "x": -1200,
+      "z": -1400
+    },
+    {
+      "type": "shelf",
+      "name": "棚",
+      "room": "LDK",
+      "x": -1950,
+      "z": 1000,
+      "rotation": -90
+    },
+    {
+      "type": "bed",
+      "name": "ベッド",
+      "room": "寝室",
+      "x": 0,
+      "z": -700
+    },
+    {
+      "type": "shelf",
+      "name": "寝室の棚",
+      "room": "寝室",
+      "x": 1200,
+      "z": 1200,
+      "rotation": 90
+    }
+  ]
+}

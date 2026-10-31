@@ -1,0 +1,92 @@
+name: 滞留アラート
+
+# 動きの止まった PR・ブランチを週に1回まとめて Issue にする。
+# ドラフトのまま・マージされないまま成果物が埋もれるのを防ぐ（docs/claude-activity-review.md の L3-2）。
+
+on:
+  schedule:
+    - cron: '17 23 * * 0'   # 毎週月曜 8:17（日本時間）
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: read
+  issues: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        env:
+          STALE_DAYS: '14'
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const days = Number(process.env.STALE_DAYS);
+            const now = Date.now();
+            const age = (iso) => Math.floor((now - new Date(iso).getTime()) / 86400000);
+            const TITLE = '🧹 滞留している PR・ブランチ（週次）';
+            const LABEL = 'stale-report';
+
+            const { data: info } = await github.rest.repos.get({ owner, repo });
+            const prs = await github.paginate(github.rest.pulls.list, { owner, repo, state: 'open', per_page: 100 });
+            const branches = await github.paginate(github.rest.repos.listBranches, { owner, repo, per_page: 100 });
+
+            const stalePrs = prs
+              .map((p) => ({ p, d: age(p.updated_at) }))
+              .filter(({ p, d }) => d >= days || p.draft)
+              .sort((a, b) => b.d - a.d);
+
+            const prHeads = new Set(prs.map((p) => p.head.ref));
+            const loneBranches = [];
+            for (const b of branches) {
+              if (b.name === info.default_branch || prHeads.has(b.name)) continue;
+              const { data: c } = await github.rest.repos.getCommit({ owner, repo, ref: b.commit.sha });
+              const d = age(c.commit.committer.date);
+              // マージ済みのブランチ（既定ブランチに含まれる）は数えない
+              const { data: cmp } = await github.rest.repos.compareCommitsWithBasehead({
+                owner, repo, basehead: `${info.default_branch}...${b.name}`,
+              });
+              if (cmp.ahead_by > 0 && d >= days) loneBranches.push({ name: b.name, d, ahead: cmp.ahead_by });
+            }
+            loneBranches.sort((a, b) => b.d - a.d);
+
+            const { data: open } = await github.rest.issues.listForRepo({ owner, repo, state: 'open', labels: LABEL });
+            const existing = open.find((i) => i.title === TITLE);
+
+            if (!stalePrs.length && !loneBranches.length) {
+              if (existing) {
+                await github.rest.issues.createComment({ owner, repo, issue_number: existing.number, body: '✅ 滞留している PR・ブランチはなくなりました。' });
+                await github.rest.issues.update({ owner, repo, issue_number: existing.number, state: 'closed', state_reason: 'completed' });
+              }
+              core.info('滞留なし');
+              return;
+            }
+
+            const lines = [
+              `最終更新から ${days} 日以上たった PR・ドラフトのままの PR・PR の無いブランチの一覧です（${new Date().toISOString().slice(0, 10)} 時点）。`,
+              'マージする・閉じる・続きを頼む、のどれかを決めてください。',
+              '',
+            ];
+            if (stalePrs.length) {
+              lines.push('## PR', '', '| PR | 状態 | 最終更新から |', '| --- | --- | ---: |');
+              for (const { p, d } of stalePrs) lines.push(`| #${p.number} ${p.title.replace(/\|/g, '｜')} | ${p.draft ? 'ドラフト' : 'レビュー待ち'} | ${d} 日 |`);
+              lines.push('');
+            }
+            if (loneBranches.length) {
+              lines.push('## PR の無いブランチ（未マージのコミットあり）', '', '| ブランチ | 未マージ | 最終コミットから |', '| --- | ---: | ---: |');
+              for (const b of loneBranches) lines.push(`| \`${b.name}\` | ${b.ahead} コミット | ${b.d} 日 |`);
+              lines.push('');
+            }
+            lines.push('---', '_このIssueは `.github/workflows/stale-alert.yml` が毎週更新します。_');
+            const body = lines.join('\n');
+
+            if (existing) {
+              await github.rest.issues.update({ owner, repo, issue_number: existing.number, body });
+            } else {
+              try { await github.rest.issues.getLabel({ owner, repo, name: LABEL }); }
+              catch { await github.rest.issues.createLabel({ owner, repo, name: LABEL, color: 'fbca04', description: '滞留アラート（自動）' }); }
+              await github.rest.issues.create({ owner, repo, title: TITLE, body, labels: [LABEL] });
+            }
+            core.info(`PR ${stalePrs.length} 件・ブランチ ${loneBranches.length} 件`);
