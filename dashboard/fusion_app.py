@@ -228,7 +228,7 @@ with tab2:
     for lv in sorted(snap['levels'], key=lambda x: -x['touch'])[:8]:
         if lo_v <= lv['price'] <= hi_v and (lv['touch'] >= 2 or lv['d1']):
             fig.add_hline(y=lv['price'], line=dict(color='#757575', width=1 + min(lv['touch'], 5) * 0.6, dash='dot'),
-                          annotation_text=f"節目 x{lv['touch']}{' 日足' if lv['d1'] else ''}", annotation_position='right')
+                          annotation_text=f"節目 x{lv['touch']}{' 日足' if lv['d1'] else ''}", annotation_position='top left')
     if pend:
         fig.add_hline(y=pend['price'], line=dict(color='#fb8c00', width=2), annotation_text='逆指値')
         fig.add_hline(y=pend['sl'], line=dict(color='#e53935', width=2, dash='dash'), annotation_text='損切り')
@@ -274,11 +274,13 @@ with tab3:
             st.markdown('**年別**')
             y = done.groupby(done['entry_time'].dt.year)['pnl_r'].agg(['count', 'sum', 'mean'])
             y.columns = ['回数', '総R', '平均R']
+            y.index.name = '年'
             st.dataframe(y.style.format({'総R': '{:+.1f}', '平均R': '{:+.3f}'}), width='stretch')
         with c2:
             st.markdown('**決済の理由**')
             e = done.groupby('exit_reason')['pnl_r'].agg(['count', 'sum', 'mean'])
             e.columns = ['回数', '総R', '平均R']
+            e.index.name = '理由'
             st.dataframe(e.style.format({'総R': '{:+.1f}', '平均R': '{:+.3f}'}), width='stretch')
         show = done[['entry_time', 'direction', 'entry', 'initial_sl', 'exit_time', 'exit_reason', 'pnl_r', 'm_score']].copy()
         show['direction'] = show['direction'].map(DIR_JA)
