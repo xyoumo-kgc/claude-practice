@@ -1,21 +1,46 @@
-# fusion/ — 100億円トレーダー × 賢人のデイトレード 融合システム（Python参照実装・検証基盤）
+# fusion/ — 賢人のデイトレード × 100億円トレーダー 融合システム FUSION-CORE（Python参照実装・検証基盤）
 
-MT5用EA（`mt5/FX_Fusion_EA.mq5`）と同じ判定をPythonで再現し、**実データで先読みなしに検証する**ための
-パッケージです。
+**FUSION-CORE** は、2人の手法のうち反証検証を経ても残った中核セットアップを、機械的なルールにしたものです
+（どこが共通でどこが違うかは [THEORY.md](THEORY.md)）。
+
+> 4時間足レベルの上昇（下降）構造の中で、押し（戻り）が 4H MA（1時間足の SMA80）に届き、4H MA が逆向きでないときに、
+> 1時間足で「安値切上げを保ったまま戻り高値を上抜ける」瞬間を逆指値で取る。損切りは切上げ安値の外。
+> 出口は「4Hレベルの新しい押し安値ができるたびに損切りを引き上げる」と「週末・休場前の全決済」だけ。
+
+| 用途 | ファイル |
+|---|---|
+| 仕様（凍結） | [SPEC.md](SPEC.md) |
+| 2人の考え方の比較と反証検証 | [THEORY.md](THEORY.md) |
+| 最終検証の事前登録 | [PREREGISTRATION.md](PREREGISTRATION.md) |
+| 最終検証の結果 | [RESULTS.md](RESULTS.md) |
+| Python 参照実装 | `strategy.py` |
+| MT5 EA（通知・パネル・任意の自動売買） | `../mt5/FX_Fusion_EA.mq5`、[../mt5/README_FUSION.md](../mt5/README_FUSION.md) |
+| ダッシュボード | `../dashboard/fusion_app.py`（`streamlit run dashboard/fusion_app.py`） |
+| チャート分析スキル | `/fx-fusion`（`../.claude/commands/fx-fusion.md`） |
 
 ```
 fusion/
 ├── data.py        # データ読み込み（backtesting.py同梱EURUSD / OANDA 1分足 / MT5書き出しCSV）→ MT5風サーバー時間
 ├── indicators.py  # SMA・ATR（MT5と同じ定義）、スイング検出、確定済み上位足の対応づけ
-├── features.py    # 節目（水平線）の抽出、MA収束→拡散、リスクリワード
+├── features.py    # 節目（水平線）の抽出、MA収束→拡散、リスクリワード（初期の部品）
 ├── broker.py      # 約定シミュレーター（スプレッド・窓開け・損切り優先・部分利確・建値移動）
+├── engine.py      # 汎用のバー駆動エンジン（初期の部品。FUSION-CORE は strategy.py の専用ループを使う）
 ├── stats.py       # R単位の成績集計
 ├── baselines.py   # 比較用: 従来版EA（MAスロープ）・4P-Score を先読みなしで再実装
-├── strategy.py    # ★融合システム FUSION-CORE v1.0 の参照実装（仕様: SPEC.md）
+├── strategy.py    # ★FUSION-CORE v1.0 の参照実装（全変種・感度・素朴ベースライン・snapshot）
 ├── evaluate.py    # 開発期間(IS)/検証期間(OOS)に分けた実データ検証
-├── SPEC.md        # 凍結した仕様書（判定ルール・出口・時刻ルール・MQL5 実装注記・照合表）
-├── PREREGISTRATION.md  # 最終検証の事前登録（未接触データ・合格基準・プロトコル逸脱の記録）
+├── final_eval.py  # 事前登録どおりの最終検証（未接触データで1回だけ実行）
+├── mt5_parity.py  # MT5 EA のログと Python の判定の照合
 └── tests/         # python -m unittest discover -s fusion/tests -t .（golden/ に照合用の取引一覧）
+```
+
+## すぐ試す
+
+```python
+from fusion import data as fd, strategy as fs
+h1 = fd.load_mt5_csv('EURUSD_H1.csv')                  # MT5 で書き出した H1 足（または fd.load_backtesting_eurusd()）
+trades, funnel = fs.run_h1(h1, 'EURUSD')                 # 既定構成（fusion）の取引一覧と、理由コード別の件数
+snap = fs.snapshot(h1, 'EURUSD')                         # 最後の確定足での状態（待機注文・建玉・方向ごとの判定）
 ```
 
 ## 先読み（ルックアヘッド）を防ぐ約束
