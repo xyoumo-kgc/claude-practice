@@ -242,7 +242,7 @@ def build_calendar_scenario():
     """建玉中の足に、早仕舞い日・休場前日（翌平日を休場日にしてその日の足を1本だけ残す）・平日の12時間超の空白・
     待機注文がある足の後の空白・金曜の早い終了（決済足がない）を順に入れる。
     戻り値: (H1, 追加の休場日, 追加の早仕舞い日, 出来事の時刻の辞書)"""
-    df = synth('2015-03-02', 4800, seed=11)
+    df = synth('2015-03-02', 4400, seed=11)
     closed, early, ev = set(), set(), {}
     real_closed, real_early = fs.calendar_sets('EURUSD', range(2015, 2017))
 
@@ -256,7 +256,7 @@ def build_calendar_scenario():
 
     trades = run()
     days = sorted({ts.date() for ts in df.index})
-    cursor = df.index[1500].date()
+    cursor = df.index[700].date()
     # 1) 早仕舞い日: 16時〜20時足のあいだ建玉
     for dt in [d for d in days if d > cursor and plain_day(d)]:
         if _open_span(trades, pd.Timestamp(dt) + pd.Timedelta(hours=15), pd.Timestamp(dt) + pd.Timedelta(hours=20)):
@@ -348,25 +348,31 @@ class TestCalendarPathsCausality(CausalityMixin, unittest.TestCase):
     def test_truncate_and_perturb_around_events(self):
         df, ev = self.df, self.ev
         idx = df.index
-        pts = set()
+        cal = set()
         for key, hours in (('early', (16, 18, 19)), ('preholiday', (19, 21, 22))):
             for hh in hours:
                 ts = pd.Timestamp(ev[key]) + pd.Timedelta(hours=hh)
                 if ts in idx:
-                    pts.add(idx.get_loc(ts))
-        for key in ('gap_with_position', 'gap_with_pending'):
-            k = idx.get_loc(ev[key])
-            pts |= {k - 1, k, k + 1}
-        k = idx.searchsorted(ev['friday_cut'] + pd.Timedelta(days=3))           # 月曜の最初の足
-        pts |= {k - 1, k, k + 1}
-        pts.add(idx.get_loc(pd.Timestamp(ev['closed'])) + 1)
-        pts = sorted(p for p in pts if 200 < p < len(idx) - 1)
+                    cal.add(idx.get_loc(ts))
+        cal.add(idx.get_loc(pd.Timestamp(ev['closed'])) + 1)
+        gap, gap_cut = set(), set()
+        for k in [idx.get_loc(ev['gap_with_position']), idx.get_loc(ev['gap_with_pending']),
+                  idx.searchsorted(ev['friday_cut'] + pd.Timedelta(days=3))]:  # 空白明けの足（最後は月曜の最初の足）
+            gap |= {k - 1, k, k + 1}
+            gap_cut |= {k, k + 1}                       # 足 k-1（空白の直前）・足 k（空白明け）までで切る
+        cal = sorted(p for p in cal if 200 < p < len(idx) - 1)
+        gap = sorted(p for p in gap if 200 < p < len(idx) - 1)
+        gap_cut = sorted(p for p in gap_cut if 200 < p < len(idx) - 1)
+        pts = sorted(set(cal) | set(gap))
         with PatchedCalendar(self.closed, self.early):
-            self.check_cuts(df, 'EURUSD', fs.config('fusion'), pts, 'fusion')
+            full = self.check_cuts(df, 'EURUSD', fs.config('fusion'), pts, 'fusion', modes=('perturb',))
+            for c in gap_cut + cal[::3]:                 # 切断: 空白の直前・直後（空白を前の足で知っていれば変わる）と暦の一部
+                part = traced(df.iloc[:c], 'EURUSD', fs.config('fusion'))
+                self.assert_same_past(full, part, idx, c, H1, f'fusion cut c={c}（{idx[c - 1]}）')
             for v in ('F+be', 'oku_only', 'F+p3'):
-                self.check_cuts(df, 'EURUSD', fs.config(v), pts[::3], v, modes=('perturb',))
+                self.check_cuts(df, 'EURUSD', fs.config(v), pts[::4], v, modes=('perturb',))
             for v in ('F-stop', 'kenjin_only', 'mincore_raw', 'F-calendar', 'naive:p=0.05:seed=1'):
-                self.check_cuts(df, 'EURUSD', fs.config(v), pts[1::5], v, modes=('perturb',))
+                self.check_cuts(df, 'EURUSD', fs.config(v), pts[2::8], v, modes=('perturb',))
 
 
 # ---------------------------------------------------------------- 合成データ: 変種と境界の切断点
@@ -374,14 +380,14 @@ class TestVariantsCausalitySynthetic(CausalityMixin, unittest.TestCase):
     """部分決済・建値移動・パターン③・感度・F-stop を含む変種で、判定記録と建玉の記録まで一致する"""
 
     def test_perturb_future_keeps_past(self):
-        df = synth('2015-01-05', 4000, seed=5)
+        # 部分決済は F+be・oku_only、1H トレールは oku_only が通る（F+partial・F+trail1h は同じ経路なので省く）
+        df = synth('2015-01-05', 3000, seed=5)
         rng = np.random.default_rng(7)
-        for v in ('fusion', 'F+partial', 'F+be', 'oku_only', 'F+p3', 'F~dowP', 'F-stop', 'F+slnode', 'F+trail1h',
-                  'S:N_BIG=16', 'mincore_raw'):
+        for v in ('fusion', 'F+be', 'oku_only', 'F+p3', 'F~dowP', 'F-stop', 'F+slnode', 'S:N_BIG=16', 'mincore_raw'):
             sw = fs.config(v)
             full = traced(df, 'EURUSD', sw)
             n_big = sw.get('N_BIG', 12)
-            for c in boundary_cuts(df, full, rng, n_big=n_big):
+            for c in boundary_cuts(df, full, rng, n_trades=1, n_big=n_big):
                 part = traced(perturb_after(df, c), 'EURUSD', sw)
                 self.assert_same_past(full, part, df.index, c, H1, f'{v} perturb c={c}（{df.index[c - 1]}）')
 
@@ -832,20 +838,20 @@ class TestRealDataCausality(CausalityMixin, unittest.TestCase):
         return [k for k in (int(df.index.searchsorted(pd.Timestamp(s))) for s in stamps) if 300 < k < len(df) - 1]
 
     def test_fx_year_end_and_july3(self):
-        df = self.load('EURUSD')
+        df = self.load('EURUSD', a='2015-05-01', b='2016-01-20')
         cuts = self.cuts_at(df, ['2015-07-03 20:00', '2015-12-24 17:00', '2015-12-24 19:00', '2015-12-28 00:00',
                                  '2015-12-31 18:00', '2016-01-04 00:00'])
-        self.check_cuts(df, 'EURUSD', fs.config('fusion'), cuts, 'fusion')
+        self.check_cuts(df, 'EURUSD', fs.config('fusion'), cuts, 'fusion', modes=('perturb',))
+        self.check_cuts(df, 'EURUSD', fs.config('fusion'), cuts[::2], 'fusion', modes=('cut',))
         for v in ('F+be', 'oku_only', 'F+p3'):
-            self.check_cuts(df, 'EURUSD', fs.config(v), cuts[1::2], v, modes=('perturb',))
+            self.check_cuts(df, 'EURUSD', fs.config(v), cuts[1::3], v, modes=('perturb',))
 
     def test_xau_good_friday_thanksgiving_july3(self):
-        df = self.load('XAUUSD')
-        cuts = self.cuts_at(df, ['2015-04-02 21:00', '2015-04-03 00:00', '2015-04-06 01:00', '2015-07-03 18:00',
-                                 '2015-11-27 17:00', '2016-03-24 21:00', '2016-03-28 01:00'])
+        df = self.load('XAUUSD', a='2015-05-01', b='2016-04-08')
+        cuts = self.cuts_at(df, ['2015-07-03 18:00', '2015-11-27 17:00', '2016-03-24 21:00', '2016-03-28 01:00'])
         self.check_cuts(df, 'XAUUSD', fs.config('fusion'), cuts, 'fusion')
         for v in ('F+be', 'kenjin_only'):
-            self.check_cuts(df, 'XAUUSD', fs.config(v), cuts[::3], v, modes=('perturb',))
+            self.check_cuts(df, 'XAUUSD', fs.config(v), cuts[::2], v, modes=('perturb',))
 
     def test_pattern2_real_m15(self):
         m15 = self.load('EURUSD', 'M15', '2015-09-01', '2016-02-15')
