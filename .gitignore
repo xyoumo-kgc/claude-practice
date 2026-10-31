@@ -14,3 +14,6 @@ blob-report/
 # Python のバイトコード
 __pycache__/
 *.pyc
+
+# FX ツールの相場データ（コミットしない。作り方は fusion/README.md の「データの準備」）
+/data/

@@ -64,12 +64,13 @@ snap = fs.snapshot(h1, 'EURUSD')                         # 最後の確定足で
 OANDA の1分足（2005〜2020、UTC）を公開しているリポジトリから、必要な年だけ取り出します。
 
 ```bash
-git clone --depth 1 --filter=blob:none --sparse https://github.com/FutureSharks/financial-data
-cd financial-data
-git sparse-checkout set pyfinancialdata/data/currencies/oanda/EUR_USD/2013 ...（必要な銘柄/年）
-python -c "from fusion.data import prepare_oanda; prepare_oanda('EUR_USD', '<...>/pyfinancialdata/data/currencies/oanda', 'data')"
+# リポジトリのルート（claude-practice/）で実行する。元データの複製はリポジトリの外（../financial-data）に置く
+git clone --depth 1 --filter=blob:none --sparse https://github.com/FutureSharks/financial-data ../financial-data
+git -C ../financial-data sparse-checkout set pyfinancialdata/data/currencies/oanda/EUR_USD/2013 ...（必要な銘柄/年）
+python -c "from fusion.data import prepare_oanda; prepare_oanda('EUR_USD', '../financial-data/pyfinancialdata/data/currencies/oanda', 'data')"
 ```
-→ `data/EURUSD_M15.csv / _H1.csv / _H4.csv / _D1.csv` ができます（サーバー時間 = NY時間+7時間）。
+→ リポジトリのルートの `data/` に `EURUSD_M15.csv / _H1.csv / _H4.csv / _D1.csv` ができます（サーバー時間 = NY時間+7時間）。
+`data/` は .gitignore 済みで、コミットされません（相場データはコミットしない約束）。
 
 ### C. 自分のMT5のデータ（ドル円・GOLDなど）
 MT5 の「表示 → 銘柄 → チャートバー」で H1（あれば M15 も）を書き出し、
@@ -105,6 +106,10 @@ python -m fusion.final_eval --data-dir <H1/M15 のフォルダ> --out <出力フ
 ## 検証プロトコル（結果を見る前に決めたルール）
 
 過剰最適化（過去データへの当てはめすぎ）を避けるため、次の手順を**融合システムの結果を見る前に**固定しました。
+
+> **注**：設計中に、この規則からの逸脱が4件ありました（[PREREGISTRATION.md](PREREGISTRATION.md) §1）。
+> そのため最終判定は、事前登録した未接触のデータ（U-A・U-B・U-C）で行い、2018〜2020（U-B）は一部汚れたプールとして扱いました
+> （[RESULTS.md](RESULTS.md)）。下の規則4の「検証期間を1回だけ評価」は、この未接触データでの1回の評価に置き換わっています。
 
 1. 開発は**開発期間（2013-01〜2017-12）だけ**で行う。検証期間（2018-01〜2020-05）は仕様を固定するまで見ない。
 2. パラメータは仕様書の既定値（理論から決めた値）のまま。開発期間の結果に合わせた数値調整はしない

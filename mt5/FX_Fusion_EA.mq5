@@ -7338,9 +7338,9 @@ void UpdatePanel(void)
          stat += " 次の全決済 " + TimeToString(nf, TIME_DATE | TIME_MINUTES);
       PanelText(stat, clrSilver);
      }
-   //--- 固定文言（SPEC §16.3。最終検証の後の文言は付録E の E-20）
+   //--- 固定文言（SPEC §16.3。最終検証の後の文言は付録E の E-20・E-21）
    PanelAdd("勝率は25〜30%前後、損益の中央値は−1R、利益は週末まで持った少数の取引に集中、", clrTomato);
-   PanelAdd("10〜20連敗は想定内。優位性は未確認（最終検証は不合格）。", clrTomato);
+   PanelAdd("20連敗を超えることもある（最終検証の最大は銘柄ごとで28）。優位性は未確認（最終検証は不合格）。", clrTomato);
    PanelAdd("裁量で分割・建値・早利確を加えると別の戦略になる", clrTomato);
    PanelRender();
    g_panelDirty = false;
