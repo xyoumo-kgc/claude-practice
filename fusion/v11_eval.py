@@ -2,28 +2,37 @@
 FUSION-CORE v1.1 の評価（事前登録 fusion/PREREGISTRATION_v1_1.md のとおりに、各段で1回だけ実行する）
 
   第1段: python -m fusion.v11_eval stage1 --komo-dir DIR --manifest JSON --out OUT [--workers 4]
-  第2段: python -m fusion.v11_eval stage2 --komo-dir DIR --mt5-dir DIR2 --manifest JSON --stage1-dir OUT1 --out OUT2 [--workers 4]
+  第2段: python -m fusion.v11_eval stage2 --komo-dir DIR --mt5-dir DIR2 --manifest JSON --out OUT [--workers 4]
   ドライラン（開発データだけを使う。数値は無意味）:
          python -m fusion.v11_eval stage1 --dry-run --dev-dir ISDATA --out OUT
-         python -m fusion.v11_eval stage2 --dry-run --dev-dir ISDATA --out OUT2 [--stage1-dir OUT]
+         python -m fusion.v11_eval stage2 --dry-run --dev-dir ISDATA --out OUT
 
 入力
   --komo-dir    komo135/forex-historical-data の1時間足。<銘柄>h1.csv が並んだフォルダか、リポジトリの形（<銘柄>/<銘柄>h1.csv）
   --mt5-dir     利用者の MT5 から書き出した <12銘柄の名前>_H1.csv（§3.2。MT5 の既定のタブ区切り <DATE> <TIME> <OPEN> … でよい）
-  --manifest    §2・§3.2 の記録（JSON。下の「記録ファイル」）。第1段は contact だけを使う
-  --stage1-dir  第1段の出力フォルダ。第2段で、第1段の判定（打ち切りなら第2段は行わない）・取引一覧の SHA-256・
-                komo135 のファイルの SHA-256・コミットを確かめ、走らせ直した komo135 の取引が第1段と全件一致することを確かめる
-  --dev-dir     ドライランの開発データ（fusion.data.prepare_oanda で作った <銘柄>_H1.csv。2013〜2017 の4銘柄）
+  --manifest    §2・§3.2 の記録（JSON。下の「記録ファイル」）。第1段も要る（§7.1「§2 の利用者への確認を記録してから」。
+                U-D の接触の申告が打ち切りの判定に効くため）。第1段は contact だけを使う
+  --out         出力フォルダ。第1段と第2段で同じフォルダを使う（第2段は、そこにある第1段の出力を読んで確かめる）
+  --stage1-dir  第2段だけ。第1段の出力が --out と別のフォルダにあるときに指す（既定は --out）。第2段は、第1段の判定
+                （打ち切りなら第2段は行わない）・取引一覧の SHA-256・komo135 のファイルの SHA-256・接触の申告・コードを確かめ、
+                走らせ直した komo135 の取引を第1段の取引一覧と比べる
+  --dev-dir     ドライランの開発データ（fusion.data.prepare_oanda で作った <銘柄>_H1.csv。2013〜2017 の4銘柄）。
+                既定は環境変数 FUSION_DATA_DIR
+  --rerun-reason     結果のファイルができる前に失敗した実行を走らせ直す理由（§13。回数と理由をログに残す）
+  --code-fix-reason  第2段だけ。第1段の後に評価に使うファイルを直したときの理由（§7.2：結果のファイルができる前の
+                     技術的な失敗だけ）。直していなければ要らない。書いた理由は逸脱として結果に残る
 
 出力（--out）
   第1段: stage1_results.json・stage1_report.md（日本語）・stage1_trades.csv.gz（v1.1・fusion・1.5倍の全取引）・stage1_run.log
   第2段: stage2_results.json・stage2_report.md・stage2_trades.csv.gz・stage2_naive_trades.csv.gz（素朴ベースライン）・stage2_run.log
   取引一覧は gzip の時刻を0にして書くので、同じ入力からは同じバイト列になる。SHA-256 を results.json に書く。
+  素朴ベースラインは P4 と p の選び方（どちらも判定プールだけ）にしか使わないので、取引一覧には、各系列の判定プールの始まり
+  （komo135 は U-D の開始、利用者の系列は U-E の開始）以降にエントリーした取引だけを残す（系列は先頭から走らせる。§6）。
 
-記録ファイル（--manifest。UTF-8 の JSON）
+記録ファイル（--manifest。UTF-8 の JSON。第1段と第2段で同じファイルを書き足していけばよい）
   {
     "contact": {                     # §2 の利用者への確認（第1段の前と第2段の前に記録する）
-      "asked_on": "2026-11-01",      # 確かめた日（本番では必須）
+      "asked_on": "2026-11-01",      # 確かめた日（本番では必須。第2段の前に確かめ直したら、その日に書き換える）
       "summary": "利用者の答えの要約",
       "excluded": [                  # fusion 系（EA のテスター・パネル、ダッシュボード、Python）で成績を見た銘柄×期間 → 判定から除き、別に報告
         {"symbol": "EURUSD", "from": "2023-01-01", "to": "2023-06-30", "reason": "EA のパネル"}],
@@ -38,6 +47,8 @@ FUSION-CORE v1.1 の評価（事前登録 fusion/PREREGISTRATION_v1_1.md のと�
   }
   - symbol は12銘柄の名前か "*"（全銘柄）。from・to は換算後（NY+7）の日付で、両端の日を含む。取引はエントリー時刻で当てはめる。
     当てはめるのは判定プール（U-D・U-E）の取引だけ（§2 の確認は 2020-05-15 以降のデータについてのもの）。
+  - 第2段の contact には、第1段の記録（excluded・partial）をそのまま残し、2022-03-05〜2026-10-31 の確認を書き足す
+    （本番の第2段は、第1段の記録が消えていると止まる。U-D の判定に使う取引が第1段と変わらないように）。
   - EA のパネルを見た場合の from は「EA を付けた日から InpHistoryBars 本（既定10,000本。H1 は1週およそ120本）さかのぼった日」（§2）。
 
 守ること（§12・§13）
@@ -51,9 +62,14 @@ FUSION-CORE v1.1 の評価（事前登録 fusion/PREREGISTRATION_v1_1.md のと�
     judge_p1・judge_p3・judge_p5）だけ。
   - 第1段は §7 の「第1段で出すもの」（構成ごとの U-D・U-X の取引数・平均R・標準誤差、打ち切りの判定、データ源の照合、切断テスト）
     だけを出す。P1〜P6・素朴ベースライン・PSR は計算もしない。
-  - 本番は、評価に使うファイル（EVAL_FILES）に未コミットの変更があるとき、データ・記録ファイルがそろっていないときに、
-    何も計算しないうちに止まる。結果のファイルがすでにある出力フォルダでは走らない（各段で1回だけ）。結果のファイルができる前に
-    失敗したときだけ、--rerun-reason に理由を書いて走らせ直せる（回数と理由をログに残す）。
+  - 本番は、次のどれかに当たれば何も計算しないうちに止まる：評価に使うファイル（EVAL_FILES）に未コミットの変更がある、
+    事前登録に「まだ凍結していない」の注記が残っている、データ・記録ファイルがそろっていない、利用者のファイルが H1 でない・
+    換算できない、第2段の期限（2027-02-01）を過ぎた、第1段の後に評価に使うファイルが変わったのに --code-fix-reason がない。
+    結果のファイルがすでにある出力フォルダでは走らない（各段で1回だけ）。結果のファイルができる前に失敗したときだけ、
+    --rerun-reason に理由を書いて走らせ直せる（回数と理由をログに残す）。
+  - 第2段は komo135 の3構成を走らせ直し、第1段の取引一覧と比べる。U-D の v1.1 の取引が1件でも違えば判定しない（§7.2）。
+    それ以外の差は逸脱として記録する。
+  - 時刻の判定ができない・最低限の量に届かないときは、戦略を走らせずに「未決」と書く（§3.2。これも結果なので走らせ直さない）。
   - ドライランは開発データだけを使う（komo135 のデータ・利用者のデータは読まない）。--komo-dir・--mt5-dir・--manifest は渡さない。
 """
 import argparse
@@ -125,6 +141,8 @@ CHF_EXIT_FROM = pd.Timestamp('2015-01-15')           #     かつ 決済の足 �
 PREREG = 'fusion/PREREGISTRATION_v1_1.md'
 EVAL_FILES = list(fe.EVAL_FILES) + [PREREG, 'fusion/v11_eval.py']
 REF_TRADES = os.path.join(ROOT, 'fusion', 'results', 'final_eval_trades_main.csv.gz')
+FROZEN_MARK = 'まだ凍結していない'                     # 事前登録の冒頭の注記。凍結するときに消す（残っていれば本番は走らない）
+STAGE2_DEADLINE = pd.Timestamp('2027-02-01')         # §7.2: この日までに第2段を行えなければ「未決」のまま閉じる
 
 PRICE = ['Open', 'High', 'Low', 'Close']
 BASE_COLS = ['symbol', 'entry_time', 'exit_time', 'direction', 'entry', 'initial_sl', 'risk', 'pnl_r', 'exit_reason',
@@ -449,10 +467,19 @@ def read_mt5_raw(path):
     return df
 
 
-def load_mt5(path, sym, clock, clip):
+def bar_step(times):
+    """足の間隔の最頻値（H1 でない書き出しを、何も計算しないうちに見つけるため。fusion.data.infer_tf と同じ考え方）"""
+    t = pd.DatetimeIndex(times).unique().sort_values()
+    if len(t) < 2:
+        return None
+    return pd.Series(t[1:] - t[:-1]).mode().iloc[0]
+
+
+def load_mt5(path, sym, clock, clip, raw=None):
     """利用者の MT5 の足 → NY+7 の仲値（§3.2）: 生の時刻のまま読み、判定した時計で換算してから、換算後の時刻で土日の足を除き、
-    同じ時刻の足は最初のものを使う。s_nom/2 を足し、換算後の clip の範囲（両端の日を含む）だけを使う"""
-    raw = read_mt5_raw(path)
+    同じ時刻の足は最初のものを使う。s_nom/2 を足し、換算後の clip の範囲（両端の日を含む）だけを使う。
+    raw: read_mt5_raw で読み込み済みのもの（同じファイルを2回読まないため）"""
+    raw = read_mt5_raw(path) if raw is None else raw
     df = raw.copy()
     df.index = to_server(raw.index, clock)
     df, rec = _finish_series(df, sym, clip)
@@ -641,6 +668,21 @@ def _merged(intervals):
             out[-1] = (out[-1][0], max(out[-1][1], hi))
         else:
             out.append((lo, hi))
+    return out
+
+
+def contact_missing(prev, cur):
+    """第1段の接触の申告（prev。第1段の結果に書いたもの）のうち、第2段の記録（cur）で覆われていないもの。
+    excluded は第2段でも excluded に、partial は partial か excluded（あとで fusion 系を見たと分かった場合）に入っていればよい。
+    同じ銘柄か "*" の記録の期間の和で覆われていれば、書き方（区切り方）が変わってもよい"""
+    out = []
+    for key, keep in (('excluded', ('excluded',)), ('partial', ('partial', 'excluded'))):
+        have = [e for k in keep for e in cur.get(k, [])]
+        for raw in (prev or {}).get(key) or []:
+            e = parse_period(raw)
+            iv = _merged([(x['lo'], x['hi']) for x in have if x['symbol'] in (e['symbol'], '*')])
+            if not any(lo <= e['lo'] and e['hi'] <= hi for lo, hi in iv):
+                out.append(f"{key}: {e['symbol']} {e['from']}〜{e['to']}")
     return out
 
 
@@ -833,7 +875,12 @@ def _job(job):
     sw = switches(cfg)
     with job_tables(src, sym, cfg):
         trades, funnel = fs.run_h1(h1, sym, sw)
-    return job, to_frame(trades, sym, src), dict(funnel), info, (time.perf_counter() - t0, time.process_time() - c0)
+    df = to_frame(trades, sym, src)
+    info['trades_all'] = int(len(df))
+    keep = (_CTX.get('naive_from') or {}).get(src) if is_naive(cfg) else None
+    if keep is not None:                                    # 素朴ベースラインは判定プールの始まり以降だけ持ち帰る（seq は全体の番号のまま）
+        df = df[df['entry_time'] >= pd.Timestamp(keep)].reset_index(drop=True)
+    return job, df, dict(funnel), info, (time.perf_counter() - t0, time.process_time() - c0)
 
 
 def job_tag(job):
@@ -876,7 +923,8 @@ class Runner:
         for k, (job, df, funnel, info, (sec, csec)) in enumerate(it, 1):
             out[job] = (df, funnel, info)
             self.cpu += csec
-            self.log(f'[{label}{k:>5}/{len(jobs)}] {job_tag(job):<40} {len(df):>6}件 {sec:6.1f}秒'
+            kept = f'（全{info["trades_all"]}件）' if info.get('trades_all', len(df)) != len(df) else ''
+            self.log(f'[{label}{k:>5}/{len(jobs)}] {job_tag(job):<40} {len(df):>6}件{kept} {sec:6.1f}秒'
                      f'（CPU {csec:5.1f}秒）  経過 {time.perf_counter() - t0:6.0f}秒')
         return out
 
@@ -1253,37 +1301,53 @@ def text_rows(df, cols):
     return pd.read_csv(buf, dtype=str, keep_default_na=False)
 
 
-def compare_with_stage1(path, T):
-    """第1段の取引一覧（komo135 の3構成）と、走らせ直した取引が全件一致するか（§7.2）。列は CMP_COLS（プールの印は比べない）"""
+def _same_rows(x, y):
+    """文字列にした取引の表どうしが全件一致するか。違えば最初の食い違い"""
+    x, y = x.reset_index(drop=True), y.reset_index(drop=True)
+    same = len(x) == len(y) and x.equals(y)
+    first = None
+    if not same:
+        for i in range(min(len(x), len(y))):
+            if not x.iloc[i].equals(y.iloc[i]):
+                first = OrderedDict(row=i, stage1=x.iloc[i].to_dict(), stage2=y.iloc[i].to_dict())
+                break
+        if first is None:
+            first = OrderedDict(row=min(len(x), len(y)), note='件数が違う')
+    return OrderedDict(stage1=int(len(x)), stage2=int(len(y)), match=bool(same), first_difference=first)
+
+
+def compare_with_stage1(path, T, spec):
+    """第1段の取引一覧（komo135 の3構成）と、第2段で走らせ直した取引の照合（§7.2）。列は CMP_COLS（プールの印は比べない）。
+    gate: 第1段の U-D の v1.1 の取引一覧が全件一致するか（違えば判定しない）。configs: 3構成の全取引（違いは逸脱として記録する）"""
     a = pd.read_csv(path, dtype=str, keep_default_na=False)
     a = a[a['src'] == 'komo'].reset_index(drop=True)
+    empty = pd.DataFrame(columns=CMP_COLS)
     rows = OrderedDict()
-    ok = True
     for c in CONFIGS:
-        x = a[a['config'] == c][CMP_COLS].reset_index(drop=True)
         d = T.get(c)
-        y = text_rows(ordered(d[d['src'] == 'komo'], c), CMP_COLS) if d is not None else pd.DataFrame(columns=CMP_COLS)
-        same = len(x) == len(y) and x.equals(y)
-        first = None
-        if not same:
-            ok = False
-            for i in range(min(len(x), len(y))):
-                if not x.iloc[i].equals(y.iloc[i]):
-                    first = OrderedDict(row=i, stage1=x.iloc[i].to_dict(), stage2=y.iloc[i].to_dict())
-                    break
-            if first is None:
-                first = OrderedDict(row=min(len(x), len(y)), note='件数が違う')
-        rows[c] = OrderedDict(stage1=int(len(x)), stage2=int(len(y)), match=bool(same), first_difference=first)
-    return OrderedDict(all_match=bool(ok), configs=rows)
+        y = text_rows(ordered(d[d['src'] == 'komo'], c), CMP_COLS) if d is not None else empty
+        rows[c] = _same_rows(a[a['config'] == c][CMP_COLS], y)
+    d = T.get(MAIN)
+    if d is not None:
+        d = assign(d[d['src'] == 'komo'], spec)                # プールの印だけを付け直す（komo135 のプールは記録によらない）
+        y = text_rows(ordered(d[d['pool'] == 'U-D'], MAIN), CMP_COLS)
+    else:
+        y = empty
+    gate = _same_rows(a[(a['config'] == MAIN) & (a['pool'] == 'U-D')][CMP_COLS], y)
+    return OrderedDict(all_match=bool(all(r['match'] for r in rows.values())), gate_ok=gate['match'],
+                       gate=gate, configs=rows)
+
+
+def _git(*a):
+    try:
+        r = subprocess.run(['git', *a], cwd=ROOT, capture_output=True, text=True, timeout=20)
+        return r.stdout.strip() if r.returncode == 0 else None
+    except (OSError, subprocess.SubprocessError):
+        return None
 
 
 def git_state():
-    def git(*a):
-        try:
-            r = subprocess.run(['git', *a], cwd=ROOT, capture_output=True, text=True, timeout=20)
-            return r.stdout.strip() if r.returncode == 0 else None
-        except (OSError, subprocess.SubprocessError):
-            return None
+    git = _git
     changed = git('diff', '--name-only', 'HEAD', '--', 'fusion')
     untracked = git('ls-files', '--others', '--exclude-standard', '--', 'fusion')
     dirty = git('status', '--porcelain', '--untracked-files=all', '--', *EVAL_FILES)
@@ -1312,6 +1376,37 @@ def git_problems(g):
     if g.get('eval_files_untracked'):
         out.append('評価に使うファイルが git に登録されていない: ' + '、'.join(g['eval_files_untracked']))
     return out
+
+
+def prereg_problems(path=None):
+    """本番で止める理由（事前登録がまだ凍結されていない）。凍結するときに冒頭の「まだ凍結していない」の注記を消す約束（§13）"""
+    path = path or os.path.join(ROOT, PREREG)
+    try:
+        with open(path, encoding='utf-8') as f:
+            text = f.read()
+    except OSError as e:
+        return [f'事前登録 {PREREG} が読めない（{e}）']
+    if FROZEN_MARK in text:
+        return [f'事前登録 {PREREG} に「{FROZEN_MARK}」の注記が残っている（凍結し、注記を消してコミットしてから実行する）']
+    return []
+
+
+def deadline_problems(today=None):
+    """第2段の期限（§7.2）。過ぎていれば第2段は行わない（v1.1 は「未決」のまま閉じる）"""
+    d = pd.Timestamp(today if today is not None else pd.Timestamp.now()).normalize()
+    if d > STAGE2_DEADLINE:
+        return [f'第2段の期限 {STAGE2_DEADLINE.date()} を過ぎている（今日 {d.date()}）。v1.1 は「未決」のまま閉じる（§7.2）']
+    return []
+
+
+def code_changes_since(commit):
+    """第1段を走らせたコミットから HEAD までに変わった、評価に使うファイル（git で確かめられなければ None）"""
+    if not commit:
+        return None
+    out = _git('diff', '--name-only', commit, 'HEAD', '--', *EVAL_FILES)
+    if out is None:
+        return None
+    return [ln for ln in out.split('\n') if ln.strip()]
 
 
 class RunLog:
@@ -1359,6 +1454,8 @@ def shown_path(p, out_dir):
     if p is None:
         return None
     ap, ao = os.path.abspath(p), os.path.abspath(out_dir)
+    if ap == ao:
+        return '.'
     return './' + os.path.relpath(ap, ao).replace(os.sep, '/') if ap.startswith(ao + os.sep) else ap
 
 
@@ -1472,7 +1569,7 @@ def run_stage1(komo_dir=None, out_dir=None, manifest=None, workers=4, dry_run=Fa
     if not infos:
         problems.append('komo135 のファイルが1つもない')
     if not dry and require_clean_git:
-        problems += git_problems(gstate)
+        problems += git_problems(gstate) + prereg_problems()
     ref, ref_info = None, None
     if ref_path and os.path.exists(ref_path):
         ref, ref_info = load_ref_trades(ref_path, spec['ref_config'], spec['ref_pool'])
@@ -1566,35 +1663,99 @@ def load_stage1(stage1_dir, dry):
     problems = []
     p = os.path.join(stage1_dir, 'stage1_results.json')
     if not os.path.exists(p):
-        return None, None, [f'第1段の結果 {p} がない']
+        return None, None, [f'第1段の結果 {p} がない（第1段と同じ --out を渡すか、--stage1-dir で第1段の出力フォルダを指す）']
     with open(p, encoding='utf-8') as f:
         js = json.load(f)
-    if js.get('meta', {}).get('stage') != 1:
+    meta = js.get('meta') or {}
+    tfile = js.get('trades_file') or {}
+    if meta.get('stage') != 1:
         problems.append(f'{p} は第1段の結果ではない')
-    if bool(js.get('meta', {}).get('dry_run')) != bool(dry):
+    if bool(meta.get('dry_run')) != bool(dry):
         problems.append('第1段と第2段で、ドライランと本番が混ざっている')
-    tf = os.path.join(stage1_dir, js.get('trades_file', {}).get('file', 'stage1_trades.csv.gz'))
+    tf = os.path.join(stage1_dir, tfile.get('file', 'stage1_trades.csv.gz'))
     if not os.path.exists(tf):
         problems.append(f'第1段の取引一覧 {tf} がない')
-    elif sha256_of(tf) != js['trades_file']['sha256']:
+    elif sha256_of(tf) != tfile.get('sha256'):
         problems.append(f'第1段の取引一覧 {tf} の SHA-256 が、第1段の結果に書いた値と違う')
-    if js.get('stop', {}).get('stop') and not dry:
+    if (js.get('stop') or {}).get('stop') and not dry:
         problems.append('第1段で打ち切り（不合格）になっている。第2段は行わない（§7）')
     return js, tf, problems
 
 
+def stage1_link(st1, contact, gstate, code_fix_reason):
+    """第1段との約束（§2・§7.2）: 第1段の接触の申告が第2段の記録で覆われているか、評価に使うファイルが第1段のコミットから
+    変わったか。戻り値 (記録, 接触の申告の問題, コードの問題)。止めるかどうかは呼び出し側（本番だけ止める）"""
+    m1 = (st1 or {}).get('meta') or {}
+    c1 = (m1.get('git') or {}).get('commit')
+    head = gstate.get('commit')
+    missing = contact_missing(m1.get('contact') or {}, contact)
+    changed = [] if c1 and c1 == head else code_changes_since(c1)
+    rec = OrderedDict(stage1_commit=c1, head=head, same_commit=bool(c1 and c1 == head), eval_files_changed=changed,
+                      code_fix_reason=code_fix_reason or None, stage1_asked_on=(m1.get('contact') or {}).get('asked_on'),
+                      contact_missing=missing)
+    cp = (['第1段の接触の申告が第2段の記録（contact）で覆われていない（第1段の記録を残して書き足す）: ' + '、'.join(missing)]
+          if missing else [])
+    gp = []
+    if changed is None:
+        gp.append('第1段のコミットとの差分が git で取れない（§7.2：第1段と同じコードで走らせる）')
+    elif changed and not code_fix_reason:
+        gp.append('評価に使うファイルが第1段のコミットから変わっている: ' + '、'.join(changed) + '。第1段と同じコードで走らせる'
+                  '（§7.2）。結果のファイルができる前の技術的な失敗を直したときだけ、--code-fix-reason に理由を書く')
+    return rec, cp, gp
+
+
+def prepare_mt5(mt5_files, spec, contact, problems, log):
+    """§3.2 の読み込み（実行前に行う。戦略は走らせない）: 生の時刻のまま読み、H1 か確かめ、FX の銘柄の生の時刻で時計を判定し、
+    換算してから土日・重複を除いて期間で切り、エントリーを数える期間と最低限の量を求める。読めない・H1 でない・換算で例外が
+    出たファイルは problems に足す（何も計算しないうちに止めるため）。戻り値 (時計の判定, 換算, 足の記録, 期間と量)"""
+    raw = OrderedDict()
+    for s, p in mt5_files.items():
+        try:
+            r = read_mt5_raw(p)
+        except Exception as e:
+            problems.append(f'{p}: 読み込みに失敗（{type(e).__name__}: {e}）')
+            continue
+        step = bar_step(r.index)
+        if step != HOUR:
+            problems.append(f'{p}: 足の間隔の最頻値が {step}（H1 の書き出しでない）')
+            continue
+        raw[s] = r
+    clock = detect_clock(OrderedDict((s, r.index) for s, r in raw.items() if s in FX))     # XAUUSD にも同じ換算を使う
+    log(f"[v11_eval] 時刻の判定: {clock['label']}（判定に使った銘柄×週 {clock['weeks_used']}、①{_pct(clock['frac_ny7'])}・"
+        f"②{_pct(clock['frac_athens'])}・③ {clock['const_hours']}時間 {_pct(clock['frac_const'])}）")
+    if clock['kind'] is None:
+        return clock, None, OrderedDict(), None
+    conv = {'kind': clock['kind'], 'hours': clock['hours'] or 0}
+    infos = OrderedDict()
+    for s, r in raw.items():
+        try:
+            _, info = load_mt5(mt5_files[s], s, conv, spec['mt5_clip'], raw=r)
+        except Exception as e:                                 # 換算の重なり・抜け（起きないはず）など
+            problems.append(f'{mt5_files[s]}: 換算に失敗（{type(e).__name__}: {e}）')
+            continue
+        infos[s] = info
+        log(f"[v11_eval] MT5 {s}: {info['file']} {info['rows']}行 → {info['bars']}本 {info['first']}〜{info['last']}"
+            f"（NY+7）SHA-256 {info['sha256'][:12]}…")
+    ue = ue_windows(infos, spec, contact)
+    log(f"[v11_eval] 最低限の量: 使える銘柄 {ue['symbols']}（{ue['min_symbols']}以上）、U-E {ue['symbol_years']:.1f}銘柄年"
+        f"（{ue['min_symyears']:g}以上）→ {'満たす' if ue['ok'] else '満たさない'}")
+    return clock, conv, infos, ue
+
+
 def run_stage2(komo_dir=None, mt5_dir=None, manifest=None, out_dir=None, stage1_dir=None, workers=4, dry_run=False,
                dev_dir=None, log=print, spec=None, require_clean_git=True, naive_p=NAIVE_P, naive_seeds=NAIVE_SEEDS,
-               rerun_reason=None):
+               rerun_reason=None, code_fix_reason=None, today=None):
     """第2段（§7）: komo135（U-D）と利用者の MT5（U-E）で全構成と素朴ベースラインを1回だけ走らせ、判定プール U-D＋U-E で
-    P1〜P6 を判定する。時刻の判定ができない・最低限の量に届かないときは、何も走らせずに「未決」と書く。
-    spec・naive_p・naive_seeds・require_clean_git の差し替えはテスト専用（CLI からは変えられない）"""
+    P1〜P6 を判定する。第1段の出力は stage1_dir（既定は out_dir）から読む。時刻の判定ができない・最低限の量に届かないときは、
+    戦略を走らせずに「未決」と書く。spec・naive_p・naive_seeds・require_clean_git・today の差し替えはテスト専用（CLI からは変えられない）"""
     t_start = time.perf_counter()
     spec = spec or make_spec(dry_run)
     dry = bool(spec['dry_run'])
     L = RunLog(log)
     _start(spec, dry, L, 2, out_dir)
     problems = []
+    st1_given = stage1_dir is not None
+    stage1_dir = stage1_dir if st1_given else out_dir
     if dry:
         if komo_dir or mt5_dir or manifest:
             raise SystemExit('[v11_eval] ドライランは開発データだけを使う（--komo-dir・--mt5-dir・--manifest は渡さない）')
@@ -1606,22 +1767,26 @@ def run_stage2(komo_dir=None, mt5_dir=None, manifest=None, out_dir=None, stage1_
     else:
         if not (komo_dir and mt5_dir and manifest):
             raise SystemExit('[v11_eval] --komo-dir・--mt5-dir・--manifest が要る')
-        if not stage1_dir:
-            raise SystemExit('[v11_eval] 本番の第2段には --stage1-dir（第1段の出力フォルダ）が要る（§7.2 の確認のため）')
         ref_path = spec['ref_trades']
     man = load_manifest(manifest)
     contact, cp = parse_contact(man, required=not dry)
     broker, smap, mp_ = parse_stage2_manifest(man, required=not dry)
     problems += cp + mp_
     gstate = git_state()
-    st1, st1_trades = None, None
-    if stage1_dir:
-        st1, st1_trades, sp = load_stage1(stage1_dir, dry)
+    st1, st1_trades, link = None, None, None
+    if not dry or st1_given or os.path.exists(os.path.join(stage1_dir, 'stage1_results.json')):
+        st1, st1_trades, sp = load_stage1(stage1_dir, dry)       # ドライランは第1段がなくても通す（照合を省く）
         problems += sp
+    if st1 is not None:
+        link, link_cp, link_gp = stage1_link(st1, contact, gstate, code_fix_reason)
+        if not dry:
+            problems += link_cp + (link_gp if require_clean_git else [])
     files, infos, missing = _load_komo_all(komo_dir, spec, dry, problems, L)
+    if not infos:
+        problems.append('komo135 のファイルが1つもない')
     if st1 is not None:
         for s, info in infos.items():
-            want = st1.get('meta', {}).get('komo', {}).get(s, {}).get('sha256')
+            want = ((st1.get('meta') or {}).get('komo') or {}).get(s, {}).get('sha256')
             if want != info['sha256']:
                 problems.append(f'komo135 の {s} のファイルが第1段と違う（SHA-256）')
     mt5_files = OrderedDict()
@@ -1633,90 +1798,83 @@ def run_stage2(komo_dir=None, mt5_dir=None, manifest=None, out_dir=None, stage1_
             mt5_files[s] = p
         else:
             problems.append(f'対応表にある {s}（{smap[s]["broker_symbol"]}）のファイル {p} がない')
-    if not dry and require_clean_git:
-        problems += git_problems(gstate)
+    run_date = None
+    if not dry:
+        run_date = str(pd.Timestamp(today if today is not None else pd.Timestamp.now()).date())
+        problems += deadline_problems(today)
+        if require_clean_git:
+            problems += git_problems(gstate) + prereg_problems()
     ref, ref_info = None, None
     if ref_path and os.path.exists(ref_path):
         ref, ref_info = load_ref_trades(ref_path, spec['ref_config'], spec['ref_pool'])
     elif not dry:
         problems.append(f'データ源の照合に使う v1.0 の取引一覧 {ref_path} がない')
-    raw_times = OrderedDict()
-    for s, p in mt5_files.items():
-        try:
-            raw_times[s] = read_mt5_raw(p).index
-        except Exception as e:
-            problems.append(f'{p}: 読み込みに失敗（{type(e).__name__}: {e}）')
+    clock, conv, mt5_infos, ue = prepare_mt5(mt5_files, spec, contact, problems, L)
     if problems:
         raise SystemExit('[v11_eval] 実行前の確認で止めた（何も計算していない）:\n  - ' + '\n  - '.join(problems))
     L.open(os.path.join(out_dir, 'stage2_run.log'), dry, rerun_reason)
     try:
-        return _stage2_body(spec, dry, komo_dir, mt5_dir, files, infos, missing, mt5_files, raw_times, contact, broker,
-                            smap, gstate, st1, st1_trades, stage1_dir, ref, ref_info, out_dir, workers, L, t_start,
-                            dev_dir, require_clean_git, list(naive_p), list(naive_seeds))
+        return _stage2_body(spec, dry, komo_dir, mt5_dir, files, infos, missing, mt5_files, clock, conv, mt5_infos, ue,
+                            contact, broker, smap, gstate, st1, st1_trades, stage1_dir, link, ref, ref_info, out_dir,
+                            workers, L, t_start, dev_dir, require_clean_git, list(naive_p), list(naive_seeds), run_date)
     finally:
         L.close()
 
 
-def _stage2_body(spec, dry, komo_dir, mt5_dir, files, infos, missing, mt5_files, raw_times, contact, broker, smap,
-                 gstate, st1, st1_trades, stage1_dir, ref, ref_info, out_dir, workers, L, t_start, dev_dir,
-                 require_clean_git, naive_p, naive_seeds):
+NAIVE_KEPT = ('素朴ベースラインの取引一覧は、komo135 の系列は U-D の開始以降、利用者の系列は U-E の開始以降にエントリーした'
+              '取引だけ（P4 と p の選び方は判定プールだけを使う。系列は先頭から走らせる）')
+
+
+def _stage2_body(spec, dry, komo_dir, mt5_dir, files, infos, missing, mt5_files, clock, conv, mt5_infos, ue, contact,
+                 broker, smap, gstate, st1, st1_trades, stage1_dir, link, ref, ref_info, out_dir, workers, L, t_start,
+                 dev_dir, require_clean_git, naive_p, naive_seeds, run_date):
     meta = _meta_common(spec, gstate, contact, komo_dir, infos, missing, out_dir, 2, dev_dir)
     meta['git_checked'] = bool(not dry and require_clean_git)
     meta.update(mt5_dir=shown_path(mt5_dir, out_dir), broker=broker, symbol_map=smap,
-                stage1_dir=shown_path(stage1_dir, out_dir) if stage1_dir else None,
+                stage1_dir=shown_path(stage1_dir, out_dir) if st1 is not None else None,
                 naive_grid=naive_p, naive_seeds=naive_seeds,
-                prereg_naive=(naive_p == NAIVE_P and naive_seeds == NAIVE_SEEDS),
+                prereg_naive=(naive_p == NAIVE_P and naive_seeds == NAIVE_SEEDS), naive_kept=NAIVE_KEPT,
                 seeds=OrderedDict(month_block=12345, reps=10000,
-                                  naive='numpy.random.default_rng(seed*1000+番号)。komo135 は 0〜11、利用者の系列は 100〜111'))
+                                  naive='numpy.random.default_rng(seed*1000+番号)。komo135 は 0〜11、利用者の系列は 100〜111'),
+                run_date=run_date, deadline=str(STAGE2_DEADLINE.date()), clock=clock, mt5=mt5_infos, ue_windows=ue,
+                stage1_link=link)
     if st1 is not None:
-        g1 = st1.get('meta', {}).get('git', {})
-        meta['stage1'] = OrderedDict(commit=g1.get('commit'), same_commit=g1.get('commit') == gstate.get('commit'),
-                                     verdict=st1.get('stop', {}).get('verdict'), trades_file=st1.get('trades_file'),
-                                     truncation=st1.get('truncation'))
-    # 時刻の判定（FX の銘柄の生の時刻。XAUUSD にも同じ換算を使う）
-    clock = detect_clock(OrderedDict((s, t) for s, t in raw_times.items() if s in FX))
-    meta['clock'] = clock
-    L(f"[v11_eval] 時刻の判定: {clock['label']}（判定に使った銘柄×週 {clock['weeks_used']}、①{_pct(clock['frac_ny7'])}・"
-      f"②{_pct(clock['frac_athens'])}・③ {clock['const_hours']}時間 {_pct(clock['frac_const'])}）")
+        m1 = st1.get('meta') or {}
+        meta['stage1'] = OrderedDict(commit=(m1.get('git') or {}).get('commit'),
+                                     same_commit=bool(link and link['same_commit']),
+                                     verdict=(st1.get('stop') or {}).get('verdict'), trades_file=st1.get('trades_file'),
+                                     truncation=st1.get('truncation'), contact=m1.get('contact'))
     if clock['kind'] is None:
         return _undecided(meta, out_dir, L, f"時刻の判定ができない（{clock.get('reason', '')}）。U-E は未決（§3.2）")
-    conv = {'kind': clock['kind'], 'hours': clock['hours'] or 0}
-    mt5_infos = OrderedDict()
-    for s, p in mt5_files.items():
-        _, info = load_mt5(p, s, conv, spec['mt5_clip'])
-        mt5_infos[s] = info
-        L(f"[v11_eval] MT5 {s}: {info['file']} {info['rows']}行 → {info['bars']}本 {info['first']}〜{info['last']}"
-          f"（NY+7）SHA-256 {info['sha256'][:12]}…")
-    meta['mt5'] = mt5_infos
-    ue = ue_windows(mt5_infos, spec, contact)
-    meta['ue_windows'] = ue
-    L(f"[v11_eval] 最低限の量: 使える銘柄 {ue['symbols']}（8以上）、U-E {ue['symbol_years']:.1f}銘柄年（30以上）"
-      f"→ {'満たす' if ue['ok'] else '満たさない'}" + ('（ドライランなので続ける）' if dry and not ue['ok'] else ''))
-    if not ue['ok'] and not dry:
-        return _undecided(meta, out_dir, L, '最低限の量（使える銘柄8以上、U-E 30銘柄年以上）に届かない。第2段は行わず未決（§3.2）')
+    if not ue['ok']:
+        if not dry:
+            return _undecided(meta, out_dir, L, '最低限の量（使える銘柄8以上、U-E 30銘柄年以上）に届かない。'
+                                                '第2段は行わず未決（§3.2）')
+        L('[v11_eval] 最低限の量に届かないが、ドライランなので続ける')
     usable = ue['usable']
     ctx = dict(komo=dict(files), komo_clip=spec['komo_clip'], mt5=OrderedDict((s, mt5_files[s]) for s in usable),
-               mt5_clip=spec['mt5_clip'], clock=conv)
+               mt5_clip=spec['mt5_clip'], clock=conv,
+               naive_from=OrderedDict(komo=day_range(*spec['ud'])[0], mt5=day_range(*spec['ue'])[0]))
     syms = [s for s in spec['symbols'] if s in infos]
     naive_cfgs = [naive_name(p, s) for p in naive_p for s in naive_seeds]
     jobs_a = [('komo', s, c, None) for s in syms for c in CONFIGS]
-    jobs_b = ([('mt5', s, c, None) for s in usable for c in CONFIGS]
-              + [('komo', s, c, None) for c in naive_cfgs for s in syms]
+    jobs_b = ([('komo', s, c, None) for c in naive_cfgs for s in syms]           # 重い（長い系列の）仕事から先に
+              + [('mt5', s, c, None) for s in usable for c in CONFIGS]
               + [('mt5', s, c, None) for c in naive_cfgs for s in usable])
     L(f'[v11_eval] 実行: komo135 {len(syms)}銘柄・利用者 {len(usable)}銘柄 × 構成3つ＋素朴ベースライン'
       f'（{len(naive_p)}×{len(naive_seeds)}）= {len(jobs_a) + len(jobs_b)}件、{workers}並列')
     with Runner(ctx, workers, L) as rn:
         out = rn.run(jobs_a, 'A')
         check_infos(out, infos, 'komo')
-        T_a = gather(out, CONFIGS, ('komo',))
         consistency = None
         if st1_trades is not None:
-            consistency = compare_with_stage1(st1_trades, T_a)
-            L('[v11_eval] 第1段の取引一覧との照合（komo135 の3構成）: '
-              + ('全件一致' if consistency['all_match'] else '一致しない'))
-            if not consistency['all_match'] and not dry:
+            consistency = compare_with_stage1(st1_trades, gather(out, CONFIGS, ('komo',)), spec)
+            L('[v11_eval] 第1段の取引一覧との照合: U-D の v1.1 の取引 '
+              + ('全件一致' if consistency['gate_ok'] else '**一致しない**') + '、komo135 の3構成の全取引 '
+              + ('全件一致' if consistency['all_match'] else '一致しない（逸脱として記録する）'))
+            if not consistency['gate_ok'] and not dry:
                 _write_json(os.path.join(out_dir, 'stage2_stage1_mismatch.json'), consistency)
-                raise SystemExit('[v11_eval] 走らせ直した komo135 の取引が第1段の取引一覧と一致しない（§7.2）。'
+                raise SystemExit('[v11_eval] 走らせ直した U-D の v1.1 の取引が第1段の取引一覧と一致しない（§7.2）。'
                                  '判定はしない（stage2_stage1_mismatch.json に最初の食い違い）')
         out.update(rn.run(jobs_b, 'B'))
         cpu = rn.cpu
@@ -1726,6 +1884,7 @@ def _stage2_body(spec, dry, komo_dir, mt5_dir, files, infos, missing, mt5_files,
     meta['stage1_consistency'] = consistency
     T = OrderedDict((c, chrono(assign(d, spec, contact, ue['start']))) for c, d in gather(out, CONFIGS).items())
     N = OrderedDict((c, chrono(assign(d, spec, contact, ue['start']))) for c, d in gather(out, naive_cfgs).items())
+    del out
     src = source_check(T[REF], ref, spec, syms) if ref is not None else None
     if src is not None:
         src['reference'] = ref_info
@@ -1899,7 +2058,8 @@ def _git_lines(m):
     dirty = g.get('eval_files_dirty') or []
     L = [f"- 実行したコミット：`{g.get('commit')}`（事前登録を最後に変えたコミット：`{g.get('prereg_commit')}`）"]
     if m.get('git_checked'):
-        L.append('- 評価に使うファイル（' + '、'.join(f'`{x}`' for x in g['eval_files']) + '）がコミット済みであることを確かめてから実行した')
+        L.append('- 評価に使うファイル（' + '、'.join(f'`{x}`' for x in g['eval_files']) + '）がコミット済みであること、'
+                 '事前登録に「' + FROZEN_MARK + '」の注記がない（凍結した）ことを確かめてから実行した')
     else:
         L.append('- git の確認：' + ('ドライランなので省いた' if m['dry_run'] else '**省いた（テスト用の設定）**')
                  + ('。未コミットの変更：' + '、'.join(dirty) if dirty else '')
@@ -2052,12 +2212,41 @@ def _mt5_lines(m):
     return L
 
 
+def _stage1_lines(m):
+    """第1段との約束（§2・§7.2）: 判定・コード・接触の申告・取引一覧の照合"""
+    s1, k, sc = m.get('stage1'), m.get('stage1_link') or {}, m.get('stage1_consistency')
+    if not s1:
+        return ['- 第1段の出力と照合していない（第1段の出力がない。ドライランだけ許す）']
+    ch = k.get('eval_files_changed')
+    if k.get('same_commit'):
+        code = '同じコミット'
+    elif ch == []:
+        code = '評価に使うファイルは第1段のコミットから変わっていない'
+    elif ch:
+        code = ('**評価に使うファイルが第1段から変わった：' + '、'.join(ch) + f"。理由：{k.get('code_fix_reason') or '（なし）'}"
+                '（§7.2 の技術的な修正。逸脱として記録する）**')
+    else:
+        code = '**第1段のコミットとの差分を git で確かめられなかった**'
+    L = [f"- 第1段：{s1.get('verdict')}。第1段のコミット `{s1.get('commit')}`（{code}）"]
+    miss = k.get('contact_missing') or []
+    L.append('- 接触の申告：第1段の記録（' + (k.get('stage1_asked_on') or '—') + '）は第2段の記録に'
+             + ('すべて含まれている' if not miss else '**含まれていないものがある：' + '、'.join(miss) + '**'))
+    if sc:
+        bad = [c for c, x in sc['configs'].items() if not x['match']]
+        L.append(f"- 走らせ直した komo135 の取引と第1段の取引一覧：U-D の v1.1 の取引 {sc['gate']['stage2']}件が"
+                 + ('全件一致（§7.2 の関門）' if sc['gate_ok'] else '**一致しない**')
+                 + '、3構成の全取引は' + ('全件一致' if not bad else '**一致しない構成がある：' + '、'.join(bad)
+                                         + '（逸脱として記録する）**'))
+    return L
+
+
 def render_undecided(r):
     m, v = r['meta'], r['verdict']
     L = [('# 【ドライラン：数値は無意味】' if m['dry_run'] else '# ') + 'FUSION-CORE v1.1 第2段 報告書（下書き）', '']
     L += _dry_banner(m)
     L += ['## 結論', '', f"- **判定：未決**（{v['reason']}）", '- 戦略は走らせていない。「未決」は「検証していない」という意味で、'
-          '優位性があるという意味ではない（§7）。'] + _git_lines(m) + ['', '## 利用者のデータ（§3.2）', ''] + _mt5_lines(m)
+          '優位性があるという意味ではない（§7）。'] + _git_lines(m) + _stage1_lines(m)
+    L += ['', '## 利用者のデータ（§3.2）', ''] + _mt5_lines(m)
     L += _contact_lines(m['contact'])
     return '\n'.join(L) + '\n'
 
@@ -2075,16 +2264,10 @@ def render_stage2(r):
           f"GAP_FALLBACK（FX 11銘柄）が年1件超＝{'あり' if w['gap_fallback']['fire'] else 'なし'}"
           f"（{w['gap_fallback']['fx_count']}件／{_n(w['gap_fallback']['years'], '{:.2f}')}年）、"
           f"EURUSD の10か月あたり回数が15回未満＝{'あり' if w['eurusd_10m']['fire'] else 'なし'}"
-          f"（{_n(w['eurusd_10m']['mean'], '{:.1f}')}回）"] + _git_lines(m)
+          f"（{_n(w['eurusd_10m']['mean'], '{:.1f}')}回）"] + _git_lines(m) + _stage1_lines(m)
+    if m.get('run_date'):
+        L.append(f"- 実行した日：{m['run_date']}（第2段の期限 {m['deadline']} より前）")
     s1 = m.get('stage1')
-    sc = m.get('stage1_consistency')
-    if s1:
-        L.append(f"- 第1段：{s1.get('verdict')}。第1段のコミット `{s1.get('commit')}`（"
-                 + ('同じ' if s1.get('same_commit') else '**違う（§7.2 の技術的な修正。逸脱として記録する）**') + '）。'
-                 + ('走らせ直した komo135 の取引は第1段の取引一覧と' + ('全件一致' if sc and sc['all_match'] else '**一致しない**')
-                    if sc else ''))
-    else:
-        L.append('- 第1段の出力と照合していない（--stage1-dir なし。ドライランだけ許す）')
     p1, p2, p3, p4, p5, p6 = (v[k] for k in PS)
     L += ['', _table(['#', '基準', '値', '判定'], [
         ['P1', '判定プールの平均R＞0、t≥2.0、月ブロック95%区間の下限＞0',
@@ -2180,7 +2363,7 @@ def render_stage2(r):
     tf, nf = r['trades_file'], r['naive_trades_file']
     L += ['## 付録：出力と定義', '',
           f"- 取引一覧：`{tf['file']}`（{tf['rows']}行、SHA-256 `{tf['sha256']}`）、素朴ベースライン `{nf['file']}`"
-          f"（{nf['rows']}行、SHA-256 `{nf['sha256']}`）",
+          f"（{nf['rows']}行、SHA-256 `{nf['sha256']}`）。" + m.get('naive_kept', ''),
           '- R は fusion/broker.py の pnl_r（スプレッド込み、初期リスク＝1R）。t＝平均÷(標準偏差÷√n)、標準偏差は ddof=1。',
           '- プールの区間は「開始日0時」以上「終了日の翌日0時」未満（エントリー時刻＝約定した足の開始時刻、換算後の NY+7）。'
           '中点ちょうどのエントリーは後半に入れる。U-E は銘柄ごとにエントリーを数え始める時刻がある（§3.2）。',
@@ -2201,13 +2384,16 @@ def main(argv=None):
     sub = ap.add_subparsers(dest='stage', required=True)
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument('--komo-dir', help='komo135 の1時間足（<銘柄>h1.csv が並んだフォルダか、<銘柄>/<銘柄>h1.csv の形）')
-    common.add_argument('--manifest', help='§2・§3.2 の記録（JSON。形式は下）。本番では必須')
-    common.add_argument('--out', required=True, help='出力フォルダ（結果のファイルがすでにあると本番は走らない）')
+    common.add_argument('--manifest', help='§2・§3.2 の記録（JSON。形式は下）。本番では第1段・第2段とも必須'
+                                           '（第1段は contact だけを使う）')
+    common.add_argument('--out', required=True, help='出力フォルダ。第1段と第2段で同じフォルダを使う'
+                                                     '（その段の結果のファイルがすでにあると本番は走らない）')
     common.add_argument('--workers', type=int, default=4, help='並列の数（既定4）')
     common.add_argument('--dry-run', action='store_true',
-                        help='開発データの中に作った仮のプールで通り道だけを確かめる（数値は無意味）。--dev-dir が要る')
-    common.add_argument('--dev-dir', help='ドライランの開発データ（<銘柄>_H1.csv。2013〜2017）')
-    common.add_argument('--rerun-reason', help='結果のファイルができる前に失敗した実行を走らせ直す理由（ログに残す）')
+                        help='開発データの中に作った仮のプールで通り道だけを確かめる（数値は無意味）')
+    common.add_argument('--dev-dir', default=os.environ.get('FUSION_DATA_DIR'),
+                        help='ドライランの開発データ（<銘柄>_H1.csv。2013〜2017）。既定は環境変数 FUSION_DATA_DIR')
+    common.add_argument('--rerun-reason', help='結果のファイルができる前に失敗した実行を走らせ直す理由（ログに残す。§13）')
     sub.add_parser('stage1', parents=[common], formatter_class=argparse.RawDescriptionHelpFormatter, epilog=MANIFEST_HELP,
                    help='第1段: komo135 で v1.1・fusion・1.5倍を走らせ、打ち切りを判定する',
                    description='第1段（§7）: U-D・U-X の取引数・平均R・標準誤差、打ち切りの判定、データ源の照合、切断テスト')
@@ -2215,15 +2401,18 @@ def main(argv=None):
                         epilog=MANIFEST_HELP, help='第2段: 利用者の MT5 を加えて P1〜P6 を判定する',
                         description='第2段（§7）: 判定プール U-D＋U-E で P1〜P6・警告・参考項目')
     p2.add_argument('--mt5-dir', help='利用者の MT5 の書き出し（<12銘柄の名前>_H1.csv）')
-    p2.add_argument('--stage1-dir', help='第1段の出力フォルダ（本番では必須）')
+    p2.add_argument('--stage1-dir', help='第1段の出力フォルダ（既定は --out。第1段と別のフォルダに出すときだけ指す）')
+    p2.add_argument('--code-fix-reason', help='第1段の後に評価に使うファイルを直した理由（§7.2：結果のファイルができる前の'
+                                              '技術的な失敗だけ。逸脱として記録する）')
     a = ap.parse_args(argv)
     log = lambda s: print(s, flush=True)                      # noqa: E731
+    dev_dir = a.dev_dir if a.dry_run else None                # 本番では開発データを使わない
     if a.stage == 'stage1':
-        run_stage1(komo_dir=a.komo_dir, out_dir=a.out, manifest=a.manifest, workers=a.workers, dry_run=a.dry_run,
-                   dev_dir=a.dev_dir, log=log, rerun_reason=a.rerun_reason)
-    else:
-        run_stage2(komo_dir=a.komo_dir, mt5_dir=a.mt5_dir, manifest=a.manifest, out_dir=a.out, stage1_dir=a.stage1_dir,
-                   workers=a.workers, dry_run=a.dry_run, dev_dir=a.dev_dir, log=log, rerun_reason=a.rerun_reason)
+        return run_stage1(komo_dir=a.komo_dir, out_dir=a.out, manifest=a.manifest, workers=a.workers, dry_run=a.dry_run,
+                          dev_dir=dev_dir, log=log, rerun_reason=a.rerun_reason)
+    return run_stage2(komo_dir=a.komo_dir, mt5_dir=a.mt5_dir, manifest=a.manifest, out_dir=a.out, stage1_dir=a.stage1_dir,
+                      workers=a.workers, dry_run=a.dry_run, dev_dir=dev_dir, log=log, rerun_reason=a.rerun_reason,
+                      code_fix_reason=a.code_fix_reason)
 
 
 if __name__ == '__main__':

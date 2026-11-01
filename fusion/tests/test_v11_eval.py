@@ -354,6 +354,24 @@ class TestRunner(unittest.TestCase):
         self.assertFalse(a[('mt5', 'EURUSD', v.naive_name(0.05, 1), None)][0]['entry_time'].tolist()
                          == a[('komo', 'EURUSD', v.naive_name(0.05, 1), None)][0]['entry_time'].tolist())
 
+    def test_naive_kept_from_pool_start(self):
+        """素朴ベースラインは系列の先頭から走らせ、判定プールの始まり以降のエントリーだけを持ち帰る（ほかの構成は絞らない）"""
+        nv = ('komo', 'EURUSD', v.naive_name(0.05, 1), None)
+        nv_mt5 = ('mt5', 'EURUSD', v.naive_name(0.05, 1), None)
+        main = ('komo', 'EURUSD', v.MAIN, None)
+        full = self.run_jobs([nv, nv_mt5, main])
+        ctx = dict(self.ctx, naive_from={'komo': pd.Timestamp('2016-04-01'), 'mt5': pd.Timestamp('2016-05-02')})
+        with v.Runner(ctx, 1, lambda s: None) as rn:
+            out = rn.run([nv, nv_mt5, main])
+        for job, at in ((nv, '2016-04-01'), (nv_mt5, '2016-05-02')):
+            a, b = out[job][0], full[job][0]
+            self.assertTrue(a.equals(b[b['entry_time'] >= pd.Timestamp(at)].reset_index(drop=True)), job)
+            self.assertGreater(len(b), len(a), job)                 # 前の部分は捨てた（乱数の列は先頭からのまま）
+            self.assertGreater(len(a), 0, job)
+            self.assertEqual(out[job][2]['trades_all'], len(b))
+        self.assertTrue(out[main][0].equals(full[main][0]))
+        self.assertLess(out[main][0]['entry_time'].min(), pd.Timestamp('2016-04-01'))
+
     def test_spread_alignment_is_not_scaled(self):
         """仲値にそろえる s_nom/2 は1.5倍にしない（1.5倍の仕事の中で系列を初めて読んでも同じ足）"""
         with v.tables_installed():
@@ -507,6 +525,26 @@ class TestKomoTimesOnly(unittest.TestCase):
         self.assertEqual(ck['kind'], 'athens')
         self.assertLess(ck['frac_ny7'], 0.95)
 
+    def test_time_preconditions_of_all_files(self):
+        """本番の実行前の確認のうち時刻に関わるもの（行数・最終の足・換算で例外にならない・U-X の銘柄の3か月のウォームアップ）を、
+        各銘柄の時刻の列だけで確かめる（本番が時刻の理由で止まらないこと）"""
+        spec = v.make_spec()
+        seen = []
+        for s in v.SYMBOLS:
+            p = os.path.join(KOMO_DIR, f'{s}h1.csv')
+            if not os.path.exists(p):
+                continue
+            with self.subTest(symbol=s):
+                t = pd.DatetimeIndex(pd.to_datetime(pd.read_csv(p, usecols=['Date'])['Date'], format='ISO8601'))
+                self.assertEqual((len(t), t.max()), (spec['komo_rows'], pd.Timestamp(spec['komo_last'])))
+                srv = v.athens_to_server(t)                         # 夏時間の重なり・抜けに当たる足がない
+                self.assertTrue(srv.is_monotonic_increasing and not srv.has_duplicates)
+                self.assertLessEqual(int((srv.dayofweek >= 5).sum()), 2)   # 換算後に土日に入る足は、あっても数本（除く）
+                if s in v.NEW:
+                    self.assertLessEqual(srv.min(), pd.Timestamp(spec['ux_first_by']))
+                seen.append(s)
+        self.assertIn('EURUSD', seen)
+
 
 # ---------------------------------------------------------------- 利用者の MT5 の時刻の判定と換算（§3.2）
 CLOCKS = OrderedDict([('ny7', {'kind': 'ny7', 'hours': 0}), ('athens', {'kind': 'athens', 'hours': 0}),
@@ -591,6 +629,33 @@ class TestMt5Clock(unittest.TestCase):
         for r in rows:                                              # o_w は（最後の足＋1時間）−（金曜17:00 NY の UTC）
             if not r['holiday'] and r['bars'] >= 100:
                 self.assertEqual(r['o_w'], r['ny7'])                # NY+7 の時刻なら①と一致
+
+    def test_h1_only_and_prepare(self):
+        """H1 でない書き出しは、何も計算しないうちに止める理由にする。H1 なら判定・換算・期間と量まで実行前に済ませる"""
+        self.assertEqual(v.bar_step(self.h['EURUSD'].index), pd.Timedelta(hours=1))
+        self.assertIsNone(v.bar_step(self.h['EURUSD'].index[:1]))
+        m15 = dev_h1('EURUSD', '2016-01-04', '2016-03-01').resample('15min').ffill()
+        m15 = m15[m15.index.dayofweek < 5]
+        p = os.path.join(self.tmp, 'm15', 'EURUSD_H1.csv')
+        v.write_mt5_file(p, m15, 'EURUSD', CLOCKS['utc'])
+        self.assertEqual(v.bar_step(v.read_mt5_raw(p).index), pd.Timedelta(minutes=15))
+        spec = dict(v.make_spec(dry_run=True), mt5_clip=('2016-01-01', '2017-12-31'), ue=('2016-04-04', '2017-06-30'),
+                    ue_late='2016-01-04', ue_drop='2016-12-01')
+        problems, lines = [], []
+        files = OrderedDict((s, self.paths[('jst', s)]) for s in self.h)
+        ck, conv, infos, ue = v.prepare_mt5(dict(files, GBPJPY=p), spec, NO_CONTACT, problems, lines.append)
+        self.assertEqual(len(problems), 1)
+        self.assertIn('H1 の書き出しでない', problems[0])
+        self.assertEqual((ck['kind'], conv), ('fixed', {'kind': 'fixed', 'hours': 9}))
+        self.assertEqual(list(infos), list(self.h))                 # H1 でないファイルは換算もしない
+        self.assertEqual(ue['usable'], list(self.h))
+        self.assertTrue(any('時刻の判定' in s for s in lines))
+        problems = []
+        with mock.patch.object(v, 'athens_to_server', side_effect=ValueError('重なり')):
+            v.prepare_mt5(OrderedDict((s, self.paths[('athens', s)]) for s in self.h), spec, NO_CONTACT, problems,
+                          lambda s: None)
+        self.assertEqual(len(problems), len(self.h))                # 換算の例外も実行前の確認で止める
+        self.assertTrue(all('換算に失敗' in x for x in problems))
 
     def test_mt5_formats(self):
         """タブ区切り（MT5 の既定）・UTF-16・カンマ区切りの Date,Time を同じに読む"""
@@ -900,6 +965,25 @@ class TestManifest(unittest.TestCase):
         e = c['partial'][0]
         self.assertEqual((e['symbol'], e['lo'], e['hi']), ('*', pd.Timestamp('2022-03-05'), pd.Timestamp('2022-03-06')))
 
+    def test_contact_missing(self):
+        """第2段の記録は第1段の記録を覆っていること（区切り方は変わってよい。partial → excluded に移すのはよい）"""
+        def ent(sym, a, b):
+            return {'symbol': sym, 'from': a, 'to': b, 'reason': ''}
+        prev = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-31')],
+                       partial=[ent('*', '2021-03-01', '2021-03-31'), ent('USDJPY', '2021-05-01', '2021-05-10')])
+        ok = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-15'), ent('EURUSD', '2021-01-16', '2021-01-31'),
+                               ent('USDJPY', '2021-05-01', '2021-05-10'), ent('GBPUSD', '2023-01-01', '2023-01-31')],
+                     partial=[ent('*', '2021-02-01', '2021-04-30')])
+        self.assertEqual(v.contact_missing(json.loads(json.dumps(v.clean(prev))), ok), [])   # 第1段の結果（JSON）から読む
+        self.assertEqual(v.contact_missing({}, ok), [])
+        bad = contact(excluded=[ent('*', '2021-01-01', '2021-01-20')],                       # 1月21日〜31日が抜けた
+                      partial=[ent('EURUSD', '2021-03-01', '2021-03-31'), ent('USDJPY', '2021-05-01', '2021-05-10')])
+        miss = v.contact_missing(prev, bad)
+        self.assertEqual(miss, ['excluded: EURUSD 2021-01-01〜2021-01-31', 'partial: * 2021-03-01〜2021-03-31'])
+        moved = contact(partial=[ent('EURUSD', '2021-01-01', '2021-01-31'), ent('*', '2021-03-01', '2021-03-31'),
+                                 ent('USDJPY', '2021-05-01', '2021-05-10')])                  # excluded → partial は不可
+        self.assertEqual(v.contact_missing(prev, moved), ['excluded: EURUSD 2021-01-01〜2021-01-31'])
+
     def test_stage2_manifest(self):
         good = {'broker': {'name': 'B', 'server': 'S', 'account_type': 'demo', 'exported_on': '2026-11-02'},
                 'symbol_map': {s: f'{s}.a' for s in v.SYMBOLS}}
@@ -985,6 +1069,102 @@ class TestProductionGuards(unittest.TestCase):
         _, _, p = v.load_stage1(s1, dry=False)
         self.assertTrue(any('SHA-256' in x for x in p))
         self.assertTrue(any('混ざって' in x for x in v.load_stage1(s1, dry=True)[2]))
+
+    def test_prereg_frozen_and_deadline(self):
+        """本番は、事前登録に「まだ凍結していない」の注記が残っていれば止める。第2段は期限（2027-02-01）を過ぎたら止める"""
+        p = os.path.join(self.tmp, 'prereg.md')
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write('# 事前登録\n\n> **2026-11-01 時点：作業を一時停止中。この版はまだ凍結していない**\n')
+        self.assertEqual(len(v.prereg_problems(p)), 1)
+        with open(p, 'w', encoding='utf-8') as f:
+            f.write('# 事前登録\n\n本文\n')
+        self.assertEqual(v.prereg_problems(p), [])
+        self.assertEqual(len(v.prereg_problems(os.path.join(self.tmp, 'none.md'))), 1)
+        self.assertEqual(v.deadline_problems('2027-02-01'), [])
+        self.assertEqual(v.deadline_problems(pd.Timestamp('2027-02-01 23:59')), [])
+        self.assertEqual(len(v.deadline_problems('2027-02-02')), 1)
+        with mock.patch.object(v, 'prereg_problems', return_value=['未凍結']):
+            self.assertIn('未凍結', self.run1())
+        msg = self.run1(require_clean_git=False)                    # テスト用の設定では git と凍結の確認を省く
+        self.assertNotIn('凍結', msg)
+
+    def test_code_changes_since(self):
+        head = v.git_state()['commit']
+        self.assertEqual(v.code_changes_since(head), [])
+        self.assertIsNone(v.code_changes_since(None))
+        self.assertIsNone(v.code_changes_since('0' * 40))
+        draft = v.code_changes_since('ce7f5a4')                     # 事前登録の草稿のコミット（その後に事前登録を直した）
+        if draft is not None:
+            self.assertIn(v.PREREG, draft)
+
+    def fake_stage1(self, commit='c' * 40, excluded=(), partial=()):
+        s1 = os.path.join(self.tmp, 's1')
+        os.makedirs(s1, exist_ok=True)
+        tf = os.path.join(s1, 'stage1_trades.csv.gz')
+        with open(tf, 'wb') as f:
+            f.write(b'x')
+        js = {'meta': {'stage': 1, 'dry_run': False, 'git': {'commit': commit},
+                       'contact': {'asked_on': '2026-11-01', 'excluded': list(excluded), 'partial': list(partial)}},
+              'stop': {'stop': False, 'verdict': '継続'}, 'trades_file': {'file': 'stage1_trades.csv.gz', 'sha256': v.sha256_of(tf)}}
+        with open(os.path.join(s1, 'stage1_results.json'), 'w') as f:
+            json.dump(js, f)
+        return s1, js
+
+    def test_stage1_link(self):
+        """§2・§7.2: 第1段の接触の申告が第2段の記録で覆われているか。評価に使うファイルが第1段のコミットから変わっていないか"""
+        e = {'symbol': 'EURUSD', 'from': '2021-01-01', 'to': '2021-01-31', 'reason': 'EA のパネル'}
+        _, js = self.fake_stage1(excluded=[e])
+        g = {'commit': 'd' * 40}
+        with mock.patch.object(v, 'code_changes_since', return_value=[]):
+            rec, cp, gp = v.stage1_link(js, contact(excluded=[e]), g, None)
+        self.assertEqual((cp, gp, rec['same_commit'], rec['eval_files_changed']), ([], [], False, []))
+        with mock.patch.object(v, 'code_changes_since', return_value=['fusion/strategy.py']):
+            rec, cp, gp = v.stage1_link(js, contact(), g, None)
+            self.assertEqual(len(cp), 1)
+            self.assertIn('--code-fix-reason', gp[0])
+            rec, _, gp = v.stage1_link(js, contact(excluded=[e]), g, '読み込みの例外を直した')
+            self.assertEqual((gp, rec['code_fix_reason']), ([], '読み込みの例外を直した'))
+        with mock.patch.object(v, 'code_changes_since', return_value=None):
+            self.assertIn('git', v.stage1_link(js, contact(excluded=[e]), g, None)[2][0])
+        with mock.patch.object(v, 'code_changes_since', side_effect=AssertionError('呼ばない')):
+            rec, _, gp = v.stage1_link(js, contact(excluded=[e]), {'commit': 'c' * 40}, None)   # 同じコミット
+        self.assertEqual((rec['same_commit'], gp), (True, []))
+
+    def test_stage2_stops_on_stage1_link(self):
+        """本番の第2段: 第1段の記録が消えた・コードが変わった（理由なし）・期限切れなら、何も計算しないうちに止める"""
+        e = {'symbol': 'EURUSD', 'from': '2021-01-01', 'to': '2021-01-31', 'reason': 'EA のパネル'}
+        s1, _ = self.fake_stage1(excluded=[e])
+        args = dict(komo_dir=self.komo, mt5_dir=self.tmp, manifest=self.man, out_dir=os.path.join(self.tmp, 'o2'),
+                    stage1_dir=s1, log=lambda s: None, require_clean_git=True)
+        with mock.patch.object(v, 'Runner') as rn, mock.patch.object(v, 'code_changes_since', return_value=['fusion/broker.py']), \
+                mock.patch.object(v, 'git_problems', return_value=[]), mock.patch.object(v, 'prereg_problems', return_value=[]):
+            with self.assertRaises(SystemExit) as cm:
+                v.run_stage2(today='2027-02-02', **args)
+            rn.assert_not_called()
+        msg = str(cm.exception)
+        for word in ('覆われていない', 'fusion/broker.py', '--code-fix-reason', '期限'):
+            self.assertIn(word, msg)
+        self.assertNotIn('第1段の結果', msg)                         # --stage1-dir の第1段は読めている
+        self.assertFalse(os.path.exists(os.path.join(self.tmp, 'o2', 'stage2_run.log')))
+
+    def test_cli(self):
+        """CLI: 第2段の --stage1-dir の既定は --out（run_stage2 に None を渡し、run_stage2 が --out を使う）。
+        --dev-dir の既定は FUSION_DATA_DIR で、ドライランのときだけ使う"""
+        with mock.patch.object(v, 'run_stage2') as r2, mock.patch.object(v, 'run_stage1') as r1, \
+                mock.patch.dict(os.environ, {'FUSION_DATA_DIR': '/dev/data'}):
+            v.main(['stage2', '--komo-dir', 'K', '--mt5-dir', 'M', '--manifest', 'J', '--out', 'O'])
+            kw = r2.call_args.kwargs
+            self.assertEqual((kw['stage1_dir'], kw['out_dir'], kw['dev_dir'], kw['code_fix_reason'], kw['workers']),
+                             (None, 'O', None, None, 4))
+            v.main(['stage2', '--dry-run', '--out', 'O', '--code-fix-reason', 'R', '--stage1-dir', 'S', '--workers', '2'])
+            kw = r2.call_args.kwargs
+            self.assertEqual((kw['stage1_dir'], kw['dev_dir'], kw['code_fix_reason'], kw['dry_run'], kw['workers']),
+                             ('S', '/dev/data', 'R', True, 2))
+            v.main(['stage1', '--komo-dir', 'K', '--manifest', 'J', '--out', 'O'])
+            kw = r1.call_args.kwargs
+            self.assertEqual((kw['komo_dir'], kw['manifest'], kw['out_dir'], kw['dev_dir']), ('K', 'J', 'O', None))
+        for word in ('"contact"', '"symbol_map"', '"broker"', 'excluded', 'partial'):
+            self.assertIn(word, v.MANIFEST_HELP)
 
     def test_rerun_log(self):
         """結果のファイルができる前に失敗した実行は、理由を書けば走らせ直せる（回数と理由をログに残す）"""
@@ -1114,6 +1294,14 @@ class TestEndToEnd(unittest.TestCase):
                 self.assertEqual((tr['contact'] == 'partial').tolist(), (want_p & ~want).tolist())
         nt = pd.read_csv(os.path.join(self.s2, 'stage2_naive_trades.csv.gz'), keep_default_na=False)
         self.assertEqual(sorted(set(nt['config'])), sorted(v.naive_name(p, s) for p in (0.02, 0.05) for s in (0, 1)))
+        net = pd.to_datetime(nt['entry_time'])                     # 素朴ベースラインは判定プールの始まり以降だけを残す
+        self.assertGreaterEqual(net[nt['src'] == 'komo'].min(), pd.Timestamp(self.spec['ud'][0]))
+        self.assertGreaterEqual(net[nt['src'] == 'mt5'].min(), pd.Timestamp(self.spec['ue'][0]))
+        self.assertGreater(int(nt['pool'].isin(['U-D', 'U-E']).sum()), 0)
+        self.assertTrue(m['stage1_consistency']['gate_ok'])
+        k = m['stage1_link']
+        self.assertTrue(k['same_commit'])
+        self.assertEqual((k['eval_files_changed'], k['contact_missing']), ([], []))
         # 第1段の取引一覧と、第2段で走らせ直した komo135 の取引は同じ
         t1 = pd.read_csv(os.path.join(self.s1, 'stage1_trades.csv.gz'), dtype=str, keep_default_na=False)
         t2 = pd.read_csv(os.path.join(self.s2, 'stage2_trades.csv.gz'), dtype=str, keep_default_na=False)
@@ -1132,24 +1320,68 @@ class TestEndToEnd(unittest.TestCase):
                                        'stage2_report.md'])
         self.assertEqual(fs.SYMBOL_ORDER, v.USED)
 
-    def test_compare_with_stage1_detects_change(self):
+    def stage1_frames(self):
         tf = os.path.join(self.s1, 'stage1_trades.csv.gz')
         T = OrderedDict()
         tr = pd.read_csv(tf, keep_default_na=False, float_precision='round_trip')
         for c in v.CONFIGS:
-            d = tr[tr['config'] == c].copy()
+            d = tr[tr['config'] == c].copy().reset_index(drop=True)
             d['entry_time'] = pd.to_datetime(d['entry_time'])
             d['exit_time'] = pd.to_datetime(d['exit_time'])
             d['seq'] = np.arange(len(d))
             d['sym_i'] = d['symbol'].map(v.SYMBOLS.index)
             d['src_i'] = 0
             T[c] = d
-        self.assertTrue(v.compare_with_stage1(tf, T)['all_match'])
-        T[v.MAIN].loc[T[v.MAIN].index[0], 'pnl_r'] += 1e-12
-        r = v.compare_with_stage1(tf, T)
-        self.assertFalse(r['all_match'])
-        self.assertEqual(r['configs'][v.MAIN]['first_difference']['row'], 0)
-        self.assertTrue(r['configs'][v.REF]['match'])
+        return tf, T
+
+    def test_compare_with_stage1_detects_change(self):
+        """§7.2: 関門は第1段の U-D の v1.1 の取引一覧。それ以外の差は逸脱として記録する（関門は通す）"""
+        tf, T = self.stage1_frames()
+        r = v.compare_with_stage1(tf, T, self.spec)
+        self.assertTrue(r['all_match'] and r['gate_ok'])
+        self.assertGreater(r['gate']['stage1'], 0)
+        main = T[v.MAIN]
+        ud = (main['entry_time'] >= pd.Timestamp(self.spec['ud'][0])).to_numpy()
+        self.assertTrue(ud.any() and not ud.all())
+        for cfg, row, gate_ok in ((v.REF, 0, True), (v.MAIN, int(np.argmin(ud)), True), (v.MAIN, int(np.argmax(ud)), False)):
+            _, T2 = self.stage1_frames()
+            T2[cfg].loc[row, 'pnl_r'] += 1e-12
+            r = v.compare_with_stage1(tf, T2, self.spec)
+            self.assertFalse(r['all_match'], (cfg, row))
+            self.assertEqual(r['gate_ok'], gate_ok, (cfg, row))
+            self.assertEqual(r['configs'][cfg]['first_difference']['row'], row)
+            self.assertTrue(all(x['match'] for c, x in r['configs'].items() if c != cfg))
+        _, T2 = self.stage1_frames()
+        T2[v.MAIN] = T2[v.MAIN].drop(index=int(np.flatnonzero(ud)[-1]))   # U-D の取引が1件足りない
+        r = v.compare_with_stage1(tf, T2, self.spec)
+        self.assertFalse(r['gate_ok'])
+        self.assertEqual(r['gate']['stage1'] - r['gate']['stage2'], 1)
+
+    def test_stage2_in_stage1_folder(self):
+        """第1段と同じ出力フォルダで第2段を走らせる（--stage1-dir を省く）。結果は第1段を別のフォルダから読んだときと同じ"""
+        out = os.path.join(self.tmp, 's12')
+        shutil.copytree(self.s1, out)
+        r = v.run_stage2(out_dir=out, workers=1, dry_run=True, dev_dir=self.dev, spec=self.spec,
+                         naive_p=[0.02, 0.05], naive_seeds=[0, 1], log=lambda s: None)
+        self.assertEqual(r['meta']['stage1_dir'], '.')
+        self.assertTrue(r['meta']['stage1_consistency']['gate_ok'] and r['meta']['stage1_consistency']['all_match'])
+        self.same_files(self.s2, out, ['stage2_trades.csv.gz', 'stage2_naive_trades.csv.gz'])
+        self.same_files(self.s1, out, ['stage1_results.json', 'stage1_trades.csv.gz', 'stage1_report.md'])  # 第1段の出力はそのまま
+        self.assertEqual(r['verdict']['label'], self.r2['verdict']['label'])
+        with open(os.path.join(out, 'stage2_report.md'), encoding='utf-8') as f:
+            rep = f.read()
+        self.assertIn('U-D の v1.1 の取引', rep)
+        self.assertIn('同じコミット', rep)
+
+    def test_stage2_dry_without_stage1(self):
+        """ドライランは第1段の出力がなくても通る（照合を省いたと報告する）"""
+        out = os.path.join(self.tmp, 's2d')
+        r = v.run_stage2(out_dir=out, workers=1, dry_run=True, dev_dir=self.dev, spec=self.spec,
+                         naive_p=[0.02], naive_seeds=[0], log=lambda s: None)
+        self.assertIsNone(r['meta']['stage1_consistency'])
+        self.assertIsNone(r['meta']['stage1_dir'])
+        with open(os.path.join(out, 'stage2_report.md'), encoding='utf-8') as f:
+            self.assertIn('第1段の出力と照合していない', f.read())
 
     def test_undecided_when_clock_unknown(self):
         """時刻の判定ができなければ、戦略を走らせずに「未決」と書く"""
