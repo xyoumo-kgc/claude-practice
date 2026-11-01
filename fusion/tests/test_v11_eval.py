@@ -85,11 +85,15 @@ def trades(rows):
 NO_CONTACT = OrderedDict(asked_on='', summary='', excluded=[], partial=[])
 
 
-def contact(excluded=(), partial=()):
-    c, problems = v.parse_contact({'contact': {'asked_on': 'test', 'excluded': list(excluded), 'partial': list(partial)}},
+def contact(excluded=(), partial=(), asked_on='2026-11-01'):
+    c, problems = v.parse_contact({'contact': {'asked_on': asked_on, 'excluded': list(excluded), 'partial': list(partial)}},
                                   required=True)
     assert not problems, problems
     return c
+
+
+def ent(sym, a, b, reason=''):
+    return {'symbol': sym, 'from': a, 'to': b, 'reason': reason}
 
 
 def phi(x):
@@ -151,6 +155,18 @@ class TestConstants(unittest.TestCase):
         self.assertAlmostEqual(12 * (hi - lo) / pd.Timedelta(days=365.25), 21.7, places=1)      # §10 の U-D 21.7
         self.assertEqual((spec['min_symbols'], spec['min_symyears']), (8, 30.0))
         self.assertEqual((spec['komo_rows'], spec['komo_last']), (57600, '2022-03-04 23:00'))
+        # §3.2: 利用者の系列で使う足・最初の足の規則、§8: PSR の期間、§3.2 の時刻の判定、§7.2 の期限
+        self.assertEqual(spec['mt5_clip'], ('2021-12-01', '2026-10-31'))
+        self.assertEqual((spec['ue_late'], spec['ue_drop']), ('2021-12-01', '2023-01-01'))
+        self.assertEqual(spec['psr_months'], ('2020-05', '2026-10'))
+        self.assertEqual((v.CLOCK_NEED, v.CLOCK_MIN_BARS, v.INT_TOL), (0.95, 100, 1e-6))
+        self.assertEqual(v.STAGE2_DEADLINE, pd.Timestamp('2027-02-01'))
+        self.assertEqual((v.P2_MIN_N, v.P2_FRAC, v.P4_MARGIN, v.P6_MIN, v.NAIVE_TOL), (30, 0.60, 0.10, 0.95, 0.20))
+        self.assertEqual((v.TEN_MONTH_MIN, v.GAP_PER_YEAR_MAX), (15, 1.0))
+        # §8・§9: 月ブロック（10,000回、seed=12345）と P1 の t≥2.0 は final_eval の既定に頼る。報告書の記載もこの値
+        self.assertEqual((fe.BOOT_REPS, fe.SEED_MONTH, fe.P1_T), (10000, 12345, 2.0))
+        with open(os.path.join(ROOT, 'fusion', 'v11_eval.py'), encoding='utf-8') as f:
+            self.assertIn('seeds=OrderedDict(month_block=12345, reps=10000,', f.read())
 
     def test_dry_spec_stays_in_development_data(self):
         d = v.make_spec(dry_run=True)
@@ -432,11 +448,12 @@ class TestKomoLoading(unittest.TestCase):
 
     def test_checks_and_problems(self):
         spec = dict(v.make_spec(), komo_rows=2, komo_last='2021-03-01 01:00')
-        ok = self.write('EURGBPh1.csv', ['2021-03-01 00:00:00,86000.4,86010,85990,86005,1',
+        ok = self.write('EURGBPh1.csv', ['2021-03-01 00:00:00,86000.00000000001,86010,85989.99999999999,86005,1',
                                          '2021-03-01 01:00:00,86005,86010,85990,86000,1'])
         _, info = v.load_komo(ok, 'EURGBP')
-        self.assertTrue(info['int_check'])
-        self.assertEqual(info['raw_fraction_values'], 1)           # 端数は丸めて使い、件数を記録する
+        self.assertTrue(info['int_check'])                          # 浮動小数の端数（1e−11 程度）だけなら通る
+        self.assertEqual(info['raw_fraction_values'], 0)
+        self.assertLess(info['int_check_max_dev'], 1e-9)
         self.assertEqual([p for p in v.komo_problems(info, 'EURGBP', spec) if 'ウォームアップ' not in p], [])
         self.assertTrue(any('ウォームアップ' in p for p in v.komo_problems(info, 'EURGBP', spec)))   # U-X の銘柄は 2012-12-01 まで
         nan = self.write('GBPUSDh1.csv', ['2021-03-01 00:00:00,,130010,129990,130005,1',
@@ -455,6 +472,22 @@ class TestKomoLoading(unittest.TestCase):
         self.assertTrue(any('最終の足' in p for p in probs))
         with self.assertRaises(ValueError):
             v.load_komo(self.write('bad.csv', ['2021-03-01 00:00:00,1,1,1,1'], header='Time,O,H,L,C'), 'EURUSD')
+
+    def test_one_real_fraction_stops(self):
+        """§3.1 の整数倍の確認は丸める前の生の値で行う（丸めた後だと必ず通る）。本物の端数が1つでもあれば止める理由にする"""
+        spec = dict(v.make_spec(), komo_rows=3, komo_last='2021-03-01 02:00')
+        rows = ['2021-03-01 00:00:00,127800,127900,127700,127850,1',
+                '2021-03-01 01:00:00,127850,127900,127700,127800.5,1',             # 本物の端数（0.5 ポイント）
+                '2021-03-01 02:00:00,127800.00000000001,127900,127700,127810,1']  # 浮動小数の端数（数えない）
+        h, info = v.load_komo(self.write('EURUSDh1.csv', rows), 'EURUSD')
+        self.assertFalse(info['int_check'])
+        self.assertEqual((info['raw_fraction_values'], info['raw_fraction_rows']), (1, 1))
+        self.assertAlmostEqual(info['int_check_max_dev'], 0.5)
+        probs = v.komo_problems(info, 'EURUSD', spec)
+        self.assertEqual(len(probs), 1)
+        self.assertIn('整数倍', probs[0])
+        self.assertNotIn('大半', probs[0])
+        self.assertAlmostEqual(h['Close'].iloc[1], 1.278 + 0.00005, places=12)   # 変換そのもの（round）は事前登録どおり
 
     def test_athens_to_ny7(self):
         """Europe/Athens → UTC → NY+7。通常の週は変わらず、米欧の夏時間がずれる週だけ1時間後ろにずれる"""
@@ -609,6 +642,41 @@ class TestMt5Clock(unittest.TestCase):
         self.assertEqual((ck['frac_ny7'], ck['frac_athens'], ck['kind']), (1.0, 1.0, 'ny7'))
         got, _ = v.load_mt5(p, 'EURUSD', {'kind': 'ny7', 'hours': 0}, ('2016-01-01', '2016-12-31'))
         self.assertTrue(got.index.equals(h.index))
+
+    def test_split_weeks_recorded(self):
+        """①と②の予想が違う週（米欧の夏時間がずれる週）での一致を記録する（判定の規則そのものは変えない）"""
+        for name, f1, f2 in (('athens', 0.0, 1.0), ('ny7', 1.0, 0.0), ('utc', 0.0, 0.0)):
+            raw = OrderedDict((s, v.read_mt5_raw(self.paths[(name, s)]).index) for s in self.h if s in v.FX)
+            ck = v.detect_clock(raw)
+            self.assertGreater(ck['split_weeks'], 0, name)
+            self.assertLess(ck['split_weeks'], ck['weeks_used'] * 0.1, name)
+            self.assertEqual((ck['frac_ny7_split'], ck['frac_athens_split']), (f1, f2), name)
+
+    def test_clock_window(self):
+        """書き出しに使う期間より前の履歴（時計の規則が違う時期）が混ざると、全週の判定と使う期間の週だけの判定が違う →
+        何も計算しないうちに止める理由（§3.2 の手順で書き出し直す）。合成の時刻だけを使う（価格はない）"""
+        spec = v.make_spec()
+
+        def ny7(a, b):
+            idx = pd.date_range(a, b, freq='1h', inclusive='left')
+            return idx[(idx.dayofweek < 5) & ~((idx.month == 12) & (idx.day == 25)) & ~((idx.month == 1) & (idx.day == 1))]
+        old = v.from_server(ny7('2015-01-05', '2021-11-27'), CLOCKS['ny7'])          # 以前は①（NY+7）の時計
+        new = v.from_server(ny7('2021-12-01', '2026-11-01'), CLOCKS['athens'])       # 使う期間は②（欧州連動）
+        mixed = {'EURUSD': old.append(new), 'GBPUSD': old.append(new)}
+        ck = v.detect_clock(mixed)
+        self.assertEqual(ck['kind'], 'ny7')                                          # 規則どおり全週で判定すると①
+        w, problems = v.clock_window(mixed, spec, ck)
+        self.assertEqual((w['kind'], w['same']), ('athens', False))
+        self.assertLess(w['weeks_used'], ck['weeks_used'])
+        self.assertEqual(len(problems), 1)
+        self.assertIn('書き出し直す', problems[0])
+        for raw in ({'EURUSD': new}, {'EURUSD': new.append(v.from_server(ny7('2026-11-02', '2027-01-30'), CLOCKS['athens']))},
+                    {'EURUSD': v.from_server(ny7('2015-01-05', '2021-11-27'), CLOCKS['athens']).append(new)}):
+            ck = v.detect_clock(raw)                                                 # 時計が同じなら、期間の外があっても同じ
+            w, problems = v.clock_window(raw, spec, ck)
+            self.assertEqual((ck['kind'], w['kind'], w['same'], problems), ('athens', 'athens', True, []))
+        ck = v.detect_clock({'EURUSD': new})
+        self.assertEqual(v.clock_window({'EURUSD': new}, spec, ck)[0]['weeks_used'], ck['weeks_used'])   # 期間どおりなら全週を使う
 
     def test_undecided(self):
         """どの仮説も95%に届かない → 未決（kind=None）。判定に使える週がないときも未決"""
@@ -964,16 +1032,56 @@ class TestManifest(unittest.TestCase):
                {'symbol': 'EURUSD', 'from': '2021/01/01', 'to': '2021-01-02'},
                {'symbol': 'EURUSD', 'from': '2021-01-03', 'to': '2021-01-02'},
                {'symbol': 'EURUSD', 'from': '2021-01-03'}]
-        c, p = v.parse_contact({'contact': {'asked_on': 'x', 'excluded': bad}}, required=True)
+        c, p = v.parse_contact({'contact': {'asked_on': '2026-11-01', 'excluded': bad}}, required=True)
         self.assertEqual(len(p), 4)
         c = contact(partial=[{'symbol': '*', 'from': '2022-03-05', 'to': '2022-03-05', 'reason': '旧 EA'}])
         e = c['partial'][0]
         self.assertEqual((e['symbol'], e['lo'], e['hi']), ('*', pd.Timestamp('2022-03-05'), pd.Timestamp('2022-03-06')))
 
+    def test_asked_on(self):
+        """本番の asked_on は YYYY-MM-DD（日付でなければ止める理由）。指定の日より前・実行した日より後も止める理由"""
+        for bad in ('いつか', '2026/11/01', '2026-11-1', '2026-13-01'):
+            p = v.parse_contact({'contact': {'asked_on': bad, 'excluded': [], 'partial': []}}, required=True)[1]
+            self.assertEqual(len(p), 1, bad)
+            self.assertIn('asked_on', p[0])
+        self.assertEqual(v.parse_contact({'contact': {'asked_on': 'ドライラン'}}, required=False)[1], [])   # ドライランは問わない
+        self.assertEqual(v.asked_on_problems('2026-11-02', '2026-11-01', '2026-11-03'), [])
+        self.assertEqual(v.asked_on_problems('2026-11-01', '2026-11-01', '2026-11-01'), [])                # 両端の日を含む
+        self.assertIn('より前', v.asked_on_problems('2026-10-31', '2026-11-01', '2026-11-03')[0])
+        self.assertIn('より後', v.asked_on_problems('2026-11-04', '2026-11-01', '2026-11-03')[0])
+        self.assertEqual(len(v.asked_on_problems('いつか')), 1)
+        self.assertEqual(v.asked_on_problems('2026-11-04'), [])
+
+    def test_contact_ud_changes(self):
+        """U-D の期間の申告の働き（銘柄×日×種別。excluded が partial に勝つ）を第1段と比べる。書き方（区切り方・"*" か銘柄ごとか）は
+        問わない。U-D の外は見ない。第1段の記録は第1段の結果（JSON）から読む"""
+        ud = ('2020-05-15', '2022-03-04')
+        prev = json.loads(json.dumps(v.clean(contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-31')],
+                                                     partial=[ent('*', '2021-03-01', '2021-03-31')]))))
+        same = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-15'), ent('EURUSD', '2021-01-16', '2021-01-31')],
+                       partial=[ent(s, '2021-03-01', '2021-03-31') for s in v.SYMBOLS]
+                       + [ent('EURUSD', '2021-01-10', '2021-01-20'),                 # excluded に含まれる partial は働かない
+                          ent('*', '2022-03-05', '2026-10-31'), ent('USDJPY', '2019-01-01', '2020-05-14')])   # U-D の外
+        self.assertEqual(v.contact_ud_changes(prev, same, ud), [])
+        added = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-31'), ent('*', '2021-02-01', '2021-02-28')],
+                        partial=[ent('*', '2021-03-01', '2021-03-31')])
+        ch = v.contact_ud_changes(prev, added, ud)
+        self.assertEqual([c.split('（')[0] for c in ch], v.SYMBOLS)                 # "*" の除外を足した → 12銘柄すべて
+        self.assertEqual(ch[0], 'EURUSD（第1段：除外 2021-01-01〜2021-01-31・一部汚れ 2021-03-01〜2021-03-31 → '
+                                '第2段：除外 2021-01-01〜2021-02-28・一部汚れ 2021-03-01〜2021-03-31）')
+        moved = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-31'), ent('GBPUSD', '2021-03-01', '2021-03-31')],
+                        partial=[ent('*', '2021-03-01', '2021-03-31')])               # GBPUSD を partial → excluded
+        self.assertEqual([c.split('（')[0] for c in v.contact_ud_changes(prev, moved, ud)], ['GBPUSD'])
+        dropped = contact(partial=[ent('*', '2021-03-01', '2021-03-31')])           # EURUSD の除外が消えた
+        self.assertEqual([c.split('（')[0] for c in v.contact_ud_changes(prev, dropped, ud)], ['EURUSD'])
+        edge = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-31'), ent('USDJPY', '2022-03-04', '2022-06-30')],
+                       partial=[ent('*', '2021-03-01', '2021-03-31'), ent('XAUUSD', '2020-05-01', '2020-05-15')])
+        self.assertEqual([c.split('（')[0] for c in v.contact_ud_changes(prev, edge, ud)], ['XAUUSD', 'USDJPY'])  # 両端の日
+        self.assertEqual(v.contact_ud_changes({}, contact(partial=[ent('*', '2022-03-05', '2026-10-31')]), ud), [])
+
     def test_contact_missing(self):
-        """第2段の記録は第1段の記録を覆っていること（区切り方は変わってよい。partial → excluded に移すのはよい）"""
-        def ent(sym, a, b):
-            return {'symbol': sym, 'from': a, 'to': b, 'reason': ''}
+        """第2段の記録は第1段の記録を覆っていること（区切り方は変わってよい。partial → excluded に移すのは、このチェックでは
+        よい。U-D の期間は contact_ud_changes が第1段と同じ働きを求めるので、U-D で移すと別の理由で止まる）"""
         prev = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-31')],
                        partial=[ent('*', '2021-03-01', '2021-03-31'), ent('USDJPY', '2021-05-01', '2021-05-10')])
         ok = contact(excluded=[ent('EURUSD', '2021-01-01', '2021-01-15'), ent('EURUSD', '2021-01-16', '2021-01-31'),
@@ -1131,55 +1239,202 @@ class TestProductionGuards(unittest.TestCase):
         if draft is not None:
             self.assertIn(v.PREREG, draft)
 
-    def fake_stage1(self, commit='c' * 40, excluded=(), partial=()):
+    def fake_stage1(self, commit='c' * 40, excluded=(), partial=(), run_date='2026-11-01', ref_sha=None):
         s1 = os.path.join(self.tmp, 's1')
         os.makedirs(s1, exist_ok=True)
         tf = os.path.join(s1, 'stage1_trades.csv.gz')
         with open(tf, 'wb') as f:
             f.write(b'x')
-        js = {'meta': {'stage': 1, 'dry_run': False, 'git': {'commit': commit},
+        js = {'meta': {'stage': 1, 'dry_run': False, 'git': {'commit': commit}, 'run_date': run_date, 'tz': v.tz_info(),
                        'contact': {'asked_on': '2026-11-01', 'excluded': list(excluded), 'partial': list(partial)}},
               'stop': {'stop': False, 'verdict': '継続'}, 'trades_file': {'file': 'stage1_trades.csv.gz', 'sha256': v.sha256_of(tf)}}
+        if ref_sha:
+            js['source_check'] = {'reference': {'sha256': ref_sha}}
         with open(os.path.join(s1, 'stage1_results.json'), 'w') as f:
             json.dump(js, f)
         return s1, js
 
+    def stage2_args(self, s1, **kw):
+        args = dict(komo_dir=self.komo, mt5_dir=self.tmp, manifest=self.man, out_dir=os.path.join(self.tmp, 'o2'),
+                    stage1_dir=s1, log=lambda s: None, require_clean_git=False, today='2026-11-02')
+        args.update(kw)
+        return args
+
+    def run2(self, **kw):
+        """本番の第2段を走らせ、何も計算しないうちに止まることを確かめて、止めた理由を返す"""
+        with mock.patch.object(v, 'Runner') as rn:
+            with self.assertRaises(SystemExit) as cm:
+                v.run_stage2(**kw)
+            rn.assert_not_called()
+        self.assertFalse(os.path.exists(os.path.join(kw['out_dir'], 'stage2_run.log')))
+        return str(cm.exception)
+
     def test_stage1_link(self):
-        """§2・§7.2: 第1段の接触の申告が第2段の記録で覆われているか。評価に使うファイルが第1段のコミットから変わっていないか"""
-        e = {'symbol': 'EURUSD', 'from': '2021-01-01', 'to': '2021-01-31', 'reason': 'EA のパネル'}
+        """§2・§7.2: 第1段の接触の申告が第2段の記録で覆われているか・U-D の期間の申告が同じか。評価に使うファイルが
+        第1段のコミットから変わっていないか（事前登録に書き足したときは、戻すように言う）"""
+        e = ent('EURUSD', '2021-01-01', '2021-01-31', 'EA のパネル')
         _, js = self.fake_stage1(excluded=[e])
-        g = {'commit': 'd' * 40}
+        g, spec = {'commit': 'd' * 40}, v.make_spec()
         with mock.patch.object(v, 'code_changes_since', return_value=[]):
-            rec, cp, gp = v.stage1_link(js, contact(excluded=[e]), g, None)
-        self.assertEqual((cp, gp, rec['same_commit'], rec['eval_files_changed']), ([], [], False, []))
+            rec, cp, gp = v.stage1_link(js, contact(excluded=[e]), g, None, spec)
+        self.assertEqual((cp, gp, rec['same_commit'], rec['eval_files_changed'], rec['contact_ud_changes']),
+                         ([], [], False, [], []))
+        self.assertTrue(rec['tz']['same'])
         with mock.patch.object(v, 'code_changes_since', return_value=['fusion/strategy.py']):
-            rec, cp, gp = v.stage1_link(js, contact(), g, None)
-            self.assertEqual(len(cp), 1)
+            rec, cp, gp = v.stage1_link(js, contact(), g, None, spec)
+            self.assertEqual(len(cp), 2)                            # 第1段の記録が消えた（覆われていない・U-D の申告が違う）
+            self.assertIn('覆われていない', cp[0])
+            self.assertIn('U-D の期間', cp[1])
             self.assertIn('--code-fix-reason', gp[0])
-            rec, _, gp = v.stage1_link(js, contact(excluded=[e]), g, '読み込みの例外を直した')
+            self.assertNotIn('事前登録を第1段のコミットの版に戻して', gp[0])
+            rec, _, gp = v.stage1_link(js, contact(excluded=[e]), g, '読み込みの例外を直した', spec)
             self.assertEqual((gp, rec['code_fix_reason']), ([], '読み込みの例外を直した'))
+        with mock.patch.object(v, 'code_changes_since', return_value=[v.PREREG]):    # 凍結後の事前登録に書き足した
+            self.assertIn('事前登録を第1段のコミットの版に戻して', v.stage1_link(js, contact(excluded=[e]), g, None, spec)[2][0])
         with mock.patch.object(v, 'code_changes_since', return_value=None):
-            self.assertIn('git', v.stage1_link(js, contact(excluded=[e]), g, None)[2][0])
+            self.assertIn('git', v.stage1_link(js, contact(excluded=[e]), g, None, spec)[2][0])
         with mock.patch.object(v, 'code_changes_since', side_effect=AssertionError('呼ばない')):
-            rec, _, gp = v.stage1_link(js, contact(excluded=[e]), {'commit': 'c' * 40}, None)   # 同じコミット
+            rec, _, gp = v.stage1_link(js, contact(excluded=[e]), {'commit': 'c' * 40}, None, spec)   # 同じコミット
         self.assertEqual((rec['same_commit'], gp), (True, []))
+        js['meta']['tz'] = dict(js['meta']['tz'], version='1999z')  # tz の版が違う → 記録する（止めない）
+        rec, cp, _ = v.stage1_link(js, contact(excluded=[e]), {'commit': 'c' * 40}, None, spec)
+        self.assertEqual((rec['tz']['same'], cp), (False, []))
+
+    def test_stage2_asked_on_after_stage1(self):
+        """§2・§3.2: 第2段の前の確認の日（asked_on）は、第1段の実行日以後・第2段の実行日以前（本番。run_date を渡したとき）"""
+        _, js = self.fake_stage1(run_date='2026-11-03')
+        g, spec = {'commit': 'c' * 40}, v.make_spec()
+        for asked, n in (('2026-11-03', 0), ('2026-11-10', 0), ('2026-11-01', 1), ('2026-11-11', 1)):
+            self.assertEqual(len(v.stage1_link(js, contact(asked_on=asked), g, None, spec, run_date='2026-11-10')[1]), n, asked)
+        self.assertEqual(v.stage1_link(js, contact(asked_on='2026-11-01'), g, None, spec)[1], [])   # ドライラン（run_date なし）
+        del js['meta']['run_date']
+        cp = v.stage1_link(js, contact(asked_on='2026-11-05'), g, None, spec, run_date='2026-11-10')[1]
+        self.assertTrue(any('run_date' in x for x in cp))
+        s1, _ = self.fake_stage1(run_date='2026-11-03')
+        msg = self.run2(**self.stage2_args(s1))                     # self.man の asked_on は 2026-11-01（第1段より前）
+        self.assertIn('第2段の contact.asked_on', msg)
+
+    def test_stage2_stops_when_ud_contact_changes(self):
+        """F1・R1: 第1段の記録（除外なし）に、第2段で U-D の期間の除外を足すと、本番は何も計算しないうちに止まる
+        （第1段の記録を正とする）。U-E の期間だけを書き足すのはよい"""
+        s1, _ = self.fake_stage1()
+        for extra in ({'excluded': [ent('*', '2021-01-01', '2021-03-31', '後から思い出した')]},
+                      {'partial': [ent('EURUSD', '2020-05-15', '2026-10-31', '覚えていない')]}):
+            man = {'contact': dict({'asked_on': '2026-11-02', 'excluded': [], 'partial': []}, **extra)}
+            msg = self.run2(**self.stage2_args(s1, manifest=man))
+            self.assertIn('U-D の期間 2020-05-15〜2022-03-04 の申告が第1段の記録と違う', msg)
+            self.assertIn('第1段の記録を正とする', msg)
+        man = {'contact': {'asked_on': '2026-11-02', 'excluded': [ent('*', '2022-03-05', '2022-03-31')],
+                           'partial': [ent('EURUSD', '2023-01-01', '2026-10-31')]}}
+        msg = self.run2(**self.stage2_args(s1, manifest=man))       # ほかの理由（ファイルがそろっていない）で止まる
+        self.assertNotIn('U-D の期間', msg)
+        self.assertNotIn('asked_on', msg)
 
     def test_stage2_stops_on_stage1_link(self):
         """本番の第2段: 第1段の記録が消えた・コードが変わった（理由なし）・期限切れなら、何も計算しないうちに止める"""
-        e = {'symbol': 'EURUSD', 'from': '2021-01-01', 'to': '2021-01-31', 'reason': 'EA のパネル'}
+        e = ent('EURUSD', '2021-01-01', '2021-01-31', 'EA のパネル')
         s1, _ = self.fake_stage1(excluded=[e])
-        args = dict(komo_dir=self.komo, mt5_dir=self.tmp, manifest=self.man, out_dir=os.path.join(self.tmp, 'o2'),
-                    stage1_dir=s1, log=lambda s: None, require_clean_git=True)
-        with mock.patch.object(v, 'Runner') as rn, mock.patch.object(v, 'code_changes_since', return_value=['fusion/broker.py']), \
+        with mock.patch.object(v, 'code_changes_since', return_value=['fusion/broker.py']), \
                 mock.patch.object(v, 'git_problems', return_value=[]), mock.patch.object(v, 'prereg_problems', return_value=[]):
-            with self.assertRaises(SystemExit) as cm:
-                v.run_stage2(today='2027-02-02', **args)
-            rn.assert_not_called()
-        msg = str(cm.exception)
-        for word in ('覆われていない', 'fusion/broker.py', '--code-fix-reason', '期限'):
+            msg = self.run2(**self.stage2_args(s1, require_clean_git=True, today='2027-02-02'))
+        for word in ('覆われていない', 'U-D の期間', 'fusion/broker.py', '--code-fix-reason', '期限'):
             self.assertIn(word, msg)
-        self.assertNotIn('第1段の結果', msg)                         # --stage1-dir の第1段は読めている
-        self.assertFalse(os.path.exists(os.path.join(self.tmp, 'o2', 'stage2_run.log')))
+        self.assertNotIn('--stage1-dir で第1段の出力フォルダを指す', msg)   # --stage1-dir の第1段は読めている
+
+    def test_golden_check(self):
+        """§7.2: 開発データのゴールデンの確認（子プロセスの unittest の出力を読む）。省かれた・失敗した・データがないなら ok にしない"""
+        def fake(text, code=0):
+            return lambda cmd, **kw: subprocess.CompletedProcess(cmd, code, stdout='', stderr=text)
+        d = os.path.join(self.tmp, 'dev')
+        os.makedirs(d)
+        open(os.path.join(d, 'EURUSD_H1.csv'), 'w').close()
+        ok = ('test_backtesting_eurusd_2017 (fusion.tests.test_strategy.TestGolden.test_backtesting_eurusd_2017) ... ok\n'
+              'test_oanda_eurusd_is (fusion.tests.test_strategy.TestGolden.test_oanda_eurusd_is) ... ok\n\n'
+              + '-' * 70 + '\nRan 2 tests in 3.073s\n\nOK\n')
+        r = v.golden_check(d, run=fake(ok))
+        self.assertTrue(r['ok'])
+        self.assertEqual(dict(r['tests']), {'test_backtesting_eurusd_2017': 'ok', 'test_oanda_eurusd_is': 'ok'})
+        self.assertIn('Ran 2 tests', r['summary'])
+        skipped = ok.replace('test_oanda_eurusd_is) ... ok', "test_oanda_eurusd_is) ... skipped 'FUSION_DATA_DIR がない'")
+        self.assertIn('skipped', v.golden_check(d, run=fake(skipped))['reason'])
+        self.assertIn('失敗', v.golden_check(d, run=fake(ok.replace('\nOK\n', '\nFAILED (failures=1)\n'), 1))['reason'])
+        for missing in (None, self.tmp):                            # 開発データ（EURUSD_H1.csv）がない
+            self.assertIn('開発データ', v.golden_check(missing, run=fake(ok))['reason'])
+        if DEV_DIR and os.path.exists(os.path.join(DEV_DIR, 'EURUSD_H1.csv')):   # 本物の子プロセス
+            r = v.golden_check(DEV_DIR)
+            self.assertTrue(r['ok'], r)
+            self.assertEqual(r['tests'][v.GOLDEN_NEED], 'ok')
+
+    def test_stage2_code_fix_needs_golden(self):
+        """§7.2: 第1段の後に評価に使うファイルを直したら（--code-fix-reason）、本番はゴールデンが一致することを確かめてから走らせる"""
+        s1, _ = self.fake_stage1()
+        bad = OrderedDict(ok=False, test=v.GOLDEN_TEST, tests=OrderedDict(), reason='test_oanda_eurusd_is が通っていない（skipped）')
+        good = OrderedDict(ok=True, test=v.GOLDEN_TEST, tests=OrderedDict(test_oanda_eurusd_is='ok'))
+        args = self.stage2_args(s1, require_clean_git=True, code_fix_reason='読み込みの例外を直した', golden_dir='/dev/data')
+        calls = []
+        with mock.patch.object(v, 'code_changes_since', return_value=['fusion/strategy.py']), \
+                mock.patch.object(v, 'git_problems', return_value=[]), mock.patch.object(v, 'prereg_problems', return_value=[]):
+            self.assertIn('ゴールデン', self.run2(golden=lambda d: calls.append(d) or bad, **args))
+            self.assertNotIn('ゴールデン', self.run2(golden=lambda d: calls.append(d) or good, **args))   # ほかの理由で止まる
+        self.assertEqual(calls, ['/dev/data', '/dev/data'])
+        with mock.patch.object(v, 'code_changes_since', return_value=[]):        # 変わっていなければ確かめない
+            self.run2(golden=lambda d: calls.append(d) or bad, **args)
+        self.assertEqual(len(calls), 2)
+
+    def test_stage2_reference_must_match_stage1(self):
+        """データ源の照合に使う v1.0 の取引一覧（fusion/results/final_eval_trades_main.csv.gz）が第1段と違えば止める"""
+        s1, _ = self.fake_stage1(ref_sha='0' * 64)
+        self.assertIn('v1.0 の取引一覧の SHA-256 が第1段と違う', self.run2(**self.stage2_args(s1)))
+        s1, _ = self.fake_stage1(ref_sha=v.sha256_of(v.REF_TRADES))
+        self.assertNotIn('v1.0 の取引一覧', self.run2(**self.stage2_args(s1)))
+
+    def test_stage1_manifest_must_agree_with_prereg(self):
+        """第1段で記録ファイルを渡すときは、事前登録 §2 の第1段の前の確認の結果（除外なし）と矛盾しないこと。asked_on は日付で、
+        実行した日より後でないこと"""
+        c = OrderedDict(asked_on='2026-11-01', summary='見ていない', excluded=[], partial=[])
+        with_ex = {'contact': {'asked_on': '2026-11-01', 'excluded': [ent('EURUSD', '2021-01-01', '2021-01-31')], 'partial': []}}
+        with mock.patch.object(v, 'prereg_stage1_contact', return_value=(c, [])):
+            self.assertIn('事前登録と矛盾', self.run1(manifest=with_ex, require_clean_git=False))
+            self.assertNotIn('事前登録と矛盾', self.run1(require_clean_git=False))       # self.man は除外なし
+            self.assertIn('asked_on', self.run1(manifest={'contact': {'asked_on': 'いつか'}}, require_clean_git=False))
+            self.assertIn('より後', self.run1(require_clean_git=False, today='2026-10-31'))
+            self.assertIn('より後', self.run1(manifest=None, require_clean_git=False, today='2026-10-31'))
+        with mock.patch.object(v, 'prereg_stage1_contact', return_value=(None, ['除く銘柄×期間は --manifest で渡す'])):
+            self.assertNotIn('事前登録と矛盾', self.run1(manifest=with_ex, require_clean_git=False))   # 記録ファイルが正
+        pc, _ = v.prereg_stage1_contact()
+        if pc is not None:                                          # いまの事前登録の記録（除外なし）
+            self.assertEqual(v.stage1_manifest_problems(contact()), [])
+            self.assertEqual(len(v.stage1_manifest_problems(contact(partial=[ent('*', '2020-05-15', '2022-03-04')]))), 1)
+
+    def test_dry_and_production_outputs_kept_apart(self):
+        """ドライランは本番の結果・ログがあるフォルダに書かない（上書きしない）。本番はドライランの出力があるフォルダで走らない"""
+        out = os.path.join(self.tmp, 'prod')
+        os.makedirs(out)
+        with open(os.path.join(out, 'stage1_results.json'), 'w') as f:
+            json.dump({'meta': {'stage': 1, 'dry_run': False}}, f)
+        dry = dict(out_dir=out, dry_run=True, dev_dir=self.tmp, komo_dir=None, manifest=None)
+        self.assertIn('本番の出力（stage1_results.json）', self.run1(**dry))
+        with open(os.path.join(out, 'stage1_results.json')) as f:
+            self.assertFalse(json.load(f)['meta']['dry_run'])       # 上書きしていない
+        self.assertFalse(os.path.exists(os.path.join(out, 'dry_input')))
+        os.remove(os.path.join(out, 'stage1_results.json'))
+        with open(os.path.join(out, 'stage1_run.log'), 'w', encoding='utf-8') as f:
+            f.write('=== 実行 第1回 ===\n本番のログ\n')                # 結果のファイルができる前に失敗した本番のログ
+        self.assertIn('stage1_run.log', self.run1(**dry))
+        msg = self.run2(out_dir=out, dry_run=True, dev_dir=self.tmp, log=lambda s: None)
+        self.assertIn('本番の出力', msg)
+        with open(os.path.join(out, 'stage1_run.log'), encoding='utf-8') as f:
+            self.assertEqual(f.readline(), '=== 実行 第1回 ===\n')
+        dout = os.path.join(self.tmp, 'dry')
+        os.makedirs(os.path.join(dout, 'dry_input'))
+        with open(os.path.join(dout, 'stage1_run.log'), 'w', encoding='utf-8') as f:
+            f.write('=== ドライラン（数値は無意味） ===\n')
+        self.assertIn('ドライランの出力', self.run1(out_dir=dout, require_clean_git=False))
+        self.assertIn('ドライランの出力', self.run2(**self.stage2_args(None, out_dir=dout)))
+        self.assertEqual(v.out_contents(dout), ([], ['stage1_run.log', 'dry_input/']))
+        with open(os.path.join(dout, 'stage2_results.json'), 'w') as f:
+            f.write('{読めない')                                      # 読めない結果は本番のものとみなす（上書きしない）
+        self.assertEqual(v.out_contents(dout)[0], ['stage2_results.json'])
 
     def test_cli(self):
         """CLI: 第2段の --stage1-dir の既定は --out（run_stage2 に None を渡し、run_stage2 が --out を使う）。
@@ -1190,10 +1445,12 @@ class TestProductionGuards(unittest.TestCase):
             kw = r2.call_args.kwargs
             self.assertEqual((kw['stage1_dir'], kw['out_dir'], kw['dev_dir'], kw['code_fix_reason'], kw['workers']),
                              (None, 'O', None, None, 4))
+            self.assertEqual(kw['golden_dir'], '/dev/data')          # 本番は開発データを評価に使わず、ゴールデンの確認にだけ使う
             v.main(['stage2', '--dry-run', '--out', 'O', '--code-fix-reason', 'R', '--stage1-dir', 'S', '--workers', '2'])
             kw = r2.call_args.kwargs
             self.assertEqual((kw['stage1_dir'], kw['dev_dir'], kw['code_fix_reason'], kw['dry_run'], kw['workers']),
                              ('S', '/dev/data', 'R', True, 2))
+            self.assertIsNone(kw['golden_dir'])
             v.main(['stage1', '--komo-dir', 'K', '--manifest', 'J', '--out', 'O'])
             kw = r1.call_args.kwargs
             self.assertEqual((kw['komo_dir'], kw['manifest'], kw['out_dir'], kw['dev_dir']), ('K', 'J', 'O', None))
@@ -1263,10 +1520,12 @@ class TestEndToEnd(unittest.TestCase):
     def test_stage1_outputs(self):
         r = self.r1
         self.assertEqual(set(r), {'meta', 'configs', 'stop', 'source_check', 'truncation', 'trades_file'})
-        for c in v.CONFIGS:                                         # 第1段は取引数・平均R・標準誤差だけ
+        for c in v.CONFIGS:                                         # 第1段は取引数・平均R・標準誤差だけ（取引ごとの一覧は出さない）
             for k, x in r['configs'][c].items():
-                self.assertTrue(set(x) <= {'trades', 'avg_r', 'se', 'trades_list'}, (c, k))
+                self.assertEqual(list(x), ['trades', 'avg_r', 'se'], (c, k))
         self.assertTrue(r['meta']['dry_run'])
+        self.assertIsNone(r['meta']['run_date'])                    # ドライランは実行日を書かない（出力を日によらず同じにする）
+        self.assertEqual(r['meta']['tz'], v.tz_info())
         self.assertTrue(r['truncation']['match'])
         self.assertGreater(r['truncation']['compared'], 0)
         self.assertGreater(r['source_check']['komo'], 0)
@@ -1278,6 +1537,7 @@ class TestEndToEnd(unittest.TestCase):
         with open(os.path.join(self.s1, 'stage1_report.md'), encoding='utf-8') as f:
             rep = f.read()
         self.assertTrue(rep.startswith('# 【ドライラン：数値は無意味】'))
+        self.assertIn('第2段の前にはこれを集計しない', rep)
         tr = pd.read_csv(os.path.join(self.s1, 'stage1_trades.csv.gz'), keep_default_na=False)
         self.assertEqual(len(tr), r['trades_file']['rows'])
         self.assertEqual(r['trades_file']['sha256'], v.sha256_of(os.path.join(self.s1, 'stage1_trades.csv.gz')))
@@ -1336,9 +1596,21 @@ class TestEndToEnd(unittest.TestCase):
         self.assertGreaterEqual(net[nt['src'] == 'mt5'].min(), pd.Timestamp(self.spec['ue'][0]))
         self.assertGreater(int(nt['pool'].isin(['U-D', 'U-E']).sum()), 0)
         self.assertTrue(m['stage1_consistency']['gate_ok'])
+        self.assertTrue(m['stage1_consistency']['contact_ok'])
+        j = m['stage1_consistency']['ud_judged']                    # 第1段に出した U-D の v1.1 と、第2段の U-D（判定に使う取引）
+        self.assertTrue(j['match'])
+        self.assertEqual((j['stage1'], j['stage2'], j['stage2_trades']), (self.r1['stop']['trades'],) * 3)
+        self.assertEqual(j['stage2_avg_r'], r['configs'][v.MAIN]['pools']['U-D']['avg_r'])
         k = m['stage1_link']
         self.assertTrue(k['same_commit'])
-        self.assertEqual((k['eval_files_changed'], k['contact_missing']), ([], []))
+        self.assertEqual((k['eval_files_changed'], k['contact_missing'], k['contact_ud_changes']), ([], [], []))
+        self.assertTrue(k['tz']['same'] and k['reference']['same'])
+        self.assertNotIn('golden', k)                               # コードを直していなければゴールデンは確かめない
+        w = m['clock']['window']
+        self.assertTrue(w['same'])
+        self.assertEqual(w['weeks_used'], w['weeks_all'])            # 書き出しは使う期間だけ
+        self.assertGreater(m['clock']['split_weeks'], 0)
+        self.assertEqual(m['clock']['frac_athens_split'], 1.0)
         # 第1段の取引一覧と、第2段で走らせ直した komo135 の取引は同じ
         t1 = pd.read_csv(os.path.join(self.s1, 'stage1_trades.csv.gz'), dtype=str, keep_default_na=False)
         t2 = pd.read_csv(os.path.join(self.s2, 'stage2_trades.csv.gz'), dtype=str, keep_default_na=False)
@@ -1372,27 +1644,38 @@ class TestEndToEnd(unittest.TestCase):
         return tf, T
 
     def test_compare_with_stage1_detects_change(self):
-        """§7.2: 関門は第1段の U-D の v1.1 の取引一覧。それ以外の差は逸脱として記録する（関門は通す）"""
+        """§7.2: 関門は第1段の U-D の v1.1 の取引一覧と、その判定の印（接触の申告）。それ以外の差は逸脱として記録する（関門は通す）"""
         tf, T = self.stage1_frames()
-        r = v.compare_with_stage1(tf, T, self.spec)
-        self.assertTrue(r['all_match'] and r['gate_ok'])
+        c, _ = v.parse_contact(v.dry_manifest(self.spec), required=False)    # 第1段と同じ仮の申告
+        r = v.compare_with_stage1(tf, T, self.spec, c)
+        self.assertTrue(r['all_match'] and r['gate_ok'] and r['contact_ok'])
         self.assertGreater(r['gate']['stage1'], 0)
+        self.assertEqual(r['ud_judged']['stage1'], r['ud_judged']['stage2'])
+        self.assertEqual(r['ud_judged']['stage1'], self.r1['stop']['trades'])
         main = T[v.MAIN]
         ud = (main['entry_time'] >= pd.Timestamp(self.spec['ud'][0])).to_numpy()
         self.assertTrue(ud.any() and not ud.all())
         for cfg, row, gate_ok in ((v.REF, 0, True), (v.MAIN, int(np.argmin(ud)), True), (v.MAIN, int(np.argmax(ud)), False)):
             _, T2 = self.stage1_frames()
             T2[cfg].loc[row, 'pnl_r'] += 1e-12
-            r = v.compare_with_stage1(tf, T2, self.spec)
+            r = v.compare_with_stage1(tf, T2, self.spec, c)
             self.assertFalse(r['all_match'], (cfg, row))
-            self.assertEqual(r['gate_ok'], gate_ok, (cfg, row))
+            self.assertEqual((r['gate_ok'], r['contact_ok']), (gate_ok, gate_ok), (cfg, row))
             self.assertEqual(r['configs'][cfg]['first_difference']['row'], row)
-            self.assertTrue(all(x['match'] for c, x in r['configs'].items() if c != cfg))
+            self.assertTrue(all(x['match'] for c_, x in r['configs'].items() if c_ != cfg))
         _, T2 = self.stage1_frames()
         T2[v.MAIN] = T2[v.MAIN].drop(index=int(np.flatnonzero(ud)[-1]))   # U-D の取引が1件足りない
-        r = v.compare_with_stage1(tf, T2, self.spec)
+        r = v.compare_with_stage1(tf, T2, self.spec, c)
         self.assertFalse(r['gate_ok'])
         self.assertEqual(r['gate']['stage1'] - r['gate']['stage2'], 1)
+        c2 = json.loads(json.dumps(v.dry_manifest(self.spec)))             # 取引は同じでも、U-D の申告を変えると印が変わる
+        c2['contact']['excluded'].append(ent('*', self.spec['ud'][0], self.spec['ud'][1], '仮: U-D に足した'))
+        c2, _ = v.parse_contact(c2, required=False)
+        r = v.compare_with_stage1(tf, T, self.spec, c2)
+        self.assertTrue(r['gate_ok'] and r['all_match'])
+        self.assertFalse(r['contact_ok'])
+        self.assertEqual(r['ud_judged']['stage2'], 0)
+        self.assertIn('contact', r['contact_flags']['first_difference']['stage1'])
 
     def test_stage2_in_stage1_folder(self):
         """第1段と同じ出力フォルダで第2段を走らせる（--stage1-dir を省く）。結果は第1段を別のフォルダから読んだときと同じ"""
@@ -1451,15 +1734,18 @@ class TestProductionPath(unittest.TestCase):
         git = mock.patch.object(v, 'git_state', return_value=v.git_state())
         git.start()
         cls.addClassCleanup(git.stop)
+        # 第2段の記録: 第1段の記録（除外なし）はそのままで、U-E の期間（U-D の終わりより後）の確認だけを書き足したもの
         cls.man = json.loads(json.dumps(cls.inp['manifest']))
-        cls.man['contact']['asked_on'] = '2026-11-01'
+        cls.man['contact'] = {'asked_on': '2026-11-02', 'summary': '仮: 第2段の前の確認（U-E の期間）',
+                              'excluded': [ent('XAUUSD', '2017-01-09', '2017-01-31', '仮: fusion 系を見た（U-E）')],
+                              'partial': [ent('USDJPY', '2017-02-01', '2017-02-14', '仮: 旧 EA の通知')]}
         cls.out = os.path.join(cls.tmp, 'out')
         real_stop = v.stop_rule
         c = OrderedDict(asked_on='2026-11-01', summary='見ていない', excluded=[], partial=[])
         with mock.patch.object(v, 'prereg_stage1_contact', return_value=(c, [])), \
                 mock.patch.object(v, 'stop_rule', side_effect=lambda ud: OrderedDict(real_stop(ud), stop=False)):
             cls.r1 = v.run_stage1(komo_dir=cls.inp['komo_dir'], out_dir=cls.out, workers=1, spec=cls.spec,
-                                  log=lambda s: None, require_clean_git=False)
+                                  log=lambda s: None, require_clean_git=False, today='2026-11-01')
         cls.r2 = cls.stage2(cls.out)
 
     @classmethod
@@ -1485,7 +1771,7 @@ class TestProductionPath(unittest.TestCase):
         m = self.r1['meta']
         self.assertFalse(m['dry_run'])
         self.assertTrue(m['contact']['source'].startswith('事前登録'))
-        self.assertEqual(m['contact']['asked_on'], '2026-11-01')
+        self.assertEqual((m['contact']['asked_on'], m['run_date']), ('2026-11-01', '2026-11-01'))
         with open(os.path.join(self.out, 'stage1_report.md'), encoding='utf-8') as f:
             rep = f.read()
         self.assertTrue(rep.startswith('# FUSION-CORE v1.1 第1段'))
@@ -1505,10 +1791,19 @@ class TestProductionPath(unittest.TestCase):
         self.assertTrue(m['stage1_consistency']['gate_ok'] and m['stage1_consistency']['all_match'])
         self.assertTrue(m['ue_windows']['ok'])
         self.assertEqual(m['contact']['source'], '記録ファイル（--manifest）')
+        self.assertTrue(m['stage1_consistency']['contact_ok'] and m['stage1_consistency']['ud_judged']['match'])
+        k = m['stage1_link']
+        self.assertEqual((k['stage1_run_date'], k['asked_on'], k['run_date'], k['contact_ud_changes']),
+                         ('2026-11-01', '2026-11-02', '2026-11-02', []))
+        tr = pd.read_csv(os.path.join(self.out, 'stage2_trades.csv.gz'), keep_default_na=False)
+        self.assertEqual(set(tr.loc[tr['contact'] != '', 'pool']), {'U-E'})     # 第2段で書き足した申告は U-E にだけ働く
         with open(os.path.join(self.out, 'stage2_report.md'), encoding='utf-8') as f:
             rep = f.read()
         self.assertTrue(rep.startswith('# FUSION-CORE v1.1 第2段'))
         self.assertIn('実行した日：2026-11-02', rep)
+        for word in ('第1段の実行日 2026-11-01', '第2段の前の確認 2026-11-02', 'の申告の働きは第1段と同じ',
+                     'その判定の印（接触の申告）は全件一致', '独立とみなした値'):
+            self.assertIn(word, rep)
         with self.assertRaises(SystemExit) as cm:
             self.stage2(self.out)
         self.assertIn('1回だけ', str(cm.exception))
@@ -1529,8 +1824,8 @@ class TestProductionPath(unittest.TestCase):
         out = self.copy_stage1('gate')
         real = v.compare_with_stage1
 
-        def broken(path, T, spec):
-            r = real(path, T, spec)
+        def broken(path, T, spec, contact):
+            r = real(path, T, spec, contact)
             return OrderedDict(r, gate_ok=False)
         with mock.patch.object(v, 'compare_with_stage1', side_effect=broken):
             with self.assertRaises(SystemExit) as cm:
@@ -1546,6 +1841,28 @@ class TestProductionPath(unittest.TestCase):
         with open(os.path.join(out, 'stage2_run.log'), encoding='utf-8') as f:
             text = f.read()
         self.assertIn('=== 実行 第2回（走らせ直し。理由: テスト: 関門の失敗を直した） ===', text)
+
+    def test_stage2_ud_contact_change_stops(self):
+        """第2段の記録で U-D の期間に除外を足すと、本番は何も計算しないうちに止まる（第1段の記録を正とする）。
+        実行前の確認をすり抜けても、走らせ直した U-D の v1.1 の取引の判定の印が第1段と違えば、関門と同じく判定しない"""
+        out = self.copy_stage1('ud_contact')
+        man = json.loads(json.dumps(self.man))
+        man['contact']['excluded'].append(ent('*', '2016-07-01', '2016-10-31', '仮: U-D の期間に足した'))
+        with mock.patch.object(v, 'Runner') as rn:
+            with self.assertRaises(SystemExit) as cm:
+                self.stage2(out, manifest=man)
+            rn.assert_not_called()
+        self.assertIn('U-D の期間', str(cm.exception))
+        with mock.patch.object(v, 'contact_ud_changes', return_value=[]):    # 実行前の確認をすり抜けたとき
+            with self.assertRaises(SystemExit) as cm:
+                self.stage2(out, manifest=man)
+        self.assertIn('判定の印（接触の申告）が第1段と違う', str(cm.exception))
+        with open(os.path.join(out, 'stage2_stage1_mismatch.json'), encoding='utf-8') as f:
+            js = json.load(f)
+        self.assertTrue(js['gate_ok'])
+        self.assertFalse(js['contact_ok'])
+        self.assertLess(js['ud_judged']['stage2'], js['ud_judged']['stage1'])
+        self.assertFalse(os.path.exists(os.path.join(out, 'stage2_results.json')))
 
 
 if __name__ == '__main__':
