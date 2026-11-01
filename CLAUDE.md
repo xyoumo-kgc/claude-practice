@@ -15,6 +15,9 @@
 | `video_gen/` | AI 動画生成のサンプル CLI（Replicate） | Python |
 | `virtual-office/` | 稼働状況と Claude 使用量のダッシュボード（サーバー不要の HTML） | HTML/JS |
 | `x-article-*.md` | X（旧 Twitter）記事のプロンプトテンプレと検証メモ | |
+| `fusion/` | FX 融合システム FUSION-CORE の仕様・参照実装・事前登録した検証（最終検証は不合格） | Python |
+| `mt5/` | MetaTrader 5 の EA（FUSION-CORE・旧 4P）と、MetaEditor なしでエンジン部を照合する道具 | MQL5 / C++ |
+| `dashboard/`, `fx_*.py` | FX のダッシュボードと旧システムのバックテスト | Python（Streamlit）/ HTML |
 | `.claude/skills/` | 再利用するスキル（下記） | |
 
 ## 使えるスキル
@@ -24,6 +27,7 @@
 | `proposal` | ヒアリング内容 → 3D シーン JSON・提案書 PDF の下地・見積内訳の下書き |
 | `narration` | 標準ナレーション音声（ja-JP-NanamiNeural / +2%）の生成 |
 | `fx-analyze` | FX のマルチタイムフレーム分析（4 パターン判定）※ 投資は自己責任 |
+| `fx-fusion` | FX 融合システム FUSION-CORE の判定（賢人 × 100億の共通ルール）※ 最終検証は不合格。裁量の補助で、投資は自己責任 |
 
 新しく型化したものは**必ず `.claude/skills/` に置いて `master` に入れる**こと。
 機能ブランチに置いたままだと、次のセッションから呼び出せません。
@@ -55,6 +59,16 @@ npm test              # スキル検証 + E2E
 （`.github/workflows/ci.yml`）で PR ごとに自動実行される。
 E2E は `tests/e2e/`、スキルの検証は `tests/skills/`。画面の挙動を変えたら、
 対応するテストを足すか更新して、確認結果を PR に書く。
+
+### FX ツール（`fusion/`・`mt5/`）
+
+```bash
+python3 -m unittest discover -s fusion/tests -t .                  # 参照実装・照合ハーネス・評価スクリプトのテスト
+FUSION_DATA_DIR=<H1 足のフォルダ> bash mt5/engine_check/run.sh quick  # EA のエンジン部と Python の照合（g++ が必要）
+```
+
+- `fusion/SPEC.md` は凍結。判定を変える改良は v1.1 として事前登録し（`fusion/PREREGISTRATION.md` と同じ手順）、新しい未接触データで1回だけ評価する。
+- 相場データ（1分足・H1 足の CSV）はコミットしない。入手と変換の手順は `fusion/README.md` にある。
 
 ## 進め方
 
