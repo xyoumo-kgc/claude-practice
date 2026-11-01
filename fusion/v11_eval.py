@@ -1,7 +1,7 @@
 """
 FUSION-CORE v1.1 の評価（事前登録 fusion/PREREGISTRATION_v1_1.md のとおりに、各段で1回だけ実行する）
 
-  第1段: python -m fusion.v11_eval stage1 --komo-dir DIR --manifest JSON --out OUT [--workers 4]
+  第1段: python -m fusion.v11_eval stage1 --komo-dir DIR --out OUT [--workers 4] [--manifest JSON]
   第2段: python -m fusion.v11_eval stage2 --komo-dir DIR --mt5-dir DIR2 --manifest JSON --out OUT [--workers 4]
   ドライラン（開発データだけを使う。数値は無意味）:
          python -m fusion.v11_eval stage1 --dry-run --dev-dir ISDATA --out OUT
@@ -10,8 +10,9 @@ FUSION-CORE v1.1 の評価（事前登録 fusion/PREREGISTRATION_v1_1.md のと�
 入力
   --komo-dir    komo135/forex-historical-data の1時間足。<銘柄>h1.csv が並んだフォルダか、リポジトリの形（<銘柄>/<銘柄>h1.csv）
   --mt5-dir     利用者の MT5 から書き出した <12銘柄の名前>_H1.csv（§3.2。MT5 の既定のタブ区切り <DATE> <TIME> <OPEN> … でよい）
-  --manifest    §2・§3.2 の記録（JSON。下の「記録ファイル」）。第1段も要る（§7.1「§2 の利用者への確認を記録してから」。
-                U-D の接触の申告が打ち切りの判定に効くため）。第1段は contact だけを使う
+  --manifest    §2・§3.2 の記録（JSON。下の「記録ファイル」）。第2段は必須。第1段は contact だけを使い、省いたときは
+                事前登録 §2 の「第1段の前の確認の結果（日付）」の項目を記録として使う（「除外も「一部汚れ」の記録もなし」と
+                書かれているときだけ。除く銘柄×期間があるなら --manifest で渡す。§7.1「§2 の確認を記録してから」）
   --out         出力フォルダ。第1段と第2段で同じフォルダを使う（第2段は、そこにある第1段の出力を読んで確かめる）
   --stage1-dir  第2段だけ。第1段の出力が --out と別のフォルダにあるときに指す（既定は --out）。第2段は、第1段の判定
                 （打ち切りなら第2段は行わない）・取引一覧の SHA-256・komo135 のファイルの SHA-256・接触の申告・コードを確かめ、
@@ -143,6 +144,8 @@ EVAL_FILES = list(fe.EVAL_FILES) + [PREREG, 'fusion/v11_eval.py']
 REF_TRADES = os.path.join(ROOT, 'fusion', 'results', 'final_eval_trades_main.csv.gz')
 FROZEN_MARK = 'まだ凍結していない'                     # 事前登録の冒頭の注記。凍結するときに消す（残っていれば本番は走らない）
 STAGE2_DEADLINE = pd.Timestamp('2027-02-01')         # §7.2: この日までに第2段を行えなければ「未決」のまま閉じる
+STAGE1_CONTACT_RE = re.compile(r'第1段の前の確認の結果（(\d{4}-\d{2}-\d{2})）')   # 事前登録 §2 に書いた第1段の前の確認
+NO_CONTACT_MARK = '除外も「一部汚れ」の記録もなし'      # その記録が「除く銘柄×期間がない」と言っていること
 
 PRICE = ['Open', 'High', 'Low', 'Close']
 BASE_COLS = ['symbol', 'entry_time', 'exit_time', 'direction', 'entry', 'initial_sl', 'risk', 'pnl_r', 'exit_reason',
@@ -751,7 +754,7 @@ def dry_manifest(spec):
     syms = list(spec['dry_alias'])
     return {
         'contact': {
-            'asked_on': '（ドライラン）', 'summary': 'ドライラン用の仮の申告。実在の確認ではない',
+            'asked_on': 'ドライラン', 'summary': 'ドライラン用の仮の申告。実在の確認ではない',
             'excluded': [per(syms[0], 'ud', 0.6, 0.08, '仮: fusion 系を見た（U-D）'),
                          per(syms[1], 'ue', 0.3, 0.08, '仮: fusion 系を見た（U-E）')],
             'partial': [per('*', 'ud', 0.15, 0.08, '仮: 覚えていない'),
@@ -1304,7 +1307,7 @@ def text_rows(df, cols):
 def _same_rows(x, y):
     """文字列にした取引の表どうしが全件一致するか。違えば最初の食い違い"""
     x, y = x.reset_index(drop=True), y.reset_index(drop=True)
-    same = len(x) == len(y) and x.equals(y)
+    same = len(x) == len(y) and (len(x) == 0 or x.equals(y))     # 0件どうしは列の型によらず一致
     first = None
     if not same:
         for i in range(min(len(x), len(y))):
@@ -1389,6 +1392,33 @@ def prereg_problems(path=None):
     if FROZEN_MARK in text:
         return [f'事前登録 {PREREG} に「{FROZEN_MARK}」の注記が残っている（凍結し、注記を消してコミットしてから実行する）']
     return []
+
+
+def prereg_stage1_contact(path=None):
+    """第1段で記録ファイルを渡さないときの §2 の確認の記録: 事前登録 §2 の「第1段の前の確認の結果（日付）」の項目。
+    「除外も「一部汚れ」の記録もなし」と書かれているときだけ使う（除く銘柄×期間があるなら --manifest で渡す）。
+    戻り値 (contact, 問題)"""
+    path = path or os.path.join(ROOT, PREREG)
+    try:
+        with open(path, encoding='utf-8') as f:
+            lines = f.read().split('\n')
+    except OSError as e:
+        return None, [f'事前登録 {PREREG} が読めない（{e}）']
+    for i, ln in enumerate(lines):
+        m = STAGE1_CONTACT_RE.search(ln)
+        if not m:
+            continue
+        para = [ln.strip()]
+        for nxt in lines[i + 1:]:                              # 箇条書きの続きの行（字下げ2つ）まで
+            if not nxt.startswith('  ') or nxt.lstrip().startswith('- ') or not nxt.strip():
+                break
+            para.append(nxt.strip())
+        text = ''.join(para).replace('**', '').lstrip('- ').strip()
+        if NO_CONTACT_MARK not in text:
+            return None, [f'事前登録 §2 の第1段の前の確認の結果が「{NO_CONTACT_MARK}」でない'
+                          '（除く銘柄×期間は --manifest の contact で渡す）']
+        return OrderedDict(asked_on=m.group(1), summary=f'事前登録 {PREREG} §2 の記録：{text}', excluded=[], partial=[]), []
+    return None, ['§2 の利用者への確認の記録がない（--manifest で渡すか、事前登録 §2 に「第1段の前の確認の結果（日付）」を書く）']
 
 
 def deadline_problems(today=None):
@@ -1561,8 +1591,14 @@ def run_stage1(komo_dir=None, out_dir=None, manifest=None, workers=4, dry_run=Fa
         if not komo_dir:
             raise SystemExit('[v11_eval] --komo-dir が要る')
         ref_path = spec['ref_trades']
-    man = load_manifest(manifest)
-    contact, cp = parse_contact(man, required=not dry)
+    if manifest is None and not dry:                           # 事前登録 §2 に書いた第1段の前の確認の結果を使う
+        contact, cp = prereg_stage1_contact()
+        contact = contact or OrderedDict(asked_on='', summary='', excluded=[], partial=[])
+        contact_source = f'事前登録 {PREREG} §2'
+    else:
+        contact, cp = parse_contact(load_manifest(manifest), required=not dry)
+        contact_source = 'ドライランの仮の記録' if dry else '記録ファイル（--manifest）'
+    contact['source'] = contact_source
     problems += cp
     gstate = git_state()
     files, infos, missing = _load_komo_all(komo_dir, spec, dry, problems, L)
@@ -1770,6 +1806,7 @@ def run_stage2(komo_dir=None, mt5_dir=None, manifest=None, out_dir=None, stage1_
         ref_path = spec['ref_trades']
     man = load_manifest(manifest)
     contact, cp = parse_contact(man, required=not dry)
+    contact['source'] = 'ドライランの仮の記録' if dry else '記録ファイル（--manifest）'
     broker, smap, mp_ = parse_stage2_manifest(man, required=not dry)
     problems += cp + mp_
     gstate = git_state()
@@ -2069,7 +2106,8 @@ def _git_lines(m):
 
 
 def _contact_lines(c):
-    L = [f"- §2 の利用者への確認：{c.get('asked_on') or '（記録なし）'}。{c.get('summary') or ''}"]
+    src = f"（{c['source']}）" if c.get('source') else ''
+    L = [f"- §2 の利用者への確認{src}：{c.get('asked_on') or '（記録なし）'}。{c.get('summary') or ''}"]
     for key, lab in (('excluded', '判定から除いた銘柄×期間（fusion 系を見た）'), ('partial', '「一部汚れ」（旧 EA・覚えていない）')):
         items = c.get(key) or []
         L.append(f'- {lab}：' + ('、'.join(f"{e['symbol']} {e['from']}〜{e['to']}（{e['reason']}）" for e in items)
@@ -2229,7 +2267,7 @@ def _stage1_lines(m):
         code = '**第1段のコミットとの差分を git で確かめられなかった**'
     L = [f"- 第1段：{s1.get('verdict')}。第1段のコミット `{s1.get('commit')}`（{code}）"]
     miss = k.get('contact_missing') or []
-    L.append('- 接触の申告：第1段の記録（' + (k.get('stage1_asked_on') or '—') + '）は第2段の記録に'
+    L.append('- 接触の申告：第1段の記録（確かめた日：' + (k.get('stage1_asked_on') or '—') + '）は第2段の記録に'
              + ('すべて含まれている' if not miss else '**含まれていないものがある：' + '、'.join(miss) + '**'))
     if sc:
         bad = [c for c, x in sc['configs'].items() if not x['match']]
@@ -2384,8 +2422,8 @@ def main(argv=None):
     sub = ap.add_subparsers(dest='stage', required=True)
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument('--komo-dir', help='komo135 の1時間足（<銘柄>h1.csv が並んだフォルダか、<銘柄>/<銘柄>h1.csv の形）')
-    common.add_argument('--manifest', help='§2・§3.2 の記録（JSON。形式は下）。本番では第1段・第2段とも必須'
-                                           '（第1段は contact だけを使う）')
+    common.add_argument('--manifest', help='§2・§3.2 の記録（JSON。形式は下）。本番の第2段は必須。第1段は contact だけを使い、'
+                                           '省くと事前登録 §2 の「第1段の前の確認の結果」を使う')
     common.add_argument('--out', required=True, help='出力フォルダ。第1段と第2段で同じフォルダを使う'
                                                      '（その段の結果のファイルがすでにあると本番は走らない）')
     common.add_argument('--workers', type=int, default=4, help='並列の数（既定4）')

@@ -4,7 +4,8 @@
 2013〜2017 の OANDA。fusion.data.prepare_oanda で作ったもの）から作った合成ファイルと、手で作った取引だけで確かめる。
 FUSION_DATA_DIR がないときは、同じ暦（NY+7 の月曜0時〜金曜23時）の合成の足を使う。
 
-FUSION_KOMO_DIR（komo135 の <銘柄>h1.csv のフォルダ）があれば、EURUSD の時刻の列だけを読むテストも走る（価格の列は読まない）。
+FUSION_KOMO_DIR（komo135 の <銘柄>h1.csv のフォルダ）があれば、各銘柄の時刻の列だけを読むテストも走る
+（価格の列は読まない。戦略も走らせない。本番の実行前の確認が時刻の理由で止まらないことと、時刻の換算を確かめる）。
 """
 import json
 import math
@@ -252,10 +253,14 @@ class TestTables(unittest.TestCase):
                 fs.S_NOM['EURUSD'] = 0.0001
 
     def test_v10_naive_sequence_unchanged(self):
-        """7銘柄の素朴ベースラインの乱数の系列は v1.0 と同じ（表を足しても 7銘柄の番号は変わらない）"""
-        for sym in ('EURUSD', 'XAUUSD'):
-            h = dev_h1(sym, '2016-01-01', '2016-05-01')
-            cfg = fs.config(v.naive_name(0.05, 7))
+        """7銘柄の素朴ベースラインの乱数の系列は v1.0 と同じ（表を足しても 7銘柄の番号は変わらない）。
+        開発データのない AUDUSD・USDCAD・AUDJPY は、別の銘柄の足に名前を付け替えて走らせる"""
+        alias = {'EURUSD': 'EURUSD', 'GBPUSD': 'GBPUSD', 'EURJPY': 'EURJPY', 'AUDUSD': 'EURUSD', 'USDCAD': 'GBPUSD',
+                 'AUDJPY': 'EURJPY', 'XAUUSD': 'XAUUSD'}
+        self.assertEqual(sorted(alias), sorted(v.USED))
+        cfg = fs.config(v.naive_name(0.05, 7))
+        for sym in v.USED:
+            h = dev_h1(alias[sym], '2016-01-01', '2016-05-01')
             before, _ = fs.run_h1(h, sym, cfg)                     # v1.0 のまま
             with v.tables_installed(), v.job_tables('komo', sym, v.naive_name(0.05, 7)):
                 after, _ = fs.run_h1(h, sym, cfg)
@@ -508,7 +513,7 @@ class TestKomoLoading(unittest.TestCase):
 @unittest.skipUnless(KOMO_DIR and os.path.exists(os.path.join(KOMO_DIR or '', 'EURUSDh1.csv')),
                      'FUSION_KOMO_DIR（komo135 の EURUSDh1.csv）がない')
 class TestKomoTimesOnly(unittest.TestCase):
-    """komo135 の EURUSD の時刻の列だけを読む（価格の列は読まない。戦略は走らせない）"""
+    """komo135 の時刻の列（Date）だけを読む（価格の列は読まない。戦略は走らせない）"""
 
     def test_weeks_end_at_23_after_conversion(self):
         t = pd.DatetimeIndex(pd.to_datetime(pd.read_csv(os.path.join(KOMO_DIR, 'EURUSDh1.csv'), usecols=['Date'])['Date'],
@@ -1030,10 +1035,39 @@ class TestProductionGuards(unittest.TestCase):
         self.assertIn('komo135 のファイルがない銘柄', msg)
         self.assertIn('行数', msg)
         self.assertFalse(os.path.exists(os.path.join(self.tmp, 'out', 'stage1_run.log')))
-        self.assertIn('contact', self.run1(manifest=None, require_clean_git=False))
+        self.assertIn('contact', self.run1(manifest={'broker': {}}, require_clean_git=False))
+        with mock.patch.object(v, 'prereg_stage1_contact', return_value=(None, ['§2 の確認の記録がない'])):
+            self.assertIn('§2 の確認の記録がない', self.run1(manifest=None, require_clean_git=False))
+        c = OrderedDict(asked_on='2026-11-01', summary='見ていない', excluded=[], partial=[])
+        with mock.patch.object(v, 'prereg_stage1_contact', return_value=(c, [])):
+            self.assertNotIn('記録', self.run1(manifest=None, require_clean_git=False))
         dirty = dict(v.git_state(), eval_files_dirty=['fusion/v11_eval.py'])
         with mock.patch.object(v, 'git_state', return_value=dirty):
             self.assertIn('fusion/v11_eval.py', self.run1())
+
+    def test_stage1_contact_from_prereg(self):
+        """第1段で記録ファイルを渡さないときは、事前登録 §2 の「第1段の前の確認の結果（日付）」を使う（除く銘柄×期間がないときだけ）"""
+        p = os.path.join(self.tmp, 'prereg.md')
+
+        def write(body):
+            with open(p, 'w', encoding='utf-8') as f:
+                f.write('## 2. 接触の申告\n\n- 確認の方法\n' + body + '- 「新しい」とは…\n\n## 3. データ\n')
+        write('- **第1段の前の確認の結果（2026-11-01）**：利用者の回答は「見ていない」。\n'
+              '  よって U-D は、除外も「一部汚れ」の記録もなしに、未接触として判定に使う。\n')
+        c, problems = v.prereg_stage1_contact(p)
+        self.assertEqual(problems, [])
+        self.assertEqual((c['asked_on'], c['excluded'], c['partial']), ('2026-11-01', [], []))
+        self.assertIn('見ていない', c['summary'])
+        self.assertNotIn('新しい', c['summary'])                    # 次の項目は含めない
+        write('- **第1段の前の確認の結果（2026-11-01）**：EURUSD の 2021 年を EA のパネルで見た。\n')
+        self.assertIsNone(v.prereg_stage1_contact(p)[0])
+        self.assertIn('--manifest', v.prereg_stage1_contact(p)[1][0])
+        write('')
+        self.assertIn('記録がない', v.prereg_stage1_contact(p)[1][0])
+        self.assertIn('読めない', v.prereg_stage1_contact(os.path.join(self.tmp, 'none.md'))[1][0])
+        c, problems = v.prereg_stage1_contact()                    # いまの事前登録（記録があれば日付を読む）
+        if c is not None:
+            self.assertRegex(c['asked_on'], r'^\d{4}-\d{2}-\d{2}$')
 
     def test_results_are_not_overwritten(self):
         out = os.path.join(self.tmp, 'out')
@@ -1208,6 +1242,9 @@ class TestEndToEnd(unittest.TestCase):
         cls.tmp = tempfile.mkdtemp(prefix='v11_e2e_')
         cls.dev = make_dev_dir(os.path.join(cls.tmp, 'dev'), start='2016-01-01', end='2017-04-01')
         cls.spec = e2e_spec()
+        cls.git = mock.patch.object(v, 'git_state', return_value=v.git_state())   # テストの途中のコミットで出力が変わらないように
+        cls.git.start()
+        cls.addClassCleanup(cls.git.stop)
         cls.s1 = os.path.join(cls.tmp, 's1a')
         cls.r1 = v.run_stage1(out_dir=cls.s1, workers=1, dry_run=True, dev_dir=cls.dev, spec=cls.spec, log=lambda s: None)
         cls.s2 = os.path.join(cls.tmp, 's2a')
@@ -1397,6 +1434,118 @@ class TestEndToEnd(unittest.TestCase):
         self.assertFalse(os.path.exists(os.path.join(out, 'stage2_trades.csv.gz')))
         with open(os.path.join(out, 'stage2_report.md'), encoding='utf-8') as f:
             self.assertIn('判定：未決', f.read())
+
+
+class TestProductionPath(unittest.TestCase):
+    """本番（ドライランでない）の通り道を、開発データから作った合成の入力で通す（git・凍結の確認だけ省く。数値は無意味）。
+    第1段（記録ファイルなし → 事前登録 §2 の記録）→ 第2段（同じ出力フォルダ）、未決、§7.2 の関門で止まる、走らせ直し"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.tmp = tempfile.mkdtemp(prefix='v11_prod_')
+        dev = make_dev_dir(os.path.join(cls.tmp, 'dev'), start='2016-01-01', end='2017-04-01')
+        dspec = e2e_spec()
+        cls.inp = v.make_dry_inputs(dev, os.path.join(cls.tmp, 'in'), dspec, stage=2, log=lambda s: None)
+        cls.spec = dict(dspec, dry_run=False, dry_alias=None, mt5_clock=None, ref_trades=cls.inp['ref_trades'],
+                        min_symbols=3, min_symyears=0.5)
+        git = mock.patch.object(v, 'git_state', return_value=v.git_state())
+        git.start()
+        cls.addClassCleanup(git.stop)
+        cls.man = json.loads(json.dumps(cls.inp['manifest']))
+        cls.man['contact']['asked_on'] = '2026-11-01'
+        cls.out = os.path.join(cls.tmp, 'out')
+        real_stop = v.stop_rule
+        c = OrderedDict(asked_on='2026-11-01', summary='見ていない', excluded=[], partial=[])
+        with mock.patch.object(v, 'prereg_stage1_contact', return_value=(c, [])), \
+                mock.patch.object(v, 'stop_rule', side_effect=lambda ud: OrderedDict(real_stop(ud), stop=False)):
+            cls.r1 = v.run_stage1(komo_dir=cls.inp['komo_dir'], out_dir=cls.out, workers=1, spec=cls.spec,
+                                  log=lambda s: None, require_clean_git=False)
+        cls.r2 = cls.stage2(cls.out)
+
+    @classmethod
+    def stage2(cls, out, **kw):
+        args = dict(komo_dir=cls.inp['komo_dir'], mt5_dir=cls.inp['mt5_dir'], manifest=cls.man, out_dir=out, workers=1,
+                    spec=cls.spec, naive_p=[0.02], naive_seeds=[0, 1], log=lambda s: None, require_clean_git=False,
+                    today='2026-11-02')
+        args.update(kw)
+        return v.run_stage2(**args)
+
+    @classmethod
+    def tearDownClass(cls):
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def copy_stage1(self, name):
+        out = os.path.join(self.tmp, name)
+        os.makedirs(out)
+        for f in ('stage1_results.json', 'stage1_trades.csv.gz', 'stage1_report.md', 'stage1_run.log'):
+            shutil.copy(os.path.join(self.out, f), out)
+        return out
+
+    def test_stage1_production(self):
+        m = self.r1['meta']
+        self.assertFalse(m['dry_run'])
+        self.assertTrue(m['contact']['source'].startswith('事前登録'))
+        self.assertEqual(m['contact']['asked_on'], '2026-11-01')
+        with open(os.path.join(self.out, 'stage1_report.md'), encoding='utf-8') as f:
+            rep = f.read()
+        self.assertTrue(rep.startswith('# FUSION-CORE v1.1 第1段'))
+        self.assertNotIn('ドライラン', rep)
+        self.assertIn('**省いた（テスト用の設定）**', rep)
+        with open(os.path.join(self.out, 'stage1_run.log'), encoding='utf-8') as f:
+            self.assertTrue(f.readline().startswith('=== 実行 第1回 ==='))
+        with self.assertRaises(SystemExit) as cm:                  # 各段で1回だけ
+            v.run_stage1(komo_dir=self.inp['komo_dir'], out_dir=self.out, workers=1, spec=self.spec, log=lambda s: None,
+                         require_clean_git=False)
+        self.assertIn('1回だけ', str(cm.exception))
+
+    def test_stage2_production(self):
+        r, m = self.r2, self.r2['meta']
+        self.assertEqual((m['dry_run'], m['run_date'], m['stage1_dir']), (False, '2026-11-02', '.'))
+        self.assertIn(r['verdict']['label'], ('合格', '不合格'))
+        self.assertTrue(m['stage1_consistency']['gate_ok'] and m['stage1_consistency']['all_match'])
+        self.assertTrue(m['ue_windows']['ok'])
+        self.assertEqual(m['contact']['source'], '記録ファイル（--manifest）')
+        with open(os.path.join(self.out, 'stage2_report.md'), encoding='utf-8') as f:
+            rep = f.read()
+        self.assertTrue(rep.startswith('# FUSION-CORE v1.1 第2段'))
+        self.assertIn('実行した日：2026-11-02', rep)
+        with self.assertRaises(SystemExit) as cm:
+            self.stage2(self.out)
+        self.assertIn('1回だけ', str(cm.exception))
+
+    def test_stage2_undecided_in_production(self):
+        """最低限の量に届かなければ、本番は戦略を走らせずに「未決」と書く（ドライランは続ける）"""
+        out = self.copy_stage1('undecided')
+        with mock.patch.object(v, 'Runner') as rn:
+            r = self.stage2(out, spec=dict(self.spec, min_symbols=8))
+            rn.assert_not_called()
+        self.assertEqual((r['verdict']['label'], r['verdict']['status']), ('未決', 'undecided'))
+        self.assertFalse(os.path.exists(os.path.join(out, 'stage2_trades.csv.gz')))
+        with open(os.path.join(out, 'stage2_report.md'), encoding='utf-8') as f:
+            self.assertIn('最低限の量', f.read())
+
+    def test_stage2_gate_and_rerun(self):
+        """§7.2 の関門（U-D の v1.1 の取引一覧）で止まれば判定しない。結果のファイルができる前の失敗なので、理由を書けば走らせ直せる"""
+        out = self.copy_stage1('gate')
+        real = v.compare_with_stage1
+
+        def broken(path, T, spec):
+            r = real(path, T, spec)
+            return OrderedDict(r, gate_ok=False)
+        with mock.patch.object(v, 'compare_with_stage1', side_effect=broken):
+            with self.assertRaises(SystemExit) as cm:
+                self.stage2(out)
+        self.assertIn('§7.2', str(cm.exception))
+        self.assertTrue(os.path.exists(os.path.join(out, 'stage2_stage1_mismatch.json')))
+        self.assertFalse(os.path.exists(os.path.join(out, 'stage2_results.json')))
+        with self.assertRaises(SystemExit) as cm:                  # 理由なしには走らせ直さない
+            self.stage2(out)
+        self.assertIn('--rerun-reason', str(cm.exception))
+        r = self.stage2(out, rerun_reason='テスト: 関門の失敗を直した')
+        self.assertEqual(r['verdict']['label'], self.r2['verdict']['label'])
+        with open(os.path.join(out, 'stage2_run.log'), encoding='utf-8') as f:
+            text = f.read()
+        self.assertIn('=== 実行 第2回（走らせ直し。理由: テスト: 関門の失敗を直した） ===', text)
 
 
 if __name__ == '__main__':
